@@ -1,0 +1,102 @@
+* Functional Programming
+** Minimise Side Effects
+** Treat Data as Immutable
+** Avoiding Mutations
+*** Arrays
+    - Mutator methods should be avoided where possible.
+    -  useful non-mutator array methods include /concat/, /map/, /filter/, and /reduce/.
+*** Objects
+use /Object.assign/
+*** Notee on /const/
+const is useful, but it does not make your data immutable. It prevents your variables from being reassigned. These two things should not be conflated.
+** Pure Functions
+A pure function is a function that does not change the program’s state and does not produce an observable side effect. The output of a pure function relies solely on its input values. Wherever and whenever a pure function is called, its return value will always be the same when given the same inputs.
+** Function Composition
+Functions can be combined to form new functions through function composition
+** Partial Function Application
+Partial function application is the process of fixing the value of one or more of a function’s arguments, and then returning the function to be fully invoked later.
+#+BEGIN_SRC js2
+  const multiply = function ( x, y ) {
+    return x * y;
+  };
+
+  const partApply = function ( fn, x ) {
+    return function ( y ) {
+      fn( x, y );
+    };
+  };
+
+  const double = partApply( multiply, 2 );
+  const triple = partApply( multiply, 3 );
+  const quadruple = partApply( multiply, 4 );
+#+END_SRC
+** Currying
+Currying is the process of translating a function that takes multiple arguments into a series of functions that each take one argument.
+#+BEGIN_SRC js2
+  const multiply = function ( x, y ) {
+    return x * y;
+  };
+
+  const curry = function ( fn ) {
+    return function ( x ) {
+      return function ( y ) {
+        return fn( x, y );
+      };
+    };	
+  };
+
+  const curriedMultiply = curry( multiply );
+
+  const double = curriedMultiply( 2 );
+  const triple = curriedMultiply( 3 );
+  const quadruple = curriedMultiply( 4 );
+
+  console.log(triple( 6 )); // 18
+#+END_SRC
+Currying and partial application are conceptually similar (and you’ll probably never need both), but still distinct. The main difference is that currying will always produce a nested chain of functions that each accept only one argument, whereas partial application can return functions that accept more than one argument. This distinction is clearer when you compare their effects on functions that accept at least three arguments:
+#+BEGIN_SRC js2
+  const multiply = function ( x, y, z ) {
+	  return x * y * z;	
+  };
+
+  const curry = function ( fn ) {
+    return function ( x ) {
+      return function ( y ) {
+        return function ( z ) {
+          return fn( x, y, z );
+        };
+      };
+    };	
+  };
+
+  const partApply = function ( fn, x ) {
+    return function ( y, z ) {
+      return fn( x, y, z );
+    };
+  };
+
+  const curriedMultiply = curry( multiply );
+  const partiallyAppliedMultiply = partApply( multiply, 10 );
+
+  console.log(curriedMultiply( 10 )( 5 )( 2 )); // 100
+  console.log(partiallyAppliedMultiply( 5, 2 )); // 100
+#+END_SRC
+** Recursion
+A recursive function is a function that calls itself until it reaches a base condition. Recursive functions are highly declarative. They’re also elegant and very satisfying to write!
+#+BEGIN_SRC js2
+
+  const factorial = function ( n ) {
+    if ( n === 0 ) {
+      return 1;
+    }
+    return n * factorial( n - 1 );
+  };
+
+  console.log(factorial( 10 )); // 3628800
+#+END_SRC
+Using recursive functions in JavaScript requires some care. Every function call adds a new call frame to the call stack, and that call frame is popped off the call stack when the function returns. Recursive functions call themselves before they return, and so it’s very easy for a recursive function to exceed the limits of the call stack and crash the program.
+
+However, this can be avoided with tail call optimisation.
+** Tail Call Optimisation
+
+

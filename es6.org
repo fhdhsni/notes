@@ -1,0 +1,1129 @@
+* ES2015  
+** Default Parameters
+   #+BEGIN_SRC js
+  function foo(name = "Farhad") {
+    console.log(name);
+  }
+  foo("Jack");
+   #+END_SRC
+
+** Named Parameters
+   :NOTE:
+   At least one of named parameters should be provided or else we get an error. To get around this we can use default paramerers, like below
+   :END:
+   #+BEGIN_SRC js
+  function foo (arg1, { name, popular, expire, activeClass } = {}) {
+    console.log("arg1 = ", arg1);
+    console.log("activeClass = ", activeClass);
+    console.log("expire = ", expire);             /* undefined */
+    console.log("popular = ", popular);
+    console.log("name = ", name);
+  }
+
+  foo("hi", {
+    name: "farhad",
+    activeClass: "awesome",
+    popular: true,
+  });
+   #+END_SRC
+
+** Rest Paramerer
+   :NOTE:
+   1) Rest Paramerer must always be the last paramerer in a
+      function. Usually used in function definition.
+   2) rest paramerer is a real array. so it call be used by all array's methods. =map=, =reduce=, =forEach=...
+   :END:
+   #+BEGIN_SRC js
+     function sayHi (first, ...names) {
+       console.log(`Hello ${first}`);
+       names.forEach((name) => console.log(`Hi ${name}`));
+     }
+     sayHi("Jack", "Farhad", "Pouri");
+
+     // Hello Jack
+     // Hi Farhad
+     // Hi Pouri
+
+   #+END_SRC
+
+** Spread Operator
+   :NOTE:
+     The spread operator allows us to *split an Array* argument into individul elements. Usually used in function invoction
+   :END:
+   #+BEGIN_SRC js
+  function sayHi (name1, name2, name3) {
+    console.log(name1);
+    console.log(name2);
+    console.log(name3);
+  }
+  const names = ["Jack", "Farhad", "Pouri"];
+
+  sayHi(...names);                // sayHi function is now receiving individual arguments, not an Array
+
+  // Jack
+  // Farhad
+  // Pouri
+
+   #+END_SRC
+   #+BEGIN_SRC js
+   let numbers = [1, 4, 9, 2, 22];
+   Math.max.apply(null, numbers)   // 22
+   Math.max(...numbers);           // 22
+   #+END_SRC
+   #+BEGIN_SRC js
+     let numbers = ["one", "two", "three"];
+     let newNumbers = [...numbers, "four", "five", "six"];
+     console.log(newNumbers);        // [ 'one', 'two', 'three', 'four', 'five', 'six' ]
+   #+END_SRC
+** Arrow Functions
+   :NOTE:
+   1) Arrow functions bind to the scope of where they are *defined*,
+      not where they are used. aka *lexcial binding*. It simply means
+      they don't make a new =this= inside themselves.
+   2) It also does not bind its own =*arguments*=, =super=, or
+      =new.target=. Arrow functions are always anonymous. These function
+      expressions are best suited for non-method functions and they
+      can not be used as constructors.
+   :END:
+
+   #+BEGIN_SRC js
+       function foo(func) {
+         func();
+       }
+
+       function TagComponent(target, urlPath) { // our constructor function
+         this.targetElement = target;
+         this.urlPath = urlPath;
+       }
+
+       TagComponent.prototype.render = function () {
+         console.log(this.urlPath);
+         foo(() => {
+           console.log(this.targetElement); // =this= still refrer to TagComponent object
+         });
+       };
+
+       const tagComponent = new TagComponent("targetDiv", "/topics/17/tags");
+       tagComponent.render();
+     /*
+           /topics/17/tags
+           targetDiv
+     */
+   #+END_SRC
+
+   #+BEGIN_SRC js
+     var name = "not FARHAD!";
+     const farhad = {
+       name: "FARHAD",
+       sayName: () => {
+         console.log(`My name is ${this.name}`); // My name is not FARHAD!
+       },                                        // Because =this= refers to global object not =farhad= object
+     };
+
+     farhad.sayName();
+
+   #+END_SRC
+
+   #+BEGIN_SRC js
+  let hasArguments = function (arg) {
+    let hasNotArgument = () => {
+      console.log(arguments);     // like =this= arrow functions don't have their own =arguments= variable
+    }
+
+    hasNotArgument();
+  }
+
+  hasArguments("one", "two", "three"); // { '0': 'one', '1': 'two', '2': 'three' }
+
+#+END_SRC
+** The Object Initializer Shorthand
+   :NOTE:
+   We can remove duplicate variable names from object properties when
+   those properties have the *same name* as the variables being assigned
+   to them
+   :END:
+   #+BEGIN_SRC js
+  function buildUser(first, last) {
+    let fullname = `${first} ${last}`;
+    return {
+      first,
+      last,
+      fullname,
+    };
+  }
+   #+END_SRC
+** Object Destructuring
+   :NOTE:
+   1) We can use shorthand to assign *properties* from objects to local variables with the *same name*.
+   2) Not *all* properties have to be destructed all the time. We can explicitly select the ones we want.
+   :END:
+   #+BEGIN_SRC js
+  function buildUser(first, last) {
+    let fullname = `${first} ${last}`;
+    return {
+      first,
+      last,
+      fullname,
+    };
+  }
+
+  let {
+    first,
+    last,
+    fullname
+  } = buildUser("Farhad", "Hasani");
+
+  console.log(first);             // Farhad
+  console.log(last);              // Hasani
+  console.log(fullname);          // Farhad Hasani
+   #+END_SRC
+   
+   #+BEGIN_SRC js
+     function buildUser(first, last) {
+    let fullname = `${first} ${last}`;
+    return {
+      first,
+      last,
+      fullname,                 // we don't use fullname
+    };
+  }
+
+  let {
+    first: name,                // assigning =first= property of
+                                // returned object to local variable
+                                // =name=
+    last: family,
+  } = buildUser("Farhad", "Hasani");
+
+  console.log(name);             // Farhad
+  console.log(family);              // Hasani
+
+   #+END_SRC
+
+To assign an extracted variable to a new variable name you can do the following:
+#+BEGIN_SRC js
+  // structure
+  const obj = {"some property": "some value"};
+
+  // destructure
+  const {"some property": someProperty} = obj;
+  console.log(someProperty === "some value"); // true
+#+END_SRC
+   
+Additionally you can get deep data out of a structure using destructuring. This is shown in the following example:
+
+#+BEGIN_SRC js
+  const foo = { bar: { bas: 123 } };
+  const {bar: {bas}} = foo; // Effectively `var bas = foo.bar.bas;`
+  // another example => 
+  const person = {
+    name: {
+      firstName: {
+        fLetter: 'F',
+      },
+      lastName: 'Hasani',
+    },
+  };
+
+  const {name: {firstName: {fLetter}}} = person;
+
+  console.log(fLetter);           // F
+#+END_SRC
+
+** Array Destructuring
+   #+BEGIN_SRC js
+     let users = ["Farhad", "Pouri", "Jack"];
+     let [a, ,c] = users;            // note that unlike object
+                                     // destructuring we use brackets not
+                                     // currly braces
+
+     console.log(a);                 // Farhad
+
+     console.log(c);                 // Jack
+   #+END_SRC
+   or combinning with rest Params
+   #+BEGIN_SRC js
+   let users = ["Farhad", "Pouri", "Jack"];
+   let [a, ...rest] = users;
+   console.log(a);                 // Farhad
+   console.log(rest);              // ["Pouri", "Jack"]
+   #+END_SRC
+** Method Initializer Shorthand
+   :NOTE:
+   A new shorthand notation is available for adding a method to an object
+   where the keyword function is no longer necessary
+   :END:
+   #+BEGIN_SRC js
+     function buildUser(first, last, postCount) {
+       let fullname = `${first} ${last}`;
+       const ACTIVE_POST_COUNT = 10;
+       return {                      // using object initializer shorthand to return an object
+         first,
+         last,
+         fullname,
+         isActive() {               // using method initializer shorthand to define a method
+           return postCount >= ACTIVE_POST_COUNT;
+         },
+       };
+     }
+   #+END_SRC
+** Template String
+   :NOTE:
+   Template strings also offer a new way to write multi-line strings.
+   :END:
+   #+BEGIN_SRC js
+function foo() {
+  return "Farhad";
+}
+const family = "Hasani";
+console.log(`my Name is ${foo()} ${family}`);
+console.log(`hi
+             I am a multi line
+             string. Cool!`);
+   #+END_SRC
+** Object.assign
+   :NOTE:
+   The Object.assign() method is used to copy the values of all
+   enumerable own properties from one or more source objects to a target
+   object. It will return the target object.
+   :END:
+   #+BEGIN_SRC js
+  function countDownTimer(target, timeLeft, options = {}) {
+    let defaults = {
+      container: ".timer-dispaly",
+      timeUnit: "seconds",
+      clonedDataAttribute: "cloned",
+      timeoutClass: ".is-timeout",
+      timeoutSoonTime: 10,
+    };
+    let settings = Object.assign({}, defaults, options);
+    /*
+     ,*  {} is modified but =defaults= and =options= remain unchanged.
+     ,*/
+    console.log("  settings =\n ",   settings);
+    console.log("  defaults =\n ",   defaults);
+    console.log("  options =\n ",   options);
+  /*
+    settings =
+    { container: '.timer-dispaly',
+    timeUnit: 'seconds',
+    clonedDataAttribute: 'cloned',
+    timeoutClass: '.is-timeout',
+    timeoutSoonTime: 20 }
+
+    defaults =
+    { container: '.timer-dispaly',
+    timeUnit: 'seconds',
+    clonedDataAttribute: 'cloned',
+    timeoutClass: '.is-timeout',
+    timeoutSoonTime: 10 }
+
+    options =
+    { timeoutSoonTime: 20 }
+  ,*/
+  }
+  countDownTimer(null, null, {
+    timeoutSoonTime: 20,
+  });
+
+   #+END_SRC
+   #+BEGIN_SRC js
+     let person1 = {
+       name: "Farhad",
+       age: 24,
+     };
+     let person2 = Object.assign({}, person1, { name: "Pouri" }); // overriding =name= property
+
+     console.log(person2);           // { name: 'Pouri', age: 24 }
+   #+END_SRC
+** for...of
+   #+BEGIN_SRC js
+  let users = ["Farhad", "Pouri", "Jack"];
+  
+  for(let name of users) {
+    console.log(name);
+  }
+   #+END_SRC
+   #+RESULTS:
+   : Farhad
+   : Pouri
+   : Jack
+   : undefined
+
+** Array.find
+   :NOTE:
+   =Array.find= returns the *first element* in the array that satisfies a provided testing function.
+   :END:
+   #+BEGIN_SRC js
+     let users = [
+       { login: "Sam", admin: false },
+       { login: "Brook", admin: true },
+       { login: "Tyler", admin: true },
+     ];
+     let admin = users.find(user => user.admin); // Return *first* Object for which user.admin is =true=
+
+     console.log(admin);                         // { login: 'Brook', admin: true }
+
+   #+END_SRC
+** Array.from
+:NOTE:
+    The Array.from() method creates a new Array instance from an
+    array-like or iterable object.
+:END:
+#+BEGIN_SRC js
+function sum() {
+  arguments = Array.from(arguments) // =arguments= is an array-like
+                                    // object, hence it doesn't have
+                                    // array's method like reduce
+  let total = arguments.reduce((previous, current) => previous + current);
+  console.log(total);
+}
+
+sum(10, 20, 30);                // 60
+#+END_SRC
+** Array.findIndex
+:NOTE:
+  It's like find but it returns the index of first element that matches our criteria.
+:END:
+** String Key/Values With Map
+   :NOTE:
+   1) The =Map= object is a simple key/value data structure. Any value may
+      be used as either a key or a value, and objects are not converted to
+      strings.
+   2) Maps are iterable, so they can be used in a for...of loop. Each run
+      of the loop returns a *[key, value]* pair for an entry in the Map
+   :END:
+   #+BEGIN_SRC js
+  let user1 = { name: "Farhad" };
+  let user2 = { name: "Pouri" };
+
+  let totalReplies = new Map();
+
+  totalReplies.set(user1, 5);
+  totalReplies.set(user2, 42);
+
+  console.log(totalReplies.get(user1)); // 5
+  console.log(totalReplies.get(user2)); // 42
+
+  for (let [key, value] of totalReplies) { // Great use of array destructuring
+    console.log(key);
+    console.log(value);
+  }
+   #+END_SRC
+   #+BEGIN_SRC js
+   const person = new Map();
+
+   person.set("name", "Farhad");
+   person.set("family", "hsni");
+
+   console.log(
+   person.get("name"),           // Farhad
+   person.size,                  // 2
+   person.has("name"),           // true
+   person.delete("name"),        // true
+   person.has("name")            // false
+   );
+
+   #+END_SRC
+   #+BEGIN_SRC js
+     const person = new Map([
+       ["name", "Farhad"],
+       ["family", "hsni"]
+     ]);
+
+     console.log(
+       person.get("name"),           // Farhad
+       person.get("family"),         // hsni
+       person.size,                  // 2
+       person.has("name"),           // true
+       person.delete("name"),        // true
+       person.has("name")            // false
+     );
+   #+END_SRC
+   #+BEGIN_SRC js
+     const person = new Map([
+       ["name", "Farhad"],
+       ["family", "hsni"]
+     ]);
+
+     for(let key of person.keys()) {
+       console.log(key);
+     }
+     for(let key of person.values()) {
+       console.log(key);
+     }
+     // for(let key of person.entries()) {
+     //   console.log(key);
+     // }
+
+   #+END_SRC
+   #+RESULTS:
+   : name
+   : family
+   : Farhad
+   : hsni
+   : undefined
+
+** WeakMap
+   :NOTE:
+   1) The =WeakMap= is a type of =Map= where *only objects* can be passed as
+      keys. Primitive data types such as strings, numbers, booleans,
+      etc. are not allowed.
+   2) WeakMaps are *not iterable*, therefore they can't be used with for...of
+   3) WeakMaps are better with memory. Individual entries in a WeakMap
+      can be garbage collected while weakmap itself still exists.
+   :END:
+   #+BEGIN_SRC js
+let user = { name: "Farhad" };
+
+let mapSettings = new WeakMap();
+mapSettings.set(user, "AWESOME");
+
+console.log(mapSettings.get(user));
+
+   #+END_SRC
+** Using Set
+   :NOTE:
+   1) The =Set= object stores *unique* values of any type, whether primitive
+      values or object references.
+   2) =Set= objects are iterable, which means they can be used with =for...of= and destructuring.
+   :END:
+   #+BEGIN_SRC js
+  let tags = new Set();
+
+  tags.add("Farhad");
+  tags.add("Pouri");
+  tags.add("Pouri");
+
+  console.log(tags); // Set { 'Farhad', 'Pouri' }
+   #+END_SRC
+** WeakSet
+   :NOTE:
+   1) Only objects can be added to =WeakSet=
+   2) it's more efficient because it doesn't prevent garbagte collector
+      from collecting entries that are no longer used in other parts of
+      the system
+   3) We can't read values from weakset
+   :END: 
+   #+BEGIN_SRC js
+  let tags = new WeakSet();
+  let farhad = {
+    name: "Farhad"
+  }
+
+  tags.add(farhad);
+  console.log(tags.has(farhad));  // true
+   #+END_SRC
+** Class
+:NOTE:
+1) A new way of doing OOP in JS.
+2) method definition in classes looks just like the method initializer
+   shorthand in objects.
+3) The =constructor= method is a special method for creating and
+   initializing an object, which runs every time a new instance is
+   created with the =new= operator. 
+:END:
+*** good old constructor function
+[[file:ObjectOrientedJS.org][More info]]
+#+BEGIN_SRC js
+function SponsorWidget(name, description, url) {
+  this.name = name;
+  this.description = description;
+  this.url = url
+}
+
+SponsorWidget.prototype.render = function() {
+  // ...
+}
+
+let sponsorWidget = new SponsorWidget(name, desc, url);
+sponsorWidget.render();
+
+#+END_SRC
+
+*** new shinny =Class= syntax
+#+BEGIN_SRC js
+ class SponsorWidget {
+  constructor(name, description, url) {
+    this.name = name;
+    this.description = description;
+    this.url = url;
+  }
+  render() {
+    console.log(this.name);
+    console.log(this.description);
+    console.log(this.url);
+  }
+}
+
+let me = new SponsorWidget("farhad", "awesome", "github.com/fhdhsni");
+
+me.render()
+#+END_SRC
+
+*** using =extends= to inherit from base class
+:NOTE:
+1) The =extends= keyword is used to create a class that *inherits
+   methods and properties* from another class.
+2) The =super()= method runs the constructor function from the parent class.
+:END:
+
+#+BEGIN_SRC js
+  class Widget {
+    constructor(name, description, url) {
+      this.name = name;
+      this.description = description;
+      this.url = url;
+    }
+    render() {
+      return `${this.name} from ${this.url}`
+    }
+  }
+
+  class SponsorWidget extends Widget { // SponsorWidget class extends Widget class
+    constructor() {
+      super("Farhad", "Awesome", "github.com/fhdhsni"); // compulsory call of =Widget=
+                                                        // constructor function. Not doing this
+                                                        // yields an error. (ReferenceError: this is not defined)
+      this.onlyForSponsorWidget = "foo" // making SponsorWidget only stuff
+    }
+    who() {
+      console.log(`This is: ${super.render()}`); // using =super= object to call parent version of render.
+    }
+    render() {                    // overriding render method
+      console.log(`${this.name} is ${this.description}.`);
+    }
+  }
+  let farhad = new SponsorWidget();
+  farhad.who()                    // This is: Farhad from github.com/fhdhsni
+  farhad.render()                 // Farhad is Awesome.
+#+END_SRC
+*** Static method
+:NOTE:
+1) To use a method on a class without instantiating an instance we can
+   use =static= keyword before defining the method.
+:END:
+#+BEGIN_SRC js
+class Plane {
+  constructor() {
+    this.speed = 100;
+    this.wings = 2;
+  }
+  howFast() {
+    console.log("very fast");
+  }
+  static saySomething() {
+    console.log("something");
+  }
+}
+
+Plane.howFast();                // TypeError: Plane.howFast is not a function
+Plane.saySomething();           // something
+#+END_SRC
+** Modules
+*** default export
+mod.js
+#+BEGIN_SRC js
+  export default function (msg) { // exporting anonymous function
+    console.log(msg);
+  }
+#+END_SRC
+
+script.js
+#+BEGIN_SRC js
+  import func from "./mod";       // importing as local variable
+                                  // =func=. It can be named anything
+                                  // because we used =export default= in
+                                  // mod.js
+
+  func("hi");
+#+END_SRC
+
+*** named export
+
+mod.js
+#+BEGIN_SRC js
+  export function log(msg) {      // exporting a named function
+    console.log(msg);
+  }
+  export function add(a, b) {     // exporting a named function
+    console.log(a + b);
+  }
+#+END_SRC
+
+script.js
+#+BEGIN_SRC js
+  import { log, add } from "./mod.js"; // importing two exported function with their exact name. Name of variables must match.
+
+  log("Hi there!");
+  add(5, 10);
+#+END_SRC
+*** exporting at once and importing entire module as an object
+
+mod.js
+#+BEGIN_SRC js
+  function log(msg) {
+    console.log(msg);
+  }
+  function add(a, b) {
+    console.log(a + b);
+  }
+
+  export { log, add };            // exporting multiple functions at once
+
+#+END_SRC
+
+script.js
+#+BEGIN_SRC js
+  import * as myMod from "./mod.js"; // importing entire mod.js in myMod object
+
+  myMod.log("so what else?");
+  myMod.add(22, 20);
+#+END_SRC
+*** exporting constants
+
+mod.js
+#+BEGIN_SRC js
+const NAME = "FARHAD";
+
+export { NAME };
+#+END_SRC
+
+script.js
+#+BEGIN_SRC js
+import { NAME } from "./mod.js";
+
+console.log(NAME);
+#+END_SRC
+*** exporting class
+mod.js
+#+BEGIN_SRC js
+export default class Logger {
+  constructor(msg) {
+    this.msg = msg;
+  }
+  log() {
+    console.log(this.msg);
+  }
+  add(a, b) {
+    console.log(a + b);
+  }
+}
+#+END_SRC
+
+script.js
+
+#+BEGIN_SRC js
+import Myclass from "./mod";    // Because we used default in mod.js, here, we can use whatever name we like
+
+const instanceOfClass = new Myclass("Hi baby!");
+
+instanceOfClass.log();
+instanceOfClass.add(5, 10);
+#+END_SRC
+*** exporting class with named export
+mod.js
+#+BEGIN_SRC js
+   class Logger {
+     constructor(msg) {
+       this.msg = msg;
+     }
+     log() {
+       console.log(this.msg);
+     }
+     add(a, b) {
+       console.log(a + b);
+     }
+  }
+
+   export {                       // using named export
+    Logger,
+  };
+
+#+END_SRC
+
+script.js
+#+BEGIN_SRC js
+import { Logger } from "./mod";    // Because we used named export in mod.js, here, we have to use the exact same name
+
+const instanceOfClass = new Logger("hey honey!");
+
+instanceOfClass.log();
+instanceOfClass.add(22, 20);
+
+#+END_SRC
+*** using both named export and default export
+mod.js
+#+BEGIN_SRC js
+export default function () {
+  console.log("I'm default.");
+}
+
+export function named1() {
+  console.log("named1");
+}
+export const named2 = () => console.log("named2");
+#+END_SRC
+script.js
+#+BEGIN_SRC js
+  import def, { named1, named2 } from "./mod.js";
+
+  def();                          // I'm default.
+  named1();                       // named1
+  named2();                       // named2
+#+END_SRC
+** Promises
+:NOTE:
+1) The Promise constructor function takes an anonymous function
+   (/known as executor, which will be excuted immediately/) with 2
+   callback parameters known as handlers. (usually named =resolve= and
+   =reject=)
+2) Creating a new Promise automatically sets it to the =pending=
+   state. Then it can do 1 of 2 things:
+   + We can call =resolve= to fulfill a promise. (with an optional
+     value which will be passed to callback of =.then=)
+   + We can call =reject= to reject a promise. (with an optional value
+     which will be passed to callback of =.catch=)
+3) We can pass values from one =.then= to another =.then= by returning
+   those values from their callback.
+4) Once =reject= is executed, excution moves immediately to the
+   =catch()= function. None of the remaining =.then()= functions will
+   be invoked
+5) =Promise.all([/* promise1, promise2... */]= returns a
+   promise. It takes an array of promises and when all of those promises
+   fulfilled then it excutes callback of its =.then= method. If even
+   one of them is rejected callback of =.catch= will be excuted.
+6) =Promise.race([/* promise1, promise2... */]= returns a promise. It
+   takes an array of promises and as soon as one of them changes its
+   state (from pending to either resolved or reject) it excutes either
+   =.then(cb)= or =.catch(cb)=
+:END:
+
+#+BEGIN_SRC js
+function giveMyPromise(num) {
+  return new Promise((resolve, reject) => {
+    if (num >= 5) {
+      resolve("You won!");
+    }
+    reject("You lost!");
+  });
+}
+
+const randomNumber = parseInt(Math.random() * 10);
+giveMyPromise(randomNumber)
+  .then((val) => console.log(val))
+  .catch((error) => console.log(error))
+
+console.log(`
+Although this log is written 
+after promise but it will
+be excuted before promise`
+);
+#+END_SRC
+
+another example, using =XMLHttpRequest=
+#+BEGIN_SRC js
+  function getPollResultsFromServer(pollName) {
+    return new Promise((resolve, reject) => {
+      const url = `/results/${pollName}`;
+      const request = new XMLHttpRequest();
+
+      request.open("GET", url, true);
+      request.onload = function() {
+        if (request.status >= 200 && request.status < 400) {
+          resolve(JSON.parse(request.response)); // we fulfill the promise by call resolve
+        } else {
+          reject(new Error(request.status))
+        }
+
+      };
+      request.onerror = function() {
+        reject(new Error("Error Fetching Results"));
+      }
+      request.send();
+    });
+  }
+
+  getPollResultsFromServer("Sass vs. Less")
+    .then((result) => {
+      return results.filter((result) => result.city === "Orlando"); // returning value will be passed to next .then
+    }).
+    then((OrlandoResult) => {
+      // dealWithOrlandoResult(OrlandoResult)
+    })
+    .catch((error) => {
+      // dealWithError(error);
+    });
+
+#+END_SRC
+
+another example, reading file asynchronously
+#+BEGIN_SRC js
+  const fs = require('fs');
+
+  function readFileAsync(filename) {
+    return new Promise((resolve, reject) => {
+      fs.readFile(filename, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result.toString());
+        }
+      });
+    });
+  }
+
+  readFileAsync('test.ts')
+    .then(file => console.log(file))
+    .catch(err => console.log(err));
+#+END_SRC
+
+using Promise.all
+#+BEGIN_SRC js
+function loadItem(id) {
+  return new Promise(resolve => {
+    console.log(`Loading item ${id}`);
+    setTimeout(() => {
+      resolve({ id });
+    }, 1000);
+  });
+}
+
+Promise.all([loadItem(1), loadItem(2)])
+  .then(res => {
+    console.log('Done');
+    console.log(res);           // [ { id: 1 }, { id: 2 } ]
+  });
+#+END_SRC
+** Iterators
+:NOTE:
+Iterable return an *iterator* object. This object knows how to access
+items from a collection one at a time, while keeping track of its
+current position within the sequence.
+
+1) An example of *iterable* objects are Arrays, which means we can use
+   them with =for...of=.
+2) An example of "non-iterable" is plain JS objects, so they do not
+   work with =for...of= out-of-the-box.
+3) whats happening behind the scene of a =for...of= loop
+  #+BEGIN_SRC js
+    const names = ["Farhad", "Pouri", "Jack"];
+
+    // for (const name of names) {
+    //   console.log(name);
+    // // Farhad
+    // // Pouri
+    // // Jack
+    // }
+
+    /* this is what's happening behind the scene of a =for..of= */
+    const iterator = names[Symbol.iterator](); // it returns a object that has a =next= method on it
+
+    const firstRun = iterator.next();
+    console.log(firstRun);          // { value: 'Farhad', done: false }
+
+    const secondRun = iterator.next();
+    console.log(secondRun);         // { value: 'Pouri', done: false }
+
+    const thirdRun = iterator.next()
+    console.log(thirdRun);          // { value: 'Jack', done: false }
+
+    const forthRun = iterator.next()
+    console.log(forthRun);          // notice the value of =done= is
+                                  // =true= { value: undefined, done:
+                                  // true }
+
+#+END_SRC
+4) while =done= is =false= =for..of= keeps iterating.
+5) =done= will be =true= if the iterator is past the end of the collection
+:END:
+
+*** Making a plain JS object iterable 
+:PROPERTIES:
+:CUSTOM_ID: iterable
+:END:
+
+:NOTE:
+1) An iterator is an object with a =next= method, returned by the
+   result of calling the =Symbol.iterator= method
+:END:
+#+BEGIN_SRC js
+  const post = {
+    title: "New Features in JS",
+    replies: 19
+  }
+  /* before making it iterable */
+  ////  for(const key of post) {        /* TypeError: post[Symbol.iterator] is not a function */
+  ////    console.log(key);
+  ////  }
+
+  post[Symbol.iterator] = function() {
+    const properties = Object.keys(this);
+    let count = 0;
+    let isDone = false;
+
+    const next = () => {
+      if(count >= properties.length) {
+        isDone = true             // Ends the loop after reaching the last property
+      }
+
+      return  {
+        done: isDone,
+        value: this[properties[count++]] // =this= refers to post object
+      }
+    };
+
+    return { next };
+  }
+
+  for(const key of post) {        // now =post= is iterable and can be used with for..of loop
+    console.log(key);
+  }
+
+  /* now we also can: */
+  const values = [...post]        // using with Spread Operator
+  console.log(values);            // [ 'New Features in JS', 19 ]
+
+  const [title, replies] = post;  // and destructuring
+  console.log(replies);           // New Features in JS
+  console.log(title);             // 19
+
+#+END_SRC
+** Generators
+:NOTE:
+1) A new type of function that makes it easier to work with iterator objects.
+2) The =function *= declaration defines /generator functions/. These are special funciton from which we can use the =yield= keyword to return =iterator= objecs
+:END:
+
+#+BEGIN_SRC js
+function *nameList() {
+  yield "Farhad";               // { value: 'Farhad', done: false }
+  yield "Pouri";                 // { value: 'Pouri', done: false }
+}
+/************************************************************************/
+let anIterableObject = nameList();
+let me = anIterableObject.next(); 
+console.log(me);                 // { value: 'Farhad', done: false }
+let her = anIterableObject.next();
+console.log(her);               // { value: 'Pouri', done: false }
+/************************************************************************/
+for(const name of nameList()) {
+  console.log(name);  // Farhad, Pouri
+}
+/************************************************************************/
+const names = [...nameList()];
+console.log(names);             // [ 'Farhad', 'Pouri' ]
+/************************************************************************/
+let [I, she] = nameList();
+console.log(I, she);            // Farhad Pouri
+#+END_SRC
+
+#+RESULTS:
+
+Refactoring to the example in previous section [[#iterable][Making a plain JS object iterable]] 
+
+#+BEGIN_SRC js
+const post = {
+  title: "New Features in JS",
+  replies: 19
+}
+
+post[Symbol.iterator] = function*() {
+  const properties = Object.keys(this);
+
+  for(let p of properties){
+    yield this[p];
+  }
+}
+
+for(let p of post){
+  console.log(p); // New Features in JS
+                  // 19
+}
+#+END_SRC
+
+** String additions
+*** =String.prototype.includes=
+#+BEGIN_SRC js
+  const title = "Red Rising";
+
+  console.log(
+    title.includes("Red")         // true
+  );
+#+END_SRC
+*** =String.prototype.startsWith=
+#+BEGIN_SRC js
+const title = "Red Rising";
+
+console.log(
+  title.startsWith("Red")
+);
+#+END_SRC
+*** =String.prototype.endsWith=
+#+BEGIN_SRC js
+const title = "Red Rising";
+
+console.log(
+  title.endsWith("Red")
+);
+#+END_SRC
+
+#+RESULTS:
+: false
+: undefined
+
+*** =String.prototype.repeat=
+#+BEGIN_SRC js
+const str = "Hi";
+console.log(str.repeat(3))
+#+END_SRC
+
+#+RESULTS:
+: HiHiHi
+: undefined
+
+** Array additions
+*** =Array.prototype.find=
+#+BEGIN_SRC js
+const foo = ["one", 2, "fhd", "hsni"];
+console.log(foo.find(item => typeof item == "number"));
+#+END_SRC
+
+#+RESULTS:
+: 2
+: undefined
+*** =Array.prototype.findIndex=
+#+BEGIN_SRC js
+const foo = ["one", 2, "fhd", "hsni"];
+console.log(foo.findIndex(item => typeof item == "number"));
+#+END_SRC
+
+#+RESULTS:
+: 1
+: undefined
+
+*** =Array.prototype.fill=
+*** =Array.prototype.keys=
+*** =Array.prototype.values=
+*** =Array.prototype.entries=
+** Async Await 
+Yet another way of dealing with asynchronous stuff
+#+BEGIN_SRC js
+  function findMovie(movie) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        reject(`${movie} is awesome.`);
+      });    
+    })
+
+  }
+
+  async function loadInitialData() {
+    let movie = await findMovie('The Matrix');
+    console.log(movie);
+  }
+
+  loadInitialData()
+#+END_SRC
+
+If you use the =async= keyword before a function definition, you can then use =await= within the function. When you =await= a promise, the function is paused in a non-blocking way until the promise settles. If the promise fulfills, you get the value back. If the promise rejects, the rejected value is thrown.

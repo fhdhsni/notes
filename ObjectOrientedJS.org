@@ -1,0 +1,78 @@
+* Definitive guide to OO in JS
+** functions
+   - Every function has /name/, /length/, /prototype/
+   - functions are just object to they pass by reference
+   - /prototype/ property of functions points to a whole new object with a /constructor/ property that points back to the function
+   - So when you create a function in JS you're actually making two objects. One of them is function itself the other is /prototype/ object
+** Object Oriented in prototypal model (without functions)
+#+BEGIN_SRC js
+    const AnswerPrototype = {
+      constructor: function fn0(value) {
+        this._val = value;
+      },
+      get: function fn1() {
+        return this._val;
+      },
+    };
+
+    const lifeAnswer = Object.create(AnswerPrototype); // __proto__ of lifeAnswer points to AnswerPrototype
+    lifeAnswer.constructor(42);
+    console.log(lifeAnswer.get());
+
+    const FirmAnswerPrototype = Object.create(AnswerPrototype);
+    FirmAnswerPrototype.get = function fn2() {
+      return AnswerPrototype.get.call(this) + "!!";
+    };
+
+    const luckyAnswer = Object.create(FirmAnswerPrototype);
+    luckyAnswer.constructor(7);
+    console.log(luckyAnswer.get());
+
+#+END_SRC
+
+#+RESULTS:
+: 42
+: 7!!
+: undefined
+
+** Object Oriented in classical model (with functions)
+   - We define the constuctor first
+   - /[ [prototoype] ]/ of our instances will point to /prototype/ of our constructor function
+   - to make subclasses (a constructor function that inherites from another constuctor function) we have to make /prototype/ of our subclass point to /prototype/ of our original class. e.g *Mysubclass.prototype = Object.create(Mycalss.prototype)* then we set /constuctor/ property of our subclass to point back to our subclass e.g *Mysubclass.prototype.constuctor = Mysubclass*
+#+BEGIN_SRC js
+  function Answer(value) {        // our constuctor
+      this._val = value;
+  }
+  Answer.prototype.get = function fn1() { // get will be inherited by instances of Answer
+      return this._val;
+    };
+
+    const lifeAnswer = new Answer(42); // We use constuctor to set initial values, get will be inherited. __proto__ of lifeAnswer points to Answer.prototype
+    console.log(lifeAnswer.get());
+
+    function FirmAnswer (value) { // FirmAnswer constuctor uses Answer conscuctor by use of *this*
+      Answer.call(this, value);
+    }
+    FirmAnswer.prototype = Object.create(Answer.prototype); // __proto__ of FirmAnswer.prototype will point ot Answer.prototype. original FirmAnswer.prototype will be garbage collected.
+    FirmAnswer.prototype.constructor = FirmAnswer;          // Because original FirmAnswer.prototype is garbage collected we give its constuctor property back
+
+    FirmAnswer.prototype.get = function fn2() { // we overwrite get property of Answer.property to fit our desire
+      return Answer.prototype.get.call(this) + "!!";
+    };
+
+    const luckyAnswer = new FirmAnswer(7);
+  console.log(luckyAnswer.get());
+
+#+END_SRC
+
+#+RESULTS:
+: 42
+: 7!!
+: undefined
+
+** instanceof
+   - Which class was used to instantiate an object? we use /instanceof/ to acheive the answer.
+   - /instanceof/ compares /prototype/ property of constuctor with /__proto__/ of object. If those are the same it returns true.
+   - Remembre that /instanceof/ walks through prototype chain so an instance of a subclass is also instance of original class, becuase __proto__ of Mysubclass.prototype point to Myclass.prototype so that's what it is.
+** Object Oriented in ES6 
+   [[file:es6.org][ES6.org]]

@@ -1,0 +1,379 @@
+* Notes on Sass
+** Partials
+   A scss file with underscore at the beginning e.g /_base.scss/ which is used to make modules
+   to import them use /@import 'helpers/variables';/
+
+** Palceholder @extend directive
+
+#+BEGIN_SRC scss
+  %centered {
+      text-align: center;
+  }
+  // using above place holder
+  body {
+      @extend %centered;
+  }
+  /*****************
+  =another example
+  ,******************/
+  .bar {
+      height: 5em;
+      font-size: 1.5em;
+  }
+  .foo {
+      @extend .bar
+      color: teal;
+  }
+  /* Compiles --> */
+
+  .bar,
+  .foo {
+      height: 5em;
+      font-size: 1.5em;
+  }
+  .foo {
+      color: teal;
+  }
+#+END_SRC
+
+** &
+   - Refers to parent selector in a rule e.g:
+#+BEGIN_SRC scss
+  a {
+      &:after {
+          color: aqua;
+      }
+  }
+#+END_SRC
+
+** Variables
+   - Variables are decloration (that is {}) scope;
+#+BEGIN_SRC scss
+  $white: #fff;
+  p {
+      color: $white;
+  }
+// another eg -->
+  $side: top;
+  h1 {
+      color: teal;
+      #{$side}: -5em;
+  }
+#+END_SRC
+
+** Variable argument
+   - Sometimes it makes sense for a mixin or function to take an unknown number of arguments. For example, a mixin for creating box shadows might take any number of shadows as arguments. For these situations, Sass supports “variable arguments,” which are arguments at the end of a mixin or function declaration that take all leftover arguments and package them up as a list. These arguments look just like normal arguments, but are followed by .... For example:
+#+BEGIN_SRC scss
+@mixin box-shadow($shadows...) {
+  -moz-box-shadow: $shadows;
+  -webkit-box-shadow: $shadows;
+  box-shadow: $shadows;
+}
+
+.shadows {
+  @include box-shadow(0px 4px 5px #666, 2px 6px 10px #999);
+}
+// is compiled to --> 
+.shadows {
+  -moz-box-shadow: 0px 4px 5px #666, 2px 6px 10px #999;
+  -webkit-box-shadow: 0px 4px 5px #666, 2px 6px 10px #999;
+  box-shadow: 0px 4px 5px #666, 2px 6px 10px #999;
+}
+#+END_SRC
+
+** Interplation
+   - If variable holds a string, or you want make a string out of a variable
+#+BEGIN_SRC scss
+  $path: '../img';
+  background-image: url('#{$path}/woody.jpg');
+
+  /* another example */
+
+  @mixin color_class($color) {
+      .#{$color} {
+      color: $color;
+  }
+  }
+  @include color_class(blue);
+  // output ==>  .blue { color: blue }
+#+END_SRC
+
+** Mixins
+   - Mixins allow you to define styles that can be re-used throughout the stylesheet without needing to resort to non-semantic classes like .float-left.
+#+BEGIN_SRC scss
+  @mixin tp ($pos) {
+      text-align: $pos;
+  }
+  body {
+      @include tp(center);
+  }
+#+END_SRC
+
+** Media
+   - @media directives in Sass behave just like they do in plain CSS, with one extra capability: they can be nested in CSS rules.
+#+BEGIN_SRC scss
+  .sidebar {
+      width: 300px;
+      @media screen and (orientation: landscape) {
+          width: 500px;
+      }
+  }
+#+END_SRC
+
+** lighten, darken, *scale_color*, staurate, desaturate, mix, grayscale, invert and complement
+   - lighten or darken a color
+#+BEGIN_SRC scss
+  a {
+      color: lighten(#654, 20%);  /*lightens the color by 20%*/
+  }
+#+END_SRC
+
+** @function
+directive
+#+BEGIN_SRC scss
+  $grid-width: 40px;
+  $gutter-width: 10px;
+
+  @function grid-width($n) {
+      @return $n * $grid-width + ($n - 1) * $gutter-width;
+  }
+
+  #sidebar { width: grid-width(5); }
+#+END_SRC
+
+** @if @else directives
+#+BEGIN_SRC scss
+  p {
+      @if 1 + 1 == 2 { border: 1px solid;  }
+      @if 5 < 3      { border: 2px dotted; }
+      @if null       { border: 3px double; }
+  }
+  // is compiled to:
+  p {
+      border: 1px solid; }
+
+/* linear-if --> */ 
+background: if($theme == dark, #000, #fff);
+  /*
+  comparisons are
+  ==
+  !=
+  <   only number
+  >   only number
+  <=  only number
+  >=  only number
+  ,*/
+#+END_SRC
+
+** @for $i from 1 through 100
+#+BEGIN_SRC scss
+  @for $i from 1 through 100 {
+      .box:nth-child(#{$i}) {
+          background-color: darken(white, $i);
+      }
+  }
+#+END_SRC
+
+** @each directive
+#+BEGIN_SRC scss
+$foo: puma, sea-slug, egret, salamander;
+// or 
+$foo: puma sea-slug egret salamander;
+// I don't know the difference though
+  @each $animal in $foo {
+      .#{$animal}-icon {
+          background-image: url('/images/#{$animal}.png');
+      }
+  }
+#+END_SRC
+
+** if @else directives
+#+BEGIN_SRC scss
+  p {
+      @if 1 + 1 == 2 { border: 1px solid;  }
+      @if 5 < 3      { border: 2px dotted; }
+      @if null       { border: 3px double; }
+  }
+  // is compiled to:
+  p {
+      border: 1px solid; }
+#+END_SRC
+
+** @for $i from 1 through 100
+#+BEGIN_SRC scss
+  @for $i from 1 through 100 {
+      .box:nth-child(#{$i}) {
+          background-color: darken(white, $i);
+      }
+  }
+#+END_SRC
+
+** @each directive
+#+BEGIN_SRC scss
+  @each $animal in puma, sea-slug, egret, salamander {
+      .#{$animal}-icon {
+          background-image: url('/images/#{$animal}.png');
+      }
+  }
+#+END_SRC
+
+** if @else directives
+#+BEGIN_SRC scss
+  p {
+      @if 1 + 1 == 2 { border: 1px solid;  }
+      @if 5 < 3      { border: 2px dotted; }
+      @if null       { border: 3px double; }
+  }
+  // is compiled to:
+  p {
+      border: 1px solid; }
+#+END_SRC
+
+** @for $i from 1 through 100
+#+BEGIN_SRC scss
+  @for $i from 1 through 100 {
+      .box:nth-child(#{$i}) {
+          background-color: darken(white, $i);
+      }
+  }
+#+END_SRC
+
+** @each directive
+#+BEGIN_SRC scss
+  @each $animal in puma, sea-slug, egret, salamander {
+      .#{$animal}-icon {
+          background-image: url('/images/#{$animal}.png');
+      }
+  }
+#+END_SRC
+
+** variable_exists($name)
+   - Check whether a variable with the given name exists in the current scope or in the global scope.
+#+BEGIN_SRC scss
+$a-false-value: false;
+variable-exists(a-false-value) => true
+variable-exists(nonexistent) => false
+#+END_SRC
+
+** Maps
+   - Maps represent an association between keys and values, where keys are used to look up values. They make it easy to collect values into named groups and access those groups dynamically. They have no direct parallel in CSS, although they’re syntactically similar to media query expressions:
+   - /It's good to know that they can be nested/
+#+BEGIN_SRC scss
+$foobar: (key1: value1, key2: value2, key3: value3);
+#+END_SRC
+
+** map-get($map, $key)
+   - Returns the value in a map associated with the given key. If the map doesn’t have such a key, returns null. /map-get(("foo": 1, "bar": 2), "foo") => 1/
+
+** @warn and @error
+** @content
+   - It is possible to pass a block of styles to the mixin for placement within the styles included by the mixin. The styles will appear at the location of any @content directives found within the mixin. 
+#+BEGIN_SRC scss
+  @mixin apply-to-ie6-only {
+      ,* html {
+          @content;
+      }
+  }
+  @include apply-to-ie6-only {
+      #logo {
+          background-image: url(/logo.gif);
+      }
+  }
+  // Generates
+
+  ,* html #logo {
+      background-image: url(/logo.gif);
+  }
+#+END_SRC
+
+** percentage
+#+BEGIN_SRC scss
+  percentage(0.2) // => 20%
+  percentage(100px / 50px) // => 200%
+
+#+END_SRC
+
+** !global flag
+** @at-root
+   - The @at-root directive causes one or more rules to be emitted at the root of the document, rather than being nested beneath their parent selectors. 
+#+BEGIN_SRC scss
+  .parent {
+      ...
+      @at-root .child { ... }
+  }
+  // Which would produce:
+  .parent { ... }
+  .child { ... }
+#+END_SRC
+
+** !default flag
+   - You can assign to variables if they aren’t already assigned by adding the !default flag to the end of the value. This means that if the variable has already been assigned to, it won’t be re-assigned, but if it doesn’t have a value yet, it will be given one.
+** Math
+   - rouch($num)
+   - ceil($num)
+   - floor($num)
+   - abs($num) // absolute value
+   - min($num)
+   - max($num)
+   - percentage($num)
+** length, append etc
+#+BEGIN_SRC scss
+  $authors: nick aimee dan drew;
+  $editors: jeff;
+  length($authors) // 4
+  append($authors, tim) // nick aimee dan drew tim
+  join($authors, $editors) // nick aimee dan drew tim jeff
+  index($authors, nick) // 1
+  index($authors, farhad) // false
+  nth($authors, nick) // nick
+#+END_SRC
+
+**
+
+sass/ 
+| 
+|– base/ 
+|   |– _reset.scss       # Reset/normalize 
+|   |– _typography.scss  # Typography rules 
+|   ...                  # Etc… 
+| 
+|– components/ 
+|   |– _buttons.scss     # Buttons 
+|   |– _carousel.scss    # Carousel 
+|   |– _cover.scss       # Cover 
+|   |– _dropdown.scss    # Dropdown 
+|   |– _navigation.scss  # Navigation 
+|   ...                  # Etc… 
+| 
+|– helpers/ 
+|   |– _variables.scss   # Sass Variables 
+|   |– _functions.scss   # Sass Functions 
+|   |– _mixins.scss      # Sass Mixins 
+|   |– _helpers.scss     # Class & placeholders helpers 
+|   ...                  # Etc… 
+| 
+|– layout/ 
+|   |– _grid.scss        # Grid system 
+|   |– _header.scss      # Header 
+|   |– _footer.scss      # Footer 
+|   |– _sidebar.scss     # Sidebar 
+|   |– _forms.scss       # Forms 
+|   ...                  # Etc… 
+| 
+|– pages/ 
+|   |– _home.scss        # Home specific styles 
+|   |– _contact.scss     # Contact specific styles 
+|   ...                  # Etc… 
+| 
+|– themes/ 
+|   |– _theme.scss       # Default theme 
+|   |– _admin.scss       # Admin theme 
+|   ...                  # Etc… 
+| 
+|– vendors/ 
+|   |– _bootstrap.scss   # Bootstrap 
+|   |– _jquery-ui.scss   # jQuery UI 
+|   ...                  # Etc… 
+| 
+| 
+`– main.scss             # primary Sass file 

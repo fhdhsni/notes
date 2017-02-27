@@ -1,0 +1,76 @@
+#+STARTUP: hidestars
+#+TAGS: PHONE(p) COMPUTER(c) URGENT(u)
+** Mark as TODO 
+=C-c C-t=
+** Schedule a task 
+   when you want to start working on the task
+=C-c C-s=
+Add 16:00-17:00 to show the exact time like <2016-10-12 Wed 16:00-17:00>
+For repetitive tasks, add ++1w like <2016-10-12 Wed ++1w> for every week or ++4w for every 4 weeks and so on.
+=++= means putting the next one always in the future.
+=.+4w= means whenever I do this task put the next one 4 weeks from now. <2016-10-12 Wed .+4w>
+** Deadline
+=C-c C-d=
+** Org agenda
+*** Agenda for current week or day
+=C-c a=
+*** Enable follow mode
+=S-f=
+*** next/previous week
+=f/b=
+*** timeline for current buffer
+=C-c a L=
+*** Entities with special [TODO] kwd
+=C-c a t= or =C-c a T=
+*** Match a TAGS/TODO/PROP query
+Uppercase M only applies to TODO items
+Use | to select two or more keyword
+Use / to make it more specific, e.g BOOKS/TODO
+=C-c a m= or =C-c a M=
+*** Search for a word/regexp
+=C-c a s=
+** [#A] Checkbox [0%] [0/5]
+- [ ] on a plain list =M-S-RET= inserts a checkbox
+- [ ] on a heading =C-c,= A|B|C to change the priority
+- [ ] Checkbox can be made manually with [ ]
+- [ ] for the counter checkbox on top use [ / ] or [ % ] without space around / or %.
+- [ ] put cursor inside checkbox and press =C-c C-c= to fulfill it.
+** TODO Tags                                                :COMPUTER:URGENT:
+- Can be add to headlines
+- to predefine tags #+TAGS: PHONE(p) COMPUTER(c) URGENT(u)
+- to Add a tag =C-c C-q=
+** Drawers
+- Drawers are use to hide a chunk of text that can be shown by TAB
+- They can be define like
+  :MYDRAWER:
+  some text be hide 
+  :END:
+** LOGBOOK
+   :LOGBOOK:
+   - Note taken on [2016-10-13 Thu 23:35] \\
+     Another example note
+   - Note taken on [2016-10-13 Thu 23:33] \\
+     Just an example
+   :END:
+   An special drawer that can be add with =C-c C-z=, it also remembers time of token note.
+** Archiving
+- to move headlines to an archive file use =C-c C-x C-a= or =C-c C-x C-s=
+- org-archive-location variable determines the archive file
+- Search all subtree under a headline and se which one can be archived with this keys =C-u C-c C-x C-a=
+** shortcuts
+The following template selectors are currently supported.
+
+s	#+BEGIN_SRC ... #+END_SRC 
+e	#+BEGIN_EXAMPLE ... #+END_EXAMPLE
+q	#+BEGIN_QUOTE ... #+END_QUOTE 
+v	#+BEGIN_VERSE ... #+END_VERSE 
+c	#+BEGIN_CENTER ... #+END_CENTER 
+l	#+BEGIN_LaTeX ... #+END_LaTeX 
+L	#+LaTeX: 
+h	#+BEGIN_HTML ... #+END_HTML 
+H	#+HTML: 
+a	#+BEGIN_ASCII ... #+END_ASCII 
+A	#+ASCII: 
+i	#+INDEX: line 
+I	#+INCLUDE: line 
+For example, on an empty line, typing "<e" and then pressing TAB, will expand into a complete EXAMPLE template.

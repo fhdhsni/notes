@@ -1,0 +1,6 @@
+* Service Workers
+
+It has three steps:
+- registration
+- installation
+- feching

@@ -1,0 +1,116 @@
+#+STARTUP: hidestars
+* NODEs
+** Shortcuts
+- Add a node between two selected node
+  =S-i=
+- To add a node on top of an existing node
+  =S-d=
+- To delete a node
+  + =C-<delete>=
+  + =<delete>= (tries to preserve overall shape of the object by modifing adjacent node)
+- Press <spacebar> to go SELECT tool and press again to go back to NODE tool
+- =C-click= on a handle to remove it
+- =S-drag= from a node to make a handle
+- =[= and =]= to rotate handles, hold =alt= to rotate slowly
+- =.= and =,= to increate and decreate handles length
+- =S-j= to join two seprate nodes of two different paths. (you can hover over the node you want to keep)
+- =M-j= to join two seprate nodes of two different paths and keep both nodes
+- =S-b= to break nodes and make them independent
+- =M-<delete>= to delete a segment between two nodes
+** Types of nodes
+1. corner (cusp) nodes =S-c= (press =S-c= to remove handles)
+   + shaped like dimond
+   + can have zero, one or two handles (control points)
+   + if there are two handles they move independantly of each other
+   + of sharp corners
+   + hold =shift= to rotate handles in unison
+2. smooth nodes =S-s=
+   + shaped like squares
+   + lengeth of handles (control points) are independent but they move in unison.
+   + for smooth curves
+3. symmetrical nodes =S-y=
+   + also shaped like squares
+   + both position and length of two handles (control points) and linked, so they both move and resize together.
+4. auto-smooth nodes =S-a=
+   + shaped like octagon
+   + when the node (end point) itself (not the handles) is moved inkscape modifies its handle automatically to keep the shape as smooth as possible.
+
+:NOTES:
+1. When moving nodes hold ctrl to constrain to horizontal or vertical  axises
+
+:END:
+* PENCIL TOOL
+** Shortcuts
+=p= for pencil tool
+=C-l= change the smoothness of a selecting path
+hold =shift= to add a subpath (not adding new object)
+* SHAPEs
+=C-S-c= object to path
+* SPIRAL
+=i= is the shortcut.
+hold =alt= when dragin' its handle to make it denser or loser.
+hold =shift= when dragin' its handle to change it radius.
+* SELECTION TOOL
+=C-a= select everything in current layer
+=M-C-a= select everything in all layers
+=!= invert selectin on current layer
+=<esc>= deselect everything
+* GROUPING
+1. Select objects you want to group and press =C-g=. to ungroup them press =C-S-g= or =C-u=
+2. To select an object from a group =Ctrl-click=
+3. To enter inside a group =Ctrl-Enter=
+4. To leave a group =Ctrl-backspace=
+5. It's possible to make a group inside a group
+6. To add an object to an already existing group, cut the new object, enter to the group and past it.
+7. To remove an object from a group, do as above but opposite.
+* MOVING
+Hold =ctrl= while moving objects to constain its movement to horizontal or vertical axis.
+Use =S-C-m= to open transform box
+Use =pageup=, =pagedown=, =home= and =end= to change stacking order of objects.
+* SCALING
+scale proportionally whit =ctrl+drag=
+* ROTATING
+Click on a selected object to see rotation tools.
+If you changes the position of + sign in the middle you can hold
+=shift= and click to move it back to the center of objecte.
+You can also use =[= and =]= for rotation.
+* TWEAK TOOL
+=w= is the shortcut.
+* CLONE 
+1. Clone an object with =M-d= or go to Edit > clone > ...
+2. Use =S-d= to get the original object
+3. To unlink a clone from its original object =S-M-d=
+4. Status area tells you if an object is clone or not.
+5. In order to relink clone object to a new object, copy the new
+   object to clipboard, select all the clones you want to change and
+   use Edit > clone > relink to copied
+
+:NOTES:
+You can't change any property of a clone that it gets from its original.
+The only way to do so is to unset the desired property on original object. 
+:END:
+* MASK AND CLIPING
+** To make a clip
+- Object > clip > set
+- clip can be modified with node tool =n=
+- to delete clip Object > clip > release
+** To make a mask
+- Object > clip > set
+- where masking object is filled with white things are visible
+- where masking object is filled with black or it's transparent, things are hide.
+* XML EDITOR
+=S-C-x=
+* FILL RULES
+** evenodd
+** nonzero
+* PATTERNs
+** to make a pattern out of an object
+select the object, go to: /object > pattern > object to pattern/
+* SWATCHES
+=S-C-w=
+* STROKES
+to make round strokes: got to xml editor and make to first value of =stroke-dasharray= 0
+* DROPPER
+When both =pick= and =assign= is off, it simulat the color
+When only =pick= is on it picks the color with 100% transparency.
+When both =pick= and =assign= is on, it picks both color and transpercy and assigns to selected object.

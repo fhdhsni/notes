@@ -1,0 +1,114 @@
+* sed
+** p
+   - print the matched pattern
+   - sed 'p' /etc/passwd
+     + prints everything twice once for pattern once for stdout (get rid of stdout with -n option)
+** -n
+   - supresses stdout (if p options is provided only matched lines would be printed or else nothing)
+   - sed -n 'p' /etc/passwd
+** ranges
+   - sed '6,9 s/foo/bar/' /etc/passwd
+   - substitude foo with bar in lines 6 through 9
+   - use $ for saying to the end of document e.g 6,$ --> line 6 to the end of document
+   - 
+** regexp
+   - sed -n '/^farhad/ p' /etc/passwd
+   - lines begin with 'farhad'
+** substitude
+   - sed '[range] s/<string>/<replacement>/' /etc/passwd
+   - first character after 's' is delemiter. can be anything
+     + sed '/^farhad/ s@/bin/bash@/bin/sh@' /etc/passwd
+       * lines begin with farhad, @ is our delimiter
+** append 'a'
+   - sed '/^server/ a server ntp.example.com' /etc/ntp.conf
+   - append a new line 
+** insert 'i'
+   - sed '/^server/ i server ntp.example.com' /etc/ntp.conf
+   - insert a new line before a line (in this case those beginning with ^server)
+** delete 'd'
+   - sed '/^server/ d' /etc/ntp.conf
+   - delete lines beginning with 'server'
+** multiple sed expressions
+- sed ' {
+     /^server 0/ i ntp.example.com
+     /^server\s[0-9]/ d
+   } ' /etc/ntp.conf
+   1. insert ntp.example.com before lines beginning with 'server'
+   2. delete lines beginning with 'server [123456789]'
+   
+- Another way is to put our command in a file and use *-f* option to read the with *sed*
+  #+BEGIN_SRC shell
+    $cat foo.sed
+    /^server 0/ i ntp.example.com
+    /^server\s[0-9]/ d
+  #+END_SRC
+      + sed -f foo.sed /etc/ntp.conf
+** -i
+       -i[SUFFIX], --in-place[=SUFFIX]
+              edit files in place (makes backup if SUFFIX supplied)
+
+   - e.g --> sed -i.bak -f foo.sed /etc/ntp.conf 
+   - sed doesn't change the given file by default.
+   - to make sed change the file we can include -i option
+   - -i.bak makes a backup of our original file without changes. in this case bak file would be ntp.conf.bak
+** substitution grouping with sed
+#+BEGIN_SRC shell
+» cat employee 
+Jones,Bob,232-78-3452
+Jackeson,Jane,,
+Federer ,Jack,xxx-xx-xxxx
+Maw,Michaael,1879-0
+Alexander ,Sally,2465-83-8653
+Beder,Ioana,634-34-9832⏎   
+#+END_SRC
+   - sed 's/\([^,]*\),\([^,]*\)/\U\1,\L\2/' employee.txt
+     1. grouping based on comma \([^,]*\)
+     2. seperating groups with comma \([^,]*\), \([^,]*\)
+     3. making the first group uppercase \U\1
+     4. put comma after group one \U\1,
+     5. making the second group lowercase \L\2
+#+BEGIN_SRC shell
+» sed 's/\([^,]*\),\([^,]*\)/\U\1,\L\2/' employee 
+JONES,bob,232-78-3452
+JACKESON,jane,,
+FEDERER ,jack,xxx-xx-xxxx
+MAW,michaael,1879-0
+ALEXANDER ,sally,2465-83-8653
+BEDER,ioana,634-34-9832⏎  
+#+END_SRC
+
+** excuting a command with sed
+   - sed 's/^/ls -l /e' foo.txt
+   - excute command ls -l for each line in foo.txt
+
+* awk
+** NR
+   - number of records
+** FS
+   - file seperater
+** NF
+   - number field 
+** RS
+   - record seprator
+** OFS
+   - output field separator
+** -f
+   - to excute an awk file. eg:
+     awk -f foo.awk /etc/passwd
+** ;
+   - to seperate commands
+** $0
+   - complete line
+** example
+#+BEGIN_SRC awk
+  BEGIN { FS=":" ; print "UserName" } # : is delimiter
+  /^root/{ print $1; count++ }    # lines beginning with 'root'
+  END { print "Total users= " count }
+#+END_SRC
+
+** -F
+   - file separater in awk command
+
+** print
+** printf
+   - to format out output

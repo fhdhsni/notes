@@ -1,0 +1,105 @@
+*** JavaScript The Good Parts
+#+BEGIN_SRC js
+Function.prototype.method = function (name, func) {
+  this.prototype[name] = func;
+  return this;
+};
+#+END_SRC
+
+#+BEGIN_SRC js
+  if (typeof Object.create !== 'function') {
+    Object.create = function (o) {
+      var F = function () {};     // this is our constructor function
+      F.prototype = o;            // overiding it's prototoype by the given object
+      return new F();             // instantiating an instance, __proto__ of this instance points to F.prototype or in this case `o`
+    };
+  }
+  var another_stooge = Object.create(stooge);
+#+END_SRC
+
+There are four patterns of invocation in JavaScript, the patterns
+differ in how the bonus parameter =this= is initialized:
+- the method invocation pattern,
+- the function invocation pattern,
+  + When a function is invoked with this pattern, =this= is bound to the global object.
+- the constructor invocation pattern,
+  + If a function is invoked with the new prefix, then a new object will be created with a
+    hidden link to the value of the function’s prototype member, and =this=
+    will be bound to that new object.
+  + If the function was invoked with the new prefix and the return value is not an object,
+    then this (the new object) is returned instead.
+- the apply invocation pattern.
+
+
+**** Memoization
+
+#+BEGIN_SRC js
+var memoizer = function (memo, fundamental) {
+  function shell (n) {
+    var result = memo[n];
+
+    if (typeof result !== 'number') {
+      result = fundamental(shell, n);
+      memo[n] = result;
+    }
+
+    return result;
+  };
+
+  return shell;
+};
+
+var fibonacci = memoizer([0, 1], function (shell, n) {
+  return shell(n - 1) + shell(n - 2);
+});
+#+END_SRC
+
+First we check to see if we have the the result of =shell(n)= in our
+=memo= array by checking =memo[n]=, if there was, we pass the value
+and save some unnecessary computation, if there wasn't we compute the
+value =fundamental(shell, n)= and save the result in =memo[n]= for
+future.
+
+#+BEGIN_SRC js
+  var mammal = function (spec) {
+    var that = {};
+    that.get_name = function ( ) {
+      return spec.name;
+    };
+    that.says = function ( ) {
+      return spec.saying || '';
+    };
+  };
+  return that;
+  var myMammal = mammal({name: 'Herb'});
+  // myMammal doesn't access to name directly (it's private) but only through =get_name= method
+
+  var cat = function (spec) {
+    spec.saying = spec.saying || 'meow';
+    var that = mammal(spec);
+    that.purr = function (n) {
+      var i, s = '';
+      for (i = 0; i < n; i += 1) {
+        if (s) {
+          s += '-';
+        }
+        s += 'r';
+      }
+      return s;
+    };
+    that.get_name = function ( ) {
+      return that.says( ) + ' ' + spec.name +
+        ' ' + that.says( );
+      return that;
+    };
+    var myCat = cat({name: 'Henrietta'});
+#+END_SRC
+
+
++
+The + operator can add or concatenate. Which one it does depends on the types of
+the parameters. If either operand is an empty string, it produces the other operand
+converted to a string. If both operands are numbers, it produces the sum. Other-
+wise, it converts both operands to strings and concatenates them. This complicated
+behavior is a common source of bugs. If you intend + to add, make sure that both
+operands are numbers.

@@ -1,0 +1,767 @@
+#+STARTUP: hidestars
+
+* Self clarifying notes
++ =document= is instantiated with =HTMLDocument= constructor with =.nodeType= of 9 (i.e., =DOCUMENT_NODE=)
++ =<!DOCTYPE html>= is instantiated with =DocumentType= constructor with =.nodeType= of 10 (i.e., =DOCUMENT_TYPE_NODE=)
++ =<html>= is instantiated with =HTMLHtmlElement= constructor with =.nodeType= of 1 (i.e., =ELEMENT_NODE=)
++ =<!DOCTYPE html>= and =<html>= are =childNodes= of =document= in other word, =document.childNodes= are equal to an nodeList containing those nodes.
++ =HTMLCollections= is always alive.
++ To Apply and Remove CSS Properties on an Element, add or remove a class or id useing =setAttribute('id','bar')= and =.classList.add('foo')=
++ Remember carriage returns are considered text nodes. So minify your HTML file.
++ If you want execute some JS after DOM is fully loaded add =DOMContentLoaded= event to =document=
+#+BEGIN_SRC js2
+  document.addEventListener("DOMContentLoaded", function (event) {
+     // do stuff
+  });
+#+END_SRC
+* CHAPTER 1
+HTML documents get parsed by a browser and converted into a tree
+structure of node objects representing a live document. The purpose
+of the DOM is to provide a programmatic interface for scripting
+(removing, adding, replacing, eventing, and modifying) this live
+document using JavaScript.
+
+** Node Object Types
+
+Here is a list of the most common *types of nodes* (i.e., nodeType/node
+classifications) one encounters when working with HTML documents.
+These *Node* properties are constant values and are used to store
+numeric code values that map to a specific type of node object.
+
+ + =DOCUMENT_NODE=          (value = 9,  e.g., =window.document=)
+ + =ELEMENT_NODE=           (value = 1,  e.g., =<body>, <a>, <p>, <script>, <style>, <html>, <h6>=)
+ + =ATTRIBUTE_NODE=         (value = 2,  e.g., class="funEdges")
+ + =TEXT_NODE=              (value = 3,  e.g., text characters in an HTML document including carriage returns and whitespace)
+ + =DOCUMENT_FRAGMENT_NODE= (value = 11, e.g., =document.createDocumentFragment()=)
+ + =DOCUMENT_TYPE_NODE=     (value = 10, e.g., =<!DOCTYPE html>=)
+
+ -------
+
+I list the name given to the interface/constructor that *instantiates* the most
+common node types and their corresponding nodeType classifications by number and
+name. What I hope you take away from the table is that the nodeType value (i.e., 1) is
+just a numeric classification used to describe a certain type of node constructed from a
+certain JavaScript interface/constructor. For example, the HTMLBodyElement interface
+represents a node object that has a node type of 1, which is a classification for
+ELEMENT_NODEs.
+
+ |------------------------------------------+-------------------------------------|
+ | interface/constructor function           | nodeType (returned from .nodeType)  |
+ |------------------------------------------+-------------------------------------|
+ | =HTML*Element [e.g., =HTMLBodyElement]=  | 1 (i.e., =ELEMENT_NODE=)            |
+ | =Text=                                   | 3 (i.e., =TEXT_NODE=)               |
+ | =Attr=                                   | 2 (i.e., =ATTRIBUTE_NODE=)          |
+ | =HTMLDocument=                           | 9 (i.e., =DOCUMENT_NODE=)           |
+ | =DocumentFragment=                       | 11 (i.e., =DOCUMENT_FRAGMENT_NODE=) |
+ | =DocumentType=                           | 10 (i.e., =DOCUMENT_TYPE_NODE=)     |
+ |------------------------------------------+-------------------------------------|
+
+** Inheritance
+Each node object in a typical DOM tree inherits properties and methods from Node.
+Depending on the type of node in the document, there are also additional subnode
+objects/interfaces that extend the Node object
+
+ (< indicates “inherited from”):
+ - =Object= < =Node= < =Element= < =HTMLElement= < (e.g., =HTML*Element=)
+ - =Object= < =Node= < =Attr= (this is deprecated in DOM4)
+ - =Object= < =Node= < =CharacterData= < =Text=
+ - =Object= < =Node= < =Document= < =HTMLDocument=
+ - =Object= < =Node= < =DocumentFragment=
+
+** Properties and Methods for Working with Nodes
+*** /Node properties/
+  - =childNodes=
+  - =firstChild=
+  - =lastChild=
+  - =nextSibling=
+  - =nodeName=
+  - =nodeType=
+  - =nodeValue=
+  - =parentNode=
+  - =reviousSibling=
+*** /Nodemethods/
+  - =appendChild()=
+  - =cloneNode()=
+  - =compareDocumentPosition()=
+  - =contains()=
+  - =hasChildNodes()=
+  - =insertBefore()=
+  - =isEqualNode()=
+  - =removeChild()=
+  - =replaceChild()=
+*** /Document methods/
+  - =document.createElement()=
+  - =document.createTextNode()=
+*** /HTML*Element properties/
+  - =innerHTML=
+  - =outerHTML=
+  - =textContent=
+  - =innerText=
+  - =outerText=
+  - =firstElementChild=
+  - =lastElementChild=
+  - =nextElementChild=
+  - =previousElementChild=
+  - =children=
+
+*** HTML element method
+  - =insertAdjacentHTML()=
+** Random tips & useful stuff
++ The =.nodeValue= property returns =null= for most of the node types (except Text and Comment).
++ =.getAttribute()=, =.setAttribute()=, =.removeAttribute()=
++ =innerHTML= (Dont use this), =outerHTML=
++ =elm.insertAdjacentHTML('beforebegin', '<span>Hey-</span>')=
++ =div.insertAdjacentElement("afterbegin", myElm)=
++ The =insertAdjacentHTML= options =beforebegin= and =afterend= will only work
+  if the node is in the DOM tree and has a parent element.
++ =appendChild()= and =insertBefore()=
++ =prepend()=, =append()=, =before()=, and =after()=
++ =removeChild()= and =replaceChild(newChild, oldChild)=, =replace()=, =remove()=
++ =cloneNode()=, only the node itself, not its child
++ =cloneNode(true)= to clone all its child too
++ Speaking of =cloneNode=  Anything added with =addEventListener()= or =node.onclick= is not cloned.
++ =childNodes= Be aware that =childNodes= contains not only Element nodes but also all
+other node types (e.g., Text and Comment nodes).
++ To convert an array-like list to a true JavaScript array, =Array.from(array-like)=
++ =parentNode=
++ =firstChild=
++ =lastChild=
++ =nextSibling=
++ =previousSibling=
++ You should not be surprised that traversing the DOM
+includes traversing not just element nodes, but also text and comment nodes.
++ =firstElementChild=
++ =lastElementChild=
++ =nextElementChild=
++ =previousElementChild=
++ =children=
++ =parentElement=
++ =childElementCount=
++ =contain()=, =compareDocumentPosition(),
++ =.isEqualNode()=
+** Grokking Node Collections (i.e., =NodeList= and =HTMLCollection=)
+When selecting groups of nodes from a tree or accessing predefined sets
+of nodes, the nodes are placed in either a NodeList [e.g., document.querySelector
+All('*')] or an HTMLCollection (e.g., document.scripts). These array-like object
+collections have the following characteristics:
+• A collection can be either live or static.
+• By default, nodes are sorted inside the collection by tree order.
+• The collections have a =length= property
+* CHAPTER 2, document Nodes
+Both Document and HTMLDocument constructors are typically instanti‐
+ated by the browser when you load an HTML document. However,
+using document.implementation.createHTMLDocument(), it’s possible
+to create your own HTML document outside the one currently loaded
+in the browser. In addition to createHTMLDocument(), it’s possible to
+create a document object that has yet to be set up as an HTML document
+using createDocument(). An example use of these methods might be
+to programmatically provide an HTML document to an iframe.
+
+** document
+/=document.constructor= === =HTMLDocument=/
+Noteworthy properties and methods on =document=
++ =document.fdoctype=
++ =document.documentElement=
++ =document.implementation.*=
++ =document.activeElement= /Getting a Reference to the Focus/Active Node in the Document/
++ =document.body=
++ =document.head=
++ =document.title=
++ =document.lastModified=
++ =document.referrer=
++ =document.URL=
++ =document.defaultview= /document.defaultView Is a Shortcut to the Head/Global Object(in browser it's =window=)/
++ =document.compatMode= /logs either BackCompat (Quirks Mode) or CSS1Compat (Strict Mode)/
++ =document.ownerDocument= /Using ownerDocument to Get a Reference to the =Document= from an Element, useful for =ifram=/
++ =document.hasFocus()= /If you keep focus on the window/tab that has the document loaded it's true. If not it's false./
+
+Using the following properties, we can get a shortcut reference to the following nodes:
++ =document.doctype= refers to =<!DOCTYPE>=.
++ =document.documentElement= refers to =<html>=.
++ =document.head= refers to =<head>=.
++ =document.body= refers to =<body>=.
+* CHAPTER 3, Element Nodes
+** HTML*Element Object Overview
+    Each element in an HTML document has a unique nature, and as such, each has a unique
+    JavaScript constructor that instantiates the element as a node object in a DOM tree.
+Noteworthy properties and methods on =Element= nodes
++ =createElement()=
++ =tagName=
++ =children=
++ =getAttribute()=
++ =setAttribute()=
++ =hasAttribute()=
++ =removeAttribute()=
++ =classList=  /can be modified using the =add()=, =remove()=, =contains()=, and =toggle()= methods/
++ =dataset=     /an object containing all the attributes of an element that start with =data-*=. Note the hyphen is replaced by camelCasing/
++ =attributes= /collection of the =Attr= nodes that an element currently has defined, The list returned is a =NamedNodeMap=/
+/The =NamedNodeMap= interface represents a collection of =Attr= objects/
+The array that is returned inherits from the =NamedNodeMap=, which provides
+methods to operate on the array, such as =getNamedItem()=,
+=setNamedItem()=, and =removeNamedItem()=. Operating on =attributes=
+with these methods should be secondary to using =getAttribute()=,
+=setAttribute()=, =hasAttribute()=, and =removeAttribute()=. The only benefit
+in using =attributes= is found in its functionality for returning a list of
+live =attributes=.
+* CHAPTER 4, Element Node Selection
++ =getElementById()=
+
++ =querySelector()=
+/pass this method a CSS3 selector, will return the first node element found/
++ =querySelectorAll()=
+/returns a _not a live_ NodeList/
++ =getElementsByTagName()=
+/returns a live NodeList/
++ =getElementsByClassName()=
+ /returns a live NodeList/
+The last four slecter also defined on element nodes. This allows the
+method to limit its results to a specific vein of the DOM tree, thereby
+enabling context quering.
++ =getElementsByName()=
+for selecting from a document =form=, =img=, =frame=, =embed=, and
+object elements that all have the same =name= attribute value
++ =children=
+/only gives us the immediate =element= nodes, a =HTMLCollections=/
++ =document.all=
+/All elements in the HTML document, not supported by firefox/
++ =document.forms=
+/All =<form>= elements in the HTML document/
++ =document.images=
+/All =<img>= elements in the HTML document/
++ =document.links=
+/All =<a>= elements in the HTML document/
++ =document.scripts=
+/All =<script>= elements in the HTML document/
++ =document.styleSheets=
+/All =<link>= or =<style>= elements in the HTML document/
+
++ =myLi.matches("li:first-child")=
+Using the matchesSelector() method, we can determine whether an element will
+match a selector string. For example, say we want to determine whether an <li> is the
+first child element of a <ul>.
+
+* CHAPTER 5, Element Node Geometry and Scrolling Geometry
+** Element’s =offsetTop= and =offsetLeft= Values Relative to the =offsetParent=
+we can get the offset pixel value of an element node from the
+=offsetParent=. These element node properties give us the distance in
+pixels from an element’s outside top and left borders to the inside
+top and left borders of the =offsetParent=. The value of the
+=offsetParent= is determined by searching the nearest ancestor elements
+for an element that has a CSS position value not equal to =static=. If
+none are found, the <body> element is used..
+** =getBoundingClientRect()=
+Using =the getBoundingClientRect()= method, we can get the position of an element’s
+outside border edges as the element is painted in the browser viewport relative to the
+_top_ and _left_ edges of the viewport.
+[[file:~/Pictures/screenshots/getBoundingClientReact.jpg][getBoundingClientRect]]
+** Element’s Size (Border + Padding + Content)
+Use =offsetHeight= and =offsetWidth= to get =height= and =width= of an element;
+** Element’s Size (Padding + Content) in the Viewport, Excluding Borders
+Use =clientWidth= and =clientHeight=
+** Get the Topmost Element in the Viewport at a Specific Point
+=document.elementFromPoint(x,y)=
+** Element.scrollHeight
+The =Element.scrollHeight= read-only attribute is a measurement of the
+height of an element's content, including content not visible on the
+screen due to overflow.
+[[https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollHeight][Element.scrollHeight on MDN]]
+** Element.scrollWidth
+The =Element.scrollWidth= read–only property returns either the width
+in pixels of the content of an element or the width of the element
+itself, whichever is greater. If the element is wider than its content
+area (for example, if there are scroll bars for scrolling through the
+content), the scrollWidth is larger than the clientWidth.
+** scrollTop, scrollLeft
+Use =scrollTop= and =scrollLeft= to Get and Set Pixels Scrolled from the Top and Left
+** scrollIntoView()
+By selecting a node contained inside a node that is scrollable, we can tell the selected
+node to scroll into view by using the =scrollIntoView()= method.
+* CHAPTER 6, Element Node Inline Styles
+** Style Attribute (a.k.a. Element Inline CSS Properties)
+Every HTML element has a =style= attribute that can be used to insert inline CSS properties specific to the element.
+Notice it return =CSSStyleDeclaration= object and only the element’s /inline styles/ (i.e., not the computed
+styles, which are any styles that have cascaded from stylesheets) are included in the =CSSStyleDeclaration= object.
+=style= object also has methods like =setProperty('background-color','red')=, =getPropertyValue('background-color')= and
+=removeProperty('background-color')=
+=style.cssText= is a mutable property that returns all inline styles.
+
+**  Get an Element’s Computed Styles (i.e., Actual Styles Including Any from the Cascade)
+=window.getComputedStyle(div).backgroundColor=
+return a =CSSStyleDeclaration= object
+No values can be set on a =CSSStyleDeclaration= object returned from
+=getComputedStyles()=, as it’s read-only.
+* CHAPTER 7, Text Nodes
+** Text Object Overview
+Text in an HTML document is represented by instances of the Text() constructor
+function, which produces text nodes. When an HTML document is parsed, the text
+mixed in among the elements of an HTML page is converted to text nodes.
+** Noteworthy methods and properties
++ =textContent=
+  - Use this to Remove Markup and Return All Child Text Nodes
+  - When =textContent= is used to set the text contained within a node, it will remove all
+child nodes first, replacing them with a single Text node.
++ =splitText()=
+  -  to Split a Text Node
++ =appendData()=
+  - Manipulating Text Nodes
++ =deleteData()=
+  - Manipulating Text Nodes
++ =insertData()=
+  - Manipulating Text Nodes
++ =replaceData()=
+  - Manipulating Text Nodes
++ =subStringData()=
+  - Manipulating Text Nodes
++ =normalize()=
+  - to Combine Sibling Text Nodes into One Text Node
++ =data= or =nodeValue=
+  - Getting a Text Node Value
++ =document.createTextNode()=
+  - to programmatically create =Text= nodes
+**  The Difference Between =textContent= and =innerText=
+   :DIFFERENCEs:
++ innerText is aware of CSS. So, if you have hidden text, innerText ignores this text, whereas textContent does not.
++ Because innerText cares about CSS, it will trigger a reflow, whereas textContent will not.
++ innerText ignores the Text nodes contained in <script> and <style> elements.
++ innerText, unlike textContent, will =normalize= the text that is returned. Just think of textContent as returning exactly what is in the document, with the markup removed. This will include whitespace, line breaks, and carriage returns.
++ innerText is considered to be nonstandard and browser-specific while textContent is implemented from the DOM specifications.  If you intend to use innerText, you’ll have to create a workaround for Firefox.
+  :END:
+* CHAPTER 8, DocumentFragment Nodes
+:Overview:
+The creation and use of a DocumentFragment node provides a lightweight document
+DOM that is external to the live DOM tree. Think of a DocumentFragment as an empty
+document template that acts just like the live DOM tree, but only lives in memory, and
+its child nodes can easily be manipulated in memory and then appended to the live DOM.
+:END:
+:NOTEs:
++ A document fragment may contain any kind of node (except <body> or <html>),
+whereas an element may not.
++ The document fragment itself is not added to the DOM when you append a frag‐
+ment. The contents of the node are. This is in contrast to appending an element
+node in which the element itself is part of the append operation.
++ When a document fragment is appended to the DOM, it transfers from the docu‐
+ment fragment to the place where it is appended. It’s no longer in memory in the
+place you created it. This is not true for element nodes that are used to contain
+nodes only briefly and then are moved to the live DOM.
++ Creating a DOM structure in memory using node methods can be verbose and labor-
+intensive. One way around this is to create a document fragment, append a <div> to
+this fragment because innerHTML does not work on document fragments, and then use
+the innerHTML property to update the fragment with a string of HTML. As a result of
+this, a DOM structure is crafted from the HTML string.
++ When appending a document fragment, the nodes contained in the fragment are moved
+from the fragment to the structure you are appending to, use =docFrag.cloneNode(true)= 
+if you don't want to
+:END:
+** Noteworthy methods and properties
++ =document.createDocumentFragment()=
+  - to create a fragment
+#+BEGIN_SRC web
+  <!DOCTYPE html>
+  <html lang="en">
+    <body>
+      <div></div>
+      <script>
+        //create a <div> and document fragment
+          var divElm = document.createElement('div');
+          var docFrag = document.createDocumentFragment();
+
+          //append div to document fragment
+          docFrag.appendChild(divElm);
+
+          //create a DOM structure from a string
+          docFrag.querySelector('div').innerHTML = '<ul><li>foo</li><li>bar</li></ul>';
+          //append, starting with the first child node contained inside of the <div>
+            document.querySelector('div').appendChild(docFrag.querySelector('div').firstChild);
+            //logs <ul><li>foo</li><li>bar</li></ul>
+            console.log(document.querySelector('div').innerHTML);
+      </script>
+    </body>
+  </html>
+
+#+END_SRC
+* CHAPTER 9, CSS Stylesheets and CSS Rules
+:NOTES:
++ Once a stylesheet is added to an HTML document, it’s represented by the =CSSStylesheet= object. Each CSS rule (e.g., =body{background-color:red;}=) inside a stylesheet is represented by a =CSSStyleRule= object. 
+
++ Keep in mind that selecting the element that includes the stylesheet (i.e., <link> or
+<style>) is not the same as accessing the actual object (CSSStylesheet) that represents
+the stylesheet itself.
+:END:
+
++ =document.styleSheets= accessing all stylesheets. doesn't need =.sheet= property to access =CSSStylesheet= object
++ Use =.sheet= property to gain access to the =CSSStylesheet= object when you do something like =document.querySelector('#styleElement').sheet=
+
+A =CSSStylesheet= object accessed from a =document.styleSheets[i]= list or via the =.sheet= property
+has the following properties and methods:
++ =disabled=
+  - to Disable/Enable Stylesheets
++ =href=
+  - readonly
++ =media=
+  - readonly
++ =ownerNode=
+  - readonly
++ =parentStylesheet=
+  - readonly
++ =title=
+  - readonly
++ =type=
+  - readonly
++ *=cssRules=*
+  - to Get a List of CSS Rules(=CSSStyleRule= objects) in a Stylesheet
++ =ownerRule=
++ =deleteRule= (e.g =document.querySelector('#styleElement').sheet.deleteRule(index)=)
+  - programmatically manipulate the CSS rules in a stylesheet. 
++ =insertRule= (e.g =document.querySelector('#styleElement').sheet.insertRule('p{color:red}',1)=)
+  - programmatically manipulate the CSS rules in a stylesheet. 
+
+** =CSSStyleRule= 
+:OVERVIEW:
+A =CSSStyleRule= object represents each CSS rule contained in a stylesheet. Basically, a
+=CSSStyleRule= is the interface to the CSS properties and values attached to a /selector/.
+:END:
+#+BEGIN_SRC html
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <style id="styleElement">
+        body{background-color:#fff;margin:20px;} /* this is a css rule */
+        p{line-height:1.4em; color:blue;} /* this is a css rule */
+      </style>
+    </head>
+    <body>
+      <script>
+        var sSheet = document.querySelector('#styleElement').sheet;
+        console.log(sSheet.cssRules[0].cssText); /* logs "body { background-color: red;
+        margin: 20px; }" */
+        console.log(sSheet.cssRules[1].cssText); /* logs "p { line-height: 1.4em;
+        color: blue; }" */
+      </script>
+    </body>
+  </html>
+
+#+END_SRC
+*** =CSSStyleRule= Properties and Methods
++ =cssText=
++ =parentRule=
++ =parentStylesheet=
++ =selectorText=
++ =style=
+  - get and set values for a style
+#+BEGIN_SRC javascript
+  var styleSheet = document.querySelector('#styleElement').sheet;
+  //Set css rules in stylesheet
+  styleSheet.cssRules[0].style.color = 'red';
+  styleSheet.cssRules[1].style.color = 'purple';
+  //Get css rules
+  console.log(styleSheet.cssRules[0].style.color); //logs 'red'
+  console.log(styleSheet.cssRules[1].style.color); //logs 'purple'
+#+END_SRC
++ =type=
+* CHAPTER 10, JavaScript in the DOM
+:NOTES:
+The =<script>= element does not have any required attributes but offers
+the following optional attributes: =async=, =charset=, =defer=, =src=, and =type=.
+:END:
++ =defer=
+  - will defer the blocking, downloading, and execution of an external JavaScript file until the browser has parsed the
+    closing =</html>= node.
+  - According to the specification, deferred scripts are supposed to be executed
+   in document order and before the =DOMContentLoaded= event.
+#+BEGIN_SRC html
+  <!-- defer, don't block just ignore this until the <html> element node is parsed -->
+  <script defer src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.3.3/underscore-min.js"></script>
+#+END_SRC
++ =async=
+  -this will override the sequential blocking nature of <script>
+elements when the DOM is being constructed by a web browser. We are
+telling the browser to not block the construction of the HTML page
+(i.e., DOM parsing, including downloading other assets such as images,
+stylesheets, etc.) and to forego the sequential loading as well.  When
+you use the async attribute, the files are loaded in parallel and
+parsed in order of download once they are fully downloaded.
+  - This raises a dependency management issue.
+#+BEGIN_SRC html
+  <!DOCTYPE html>
+  <html lang="en">
+    <body>
+      Live code
+      <!-- Don't block, just start downloading and then parse the file when it's done
+           downloading -->
+      <script async src=
+              "http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.3.3/underscore-min.js">
+      </script>
+      <!-- Don't block, just start downloading and then parse the file when it's done
+           downloading -->
+      <script async src=
+              "http://cdnjs.cloudflare.com/ajax/libs/jquery/1.7.2/jquery.min.js">
+      </script>
+      <!-- Don't block, just start downloading and then parse the file when it's done
+           downloading -->
+      <script async src=
+              "http://cdnjs.cloudflare.com/ajax/libs/jquery-mousewheel/3.0.6/
+               jquery.mousewheel.min.js">
+      </script>
+      <script>
+        // we have no idea if jQuery has been loaded yet likely not yet...
+        console.log(window['jQuery'] === undefined);//logs true
+        /* Only after everything is loaded can we safely conclude that jQuery was
+        loaded and parsed */
+        document.body.onload = function(){console.log(jQuery().jquery)};
+      </script>
+    </body>
+  </html>
+
+#+END_SRC
++ =onload=
+  - The =<script>= element supports a load event handler (i.e., =onload=) that will execute once
+  an external JavaScript file has been loaded and executed.
+#+BEGIN_SRC html
+  <!-- Don't block, just start downloading and then parse the file when it's done
+       downloading -->
+  <script>
+    var underscoreScript = document.createElement("script");
+    underscoreScript.src =
+    "http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.3.3/underscore-min.js";
+    underscoreScript.onload =
+    function(){console.log('underscsore is loaded and executed');};
+    document.body.appendChild(underscoreScript);
+  </script>
+#+END_SRC
++ The =document.scripts= property available from the document object provides a list (i.e.,
+an =HTMLCollection=) of all the scripts currently in the DOM.
+* CHAPTER 10, DOM Events
++ What's is an Event?
+  :ANSWER:
+    An event, in terms of the DOM, is either a predefined or a custom moment in time that
+  occurs in relationship to an element in the DOM, the document object, or the window
+  object. 
+  :END:
+** Common Events
+[[file:~/Pictures/screenshots/1.jpg][UI Events 1]]
+[[file:~/Pictures/screenshots/2.jpg][UI Events 2]]
+[[file:~/Pictures/screenshots/focusEvent.jpg][Focus Events]]
+[[file:~/Pictures/screenshots/focusEvent.jpg][Form Events]]
+[[file:~/Pictures/screenshots/mouseEvents1.jpg][Mouse Events 1]]
+[[file:~/Pictures/screenshots/mouseEvents2.jpg][Mouse Events 2]]
+[[file:~/Pictures/screenshots/wheelEvents.jpg][Wheel Events]]
+[[file:~/Pictures/screenshots/keyboardEvents.jpg][Keyboard Events]]
+[[file:~/Pictures/screenshots/touchEvents.jpg][Touch Events]]
+[[file:~/Pictures/screenshots/WindowBodyFrame.jpg][window, <body> and frame-specific Events]]
+[[file:~/Pictures/screenshots/documentEvents.jpg][document specific Events]]
+[[file:~/Pictures/screenshots/dragEvents.jpg][drag Events]]
+
+** The Event Flow
+When an event is invoked, the event flows or propagates through the DOM, firing the
+same event on other nodes and JavaScript objects. The event flow can be programmed
+to occur as a capture phase (i.e., DOM tree trunk to branches) or as a bubbling phase
+(i.e., DOM tree branches to trunk), or both.
+
+In the following code, I set up 10 event listeners that can all be invoked, due to the event
+flow, by clicking once on the <div> element in the HTML document. When the <div>
+is clicked, the capture phase begins at the window object and propagates down the DOM
+tree firing the click event for each object (i.e., window > document > <html> ><body> >
+event target) until it hits the event target. Once the capture phase ends, the target phase
+starts, firing the click event on the target element itself. Next, the propagation phase
+propagates up from the event target firing the click event until it reaches the window
+object (i.e., event target > <body> > <html> > document > window). With this knowledge,
+it should be obvious why clicking the <div> in the code example logs to the console
+1,2,3,4,5,6,7,8,9,10.
+
+We can use the =addEventListener(type, listener, useCapture)= to
+register event handlers for in either bubbling (default) or capturing
+mode. To use the capturing model pass the third argument as =true=.
+
+The event object passed to event listener functions has an =eventPhase=
+property containing a number that indicates in which phase an event is
+invoked. A value of 1 indicates the capture phase. A value of 2 indicates
+the target phase. And a value of 3 indicates the bubbling phase.
+
+#+BEGIN_SRC html
+  <!DOCTYPE html>
+  <html lang="en">
+    <body>
+      <div>click me to start event flow</div>
+      <script>
+        /* notice that I am passing the addEventListener() a boolean parameter of true so
+        capture events fire, not just bubbling events */
+
+        //1 capture phase
+        window.addEventListener('click',function(){console.log(1);},true);
+
+        //2 capture phase
+        document.addEventListener('click',function(){console.log(2);},true);
+
+        //3 capture phase, documentElement is \<html lang="en"\>
+        document.documentElement.addEventListener('click',function(){console.log(3);},true);
+
+        //4 capture phase
+        document.body.addEventListener('click',function(){console.log(4);},true);
+
+        //5 target phase occurs during capture phase
+        document.querySelector('div').addEventListener('click',function(){console.log(5);},true);
+
+        //6 target phase occurs during bubbling phase
+        document.querySelector('div').addEventListener('click',function(){console.log(6);},false);
+
+        //7 bubbling phase
+        document.body.addEventListener('click',function(){console.log(7);},false);
+
+        //8 bubbling phase
+        document.documentElement.addEventListener('click',function(){console.log(8);},false);
+
+        //9 bubbling phase
+        document.addEventListener('click',function(){console.log(9);},false);
+
+        //10 bubbling phase
+        window.addEventListener('click',function(){console.log(10)},false);
+      </script>
+    </body>
+  </html>
+
+#+END_SRC
+
++ =addEventListener()= 
+  - method is available on all =Element= nodes, the =window= object,
+    and the =document= object
++ =removeEventListener()=
+  -  if the original listener was not added using an anonymous function.
++ =this=
+  - The value of =this= inside the event listener function passed to the =addEventListener()=
+    method will be a reference to the node or object the event is attached to.
+  - Also =event.currentTarget= === =this=
++ =event.target=
+  -  Referencing the target of an Event and Not the Node or Object on Which the Event Is Invoked
+#+BEGIN_SRC js2
+  // <div>click me</div>
+  document.body.addEventListener('click',function(event){
+  /* when the <div> is clicked logs '<div>' because the <div> was the target in
+  the event flow */
+  console.log(event.target);
+  },false);
+#+END_SRC
++ =event.preventDefault()= 
+  - to Cancel Default Browser Events
+  - The =event.preventDefault()= method does not stop events from propagating (i.e., bubbling or capture phases).
++ =event.defaultPrevented=
+  - indicates true if =preventDefault()= has been invoked for a bubbling event.
++ =event.cancelable=
+  - indicates whether the event will respond to the =preventDefault()= method and cancel the default behavior.
++ =event.stopPropagation()=
+  - to Stop the Event Flow
++ =event.stopImmediatePropagation()=
+  - to Stop the Event Flow As Well As Other Like Events on the Same Target
+
+** Custom Events
+A developer is not limited to the predefined event types.
+
++ =document.createEvent()=
++ =initCustomEvent()=
++ =dispatchEvent()=
+ #+BEGIN_SRC web
+   <!DOCTYPE html>
+   <html lang="en">
+       <body>
+           <div>click me</div>
+           <script>
+            var divElement = document.querySelector('div');
+
+            //create the custom event
+            var cheer = document.createEvent('CustomEvent'); /* the 'CustomEvent' parameter is required */
+
+            //create an event listener for the custom event
+            divElement.addEventListener('goBigBlue',function(event){
+                console.log(event.detail.goBigBlueIs)
+            },false);
+
+            /* Use the initCustomEvent method to set up the details of the custom event.
+               Parameters for initCustomEvent are: (event, bubble?, cancelable?, pass values
+               to event.detail) */
+            cheer.initCustomEvent('goBigBlue',true,false,{goBigBlueIs:'its gone!'});
+
+            //invoke the custom event using dispatchEvent
+            divElement.dispatchEvent(cheer);
+
+           </script>
+       </body>
+   </html>
+ #+END_SRC
+
+** Simulating/Triggering Mouse Events
+:OVERVIEW:
+Simulating an event is not unlike creating a custom event. In the case of simulating a
+mouse event, we create a =MouseEvent= by using =document.createEvent()=. Then, using
+=initMouseEvent()=, we set up the mouse event that is going to occur. Next, the mouse
+event is dispatched on the element on which we’d like to simulate an event (i.e., the
+<div> in the HTML document).
+:END:
+#+BEGIN_SRC web
+  <!DOCTYPE html>
+  <html lang="en">
+      <body>
+          <div>no need to click, we programmatically trigger it</div>
+
+          <script>
+           var divElement = document.querySelector('div');
+
+           //setup click event that will be simulated
+           divElement.addEventListener('click',function(event){
+               console.log(Object.keys(event));
+           },false);
+
+           //create simulated mouse event 'click'
+           var simulateDivClick = document.createEvent('MouseEvents');
+
+           /* setup simulated mouse 'click'
+              initMouseEvent(type,bubbles,cancelable,view,detail,screenx,screeny,clientx,clienty,
+              ctrlKey,altKey,shiftKey,metaKey,button,relatedTarget) */
+           simulateDivClick.initMouseEvent(
+               'click',true,true,document.defaultView,0,0,0,0,0,false,false,false,0,null,null);
+
+           //invoke simulated clicked event
+           divElement.dispatchEvent(simulateDivClick);
+          </script>
+      </body>
+  </html>
+#+END_SRC
+
+** Event Delegation
+Event delegation, stated simply, is the programmatic act of leveraging the event flow
+and a single event listener to deal with multiple event targets.  A side effect of event
+delegation is that the event targets don’t have to be in the DOM when the event is created
+in order for the targets to respond to the event. This is, of course, rather handy when
+dealing with XHR responses that update the DOM. By implementing event delegation,
+new content that is added to the DOM post JavaScript load parsing can immediately
+start responding to events. Imagine we have a table with an unlimited number of rows
+and columns. Using event delegation, we can add a single event listener to the <table>
+node that acts as a delegate for the node or object that is the initial target of the event.
+In the following code example, clicking any of the <td>s (i.e., the target of the event)
+will delegate its event to the click listener on the <table>. Don’t forget, this is all made
+possible because of the event flow, and in this specific case, the bubbling phase.
+
+#+BEGIN_SRC web
+  <!DOCTYPE html>
+  <html lang="en">
+      <body>
+          <p>Click a table cell</p>
+          <table border="1">
+              <tbody>
+                  <tr><td>row 1 column 1</td><td>row 1 column 2</td></tr>
+                  <tr><td>row 2 column 1</td><td>row 2 column 2</td></tr>
+                  <tr><td>row 3 column 1</td><td>row 3 column 2</td></tr>
+                  <tr><td>row 4 column 1</td><td>row 4 column 2</td></tr>
+                  <tr><td>row 5 column 1</td><td>row 5 column 2</td></tr>
+                  <tr><td>row 6 column 1</td><td>row 6 column 2</td></tr>
+              </tbody>
+          </table>
+          <script>
+           document.querySelector('table').addEventListener('click',function(event){
+               if(event.target.tagName.toLowerCase() === 'td'){ /* make sure we only run code if a td is the target */
+                   console.log(event.target.textContent); /* use event.target to gain access to target of the event which is the td */
+               }
+           },false);
+          </script>
+      </body>
+  </html>
+#+END_SRC
+* CHAPTER 12 Creating dom.js

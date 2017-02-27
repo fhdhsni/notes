@@ -1,0 +1,19 @@
+
+* History
+
+* Language
+#+BEGIN_SRC javascript
+Object.prototype
+Array.prototype
+Function.prototype
+Number.prototype
+String.prototype
+Boolean.prototype
+#+END_SRC
+* Advanced Features
+
+* Platforms
+
+* Standards
+
+* Stype

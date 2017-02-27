@@ -1,0 +1,41 @@
+* 
+1) DOM is constructed incrementally, as the bytes arrive.
+2) When browser dispaches a network request for CSS it doesn't stop
+   parsing the rest of HTML. I continues parsing html and constructing
+   DOM.
+3) Although parsing HTML and constructing DOM might be completed but
+   we need CSS to construct *Render Tree(s)* and show things (paint) on screen.
+4) Unlike HTML parsing, CSS is not *incremental*. we need the entire
+   file, a few chunk is no help. (Get CSS down to the cliend as fast as you can)
+5) When we have the whole CSS file we can constuct CSSOM.
+6) DOM + CSSOM = Render Tree(s)
+7) Once render treee is ready, browser needs to compute size of all the nodes. (layout phase)
+8) JavaScript can modify the DOM and CSSOM, So it blocks both DOM construction and CSS.
+9) Script execution can change the input stream. Hence we must
+   wait. *HTML/CSS* parsing stops because JavaScript can change/modify
+   everything. In a nutshell:
+   - /DOM construction can't proceed until JS is fetched/
+   - /DOM construction can't proceed until JS is executed/
+10) Async all the things
+    * regular: block on HTTP request, pars, execute, proceed
+    * async: download in background, execute when ready
+* 
+1) Redirecting to a new host means a new DNS lookup.
+2) Even after the Paint JavaScript can manipulate the DOM and CSSOM, which may trigger a:
+   * Style recalculation
+   * Layout recalculation
+   * Paint update
+3) Performance = 60 FPS
+   - 1000ms / 60FPS => 16ms / frame
+   - So each frame has 16ms
+   - Each frame (Hopefully we dont' have to perform all of them on each frame)
+     + Application doe
+     + Style recalculation
+     + Layout recalculation
+     + Garbage collection
+     + Painting
+   - If we can't finish work in 16ms
+     + Frame is “dropped” - not rendered
+     + We will wait until next *vsync*
+     + dropped frame = "jank"
+   - use =requestAnimationFrame= callback

@@ -1,0 +1,93 @@
+- to render 60 FPS we have 16ms (well it's actully ~10ms for us) 16ms per frame. 1000ms / 60 fps = 16ms
+  
+*** Critical Rendering Path
+1. GET request
+2. =Parse HTML= to create the DOM
+   - (doesn't need the whole html file to start parsing, browser constructs the DOM incrementally)
+   - When a browser receives the response from the server, it starts reading
+     the characters to create the tokens (e.g. for <a></a> a startTag
+     token and a endTag token). With tokens at hand it creates node
+     objects for each HTML element (with their atributes and all).
+   - HTML document ideally should be under 14 Kb to reduce number of roundtrips to server.
+3. =Recalculate Styles= is the process of creating CSSOM (becuase of
+   cascading nature of CSS, unlike DOM construction, CSSOM
+   construction is not incrementall)
+   - (CSS is considered a "/render blocking resource/". This means that
+     the Render Tree cannot be constructed (that is to say nothing
+     shows on the page) without first fully constructing the CSSOM
+     [[https://bitsofco.de/understanding-the-critical-rendering-path/][Understanding critical rendering path]])
+   - same as DOM construction, parser reads the characters and creates tokens (of course with differents sets of rules)
+   - as a side note, remember more specific selector are slower. e.g =.foo .bar= is slower than =.foo--bar=
+   - we can use =media= attribute to avoid render blocking nature
+     of stylesheet links for those style that doesn't apply to our current
+     media. e.g <link rel=stylesheel href=style-print.css media=*print*
+     /> doesn't block rendering on =screen= (But browser download it anyway)
+   - Another thing to remember is that CSS also blocks JavaScript
+     execution if it doesn't have =async= or attribute.
+4. Running javascript (if there's any)
+   - is considered a "/parser blocking resource/". This means that the
+     construction of DOM is blocked until JavaScript execution is finished.
+     unless it has =async= or =defer=;
+   - Although DOM construction is blocked via JS but preload scanner can fetch critical resources in advance.
+5. Combine the DOM and CSSOM to create *The Render Tree*
+   - It only contains visible contents (i.e. if a node in DOM has a
+     matching node in CSSOM with =display: none= rule, it'll be skiped.)
+6. Calculate =Layout= (Layout is where the browser figures out the
+   geometric information for elements: their size and location in the
+   page. Browser calculate all these based on layout viewport, i.e
+   viewport meta tag in HTML file `<meta name="viewport"
+   content="width=device-width"/>`. If this tag doesn't exist browser
+   falls back to default layout viewport which is usually 980px)
+   - Change of some styles (like left, margin, width...) triggers this step which is costly (hence batch style updates).
+   - Also, window resize, scripts that add, remove nodes will trigger layout.
+7. =Paint= (Vector to Raster)
+8. Composite
+
+**** examples
+1) a visual change: Style => if (e.g. width, top, margin...) => Layout (reflow in FF) => Paint => Composite
+2) paint only property (e.g background): Style => Paint => Composite
+3) only composite(e.g transform, opacity): Style => Composite
+
+*** RAIL - App lifecycles
+- Load (~1 sec)
+- Animation (~10 ms)
+- Response (should response in 100ms)
+- Idle (~50ms, go and fetch extra assets)
+
+*** colors of devtool timeline
+- blue => parseHTML
+- purple => recalculate style and layout
+- green => paint
+- green => composite
+*** JavaScript
+Stuff we write isn't the code that actully will be run in
+browser. There's this thing called JIT (just in time) that compiles
+our code. So shove your micro optimization in your hairy ass.
+**** Memory Management
+- use variables with appropriate scope.
+- *important:* Ensure that you’re unbinding event listeners where they are no
+  longer required, especially when the DOM objects they’re bound to
+  are about to be removed
+*** styles
+- keep your selector matching simple.
+  + .box :nth-child(3) is more costly than just .box--three (trivial
+    in small number of elements but hey do the right thing
+    motherfucker)
+- =Layout= (reflow) is Evil. (Layout is almost always scoped to the
+  entire document. If you have a lot of elements, it’s going to take a
+  long time to figure out the locations and dimensions of them all.)
+  These motherfuckers trigger layout *Element* clientHeight,
+  clientLeft, clientTop, clientWidth, focus(),
+  getBoundingClientRect(), getClientRects(), innerText, offsetHeight,
+  offsetLeft, offsetParent, offsetTop, offsetWidth, outerText,
+  scrollByLines(), scrollByPages(), scrollHeight, scrollIntoView(),
+  scrollIntoViewIfNeeded(), scrollLeft, scrollTop, scrollWidth
+  *Frame*, *Image* height, width Range getBoundingClientRect(),
+  getClientRects() *SVGLocatable* computeCTM(), getBBox()
+  SVGTextContent getCharNumAtPosition(), getComputedTextLength(),
+  getEndPositionOfChar(), getExtentOfChar(), getNumberOfChars(),
+  getRotationOfChar(), getStartPositionOfChar(), getSubStringLength(),
+  selectSubString() *SVGUse* instanceRoot *window* getComputedStyle(),
+  scrollBy(), scrollTo(), scrollX, scrollY,
+  webkitConvertPointFromNodeToPage(),
+  webkitConvertPointFromPageToNode()

@@ -1,0 +1,118 @@
+* BEM
+A nameing convention =block__element--modifier=
+- B
+  + block
+- E
+  + element
+- M
+  + modifier
+
+#+BEGIN_SRC scss
+  @mixin e($element) {
+    &__#{$element} {
+      @content;
+    }
+  }
+
+  @mixin m($modifier) {
+    &--#{$modifier} {
+      @content;
+    }
+  }
+
+  .list {
+    list-style-type: none;
+
+    @include e('item') {
+      margin-top: 0;
+
+      @include m('last') {
+        margin-bottom: 0;
+      }
+    }
+  }
+#+END_SRC
+
+#+BEGIN_SRC css
+  /* output of previous sass snipet */
+  .list {
+    list-style-type: none;
+  }
+
+  .list__item {
+    margin-top: 0;
+  }
+
+  .list__item--last {
+    margin-bottom: 0;
+  }
+
+#+END_SRC
+
+* SMACSS
+There are five types of categories =>=>
+
+** Base
+Base rules are the defaults.
+#+BEGIN_SRC css
+html, body, form
+ { margin: 0; padding: 0; }
+input[type=text]
+ { border: 1px solid #999; }
+a { color: #039;
+ }
+a:hover { color:
+ #03C; }
+#+END_SRC
+
+** Layout
+Layout rules divide the page into sections.    
+#+BEGIN_SRC css
+  #article {
+    width:80%;
+    float:left;
+  }
+
+  #sidebar {
+    width:20%;
+    float:right;
+  }
+
+  .l-fixed #article {
+    width: 600px;
+  }
+
+  .l-fixed #sidebar {
+    width: 200px;
+  }
+#+END_SRC
+Prefixed with =l-= or =layout-=
+
+** Module
+Modules are the reusable, modular parts of our design. 
+
+** State
+State rules are ways to describe how our modules or layouts will
+look when in a particular state. 
+
+Prefixed with =is-= like =is-hidden=
+
+** Theme
+
+* Tips
+#+BEGIN_SRC css
+/* Example Module */
+.example { }
+
+/* Callout Module */
+.callout { }
+
+/* Callout Module with State */
+.callout.is-collapsed { }
+
+/* Form field module */
+.field { }
+
+/* Inline layout  */
+.l-inline { }
+#+END_SRC

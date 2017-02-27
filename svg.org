@@ -1,0 +1,104 @@
+** viewport
+  You specify the size of the viewport using the width and height
+  attributes on the outermost <svg> element.
+
+** The initial *viewport coordinate*
+The initial viewport coordinate system is a coordinate system
+established on the viewport, with the origin at the top left corner of
+the viewport at point (0, 0).
+
+** The initial *user coordinate system*
+The initial user coordinate system is the coordinate system established on the SVG canvas. This coordinate system is initially identical to the viewport coordinate system—it has its origin at the top left corner of the viewport with the positive x-axis pointing towards the right, the positive y-axis pointing down. Using the viewBox attribute, the initial user coordinate system—also known as /the current coordinate system/, or /user space in use/ —can be modified so that it is not identical to the viewport coordinate system anymore.
+
+** The viewBox
+I like to think of the viewBox as the “real” coordinate system. After all, it is the coordinate system used to draw the SVG graphics onto the canvas. This coordinate system can be smaller or bigger than the viewport, and it can be fully or partially visible inside the viewport too.
+You specify your own user coordinate system using the viewBox attribute. If the user coordinate system you choose has the same aspect ratio (ratio of height to width) as the viewport coordinate system, it will stretch to fill the viewport area 
+=viewBox = <min-x> <min-y> <width> <height>=
+
+So, what does viewbox="0 0 400 300" exactly do?
+
+- It specifies a specific region of the canvas spanning from a top left point at (0, 0) to a point at (400, 300).
+- The SVG graphic is then cropped to that region.
+- The region is scaled up (in a zoom-in-like effect) to fill the entire viewport.
+- The user coordinate system is mapped to the viewport coordinate system so that—in this case—one user unit is equal to two viewport units.
+
+:ImportantNote:
+*<min-x> and <min-y> uses new coordinate system to move around not the original*
+:end:
+
+** transform
+1)  When an SVG element is *scaled*, its
+    entire current coordinate system is scaled, resulting in the
+    element also being repositioned inside the viewport.
+2) Note that skewing an element may result in the element being repositioned inside the viewport.
+3) 
+
+** SVG embeding technique
+1) img
+#+BEGIN_SRC html
+  <img src="logo.svg" alt="Company logo"/>
+#+END_SRC
+or
+#+BEGIN_SRC css
+  .logo {
+      background-color: url(logo.svg);
+  }
+#+END_SRC
+   - Image can be cached (requires HTTP request) (in case of =background-image= it'll be cached alongside stylesheet)
+   - Not CSS interactions.
+   - No scripting.
+   - CSS animations work only if defined inside <svg>
+2) object tag
+#+BEGIN_SRC html
+  <style>
+      #fallback {
+          background-image: url(fallback.png);
+      }
+  </style>
+  <object type="image/svg+xml" data="mySVG.svg">
+    <div id="fallback"></div>
+  </object>
+  <script>
+    window.onload = function () {
+    const obj = document.querySelector("#obj");
+    const content = obj.contentDocument;
+    const fletter = content.getElementById("fLetter");
+  };
+  </script>
+
+#+END_SRC
+- Image can be cached
+- Scripting (in my test it didn't work)
+- Fallback mechanism
+- CSS animations work only if defined inside <svg>
+3) iframe
+4) Data URIs
+
+** Real-life SVG
+- presentation attributes (e.g. fill="#009966") are overridden by any inline or external styles applied to an element — with the exception of inherited styles and user agent styles
+#+BEGIN_SRC xml
+  <svg height="200" width="200">
+    <style>
+      circle {
+      fill: skyblue;
+      }
+    </style>
+    <circle cx="100" cy="100" r="100" fill="orange"/> 
+  </svg>
+#+END_SRC
+circle will be skyblue
+
+- the contents of the SVG cannot be selected and styled from the style sheet because the SVG is in another document and styles don’t apply across documents. This is also why SVGs referenced externally in any of the other previously mentioned embedding techniques cannot be styled using CSS from the main page.
+
+*** sprites
+1) SVG Icon System with Icons as Background Images
+http://www.grumpicon.com/
+- remeber to use correct path. path to css files should be relative to
+  html file not grunticon.js loader and =./= at the beginning is not allowed.
+
+- If you want to use different colors or sizes of the same icon,
+  you’ll need to export a set of SVGs for each variation in order for
+  Grumpicon to create matching fallback PNG images. (if fallback doesn't matter to you use =background-size=)
+- Remember that the content of the page will not render before the CSS is parsed
+2)
+*** 
