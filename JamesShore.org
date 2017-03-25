@@ -1,0 +1,11 @@
+- Assume your code goin' to live for a long time
+
+- You cannot predict how requirements gonna change in the future (Your
+  desing needs to be able to accommodate these changes, even things you don't expect)
+
+- When (not if) I need to change this design decision how hard will it
+  be? (e.g not using JQuery anymore, or using someting else instead)
+
+- Once & Only Once: Every concept in your system have one place for it
+  and only one place. (have a spot for every important concept in your
+  system)

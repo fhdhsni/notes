@@ -7,7 +7,7 @@
     -  useful non-mutator array methods include /concat/, /map/, /filter/, and /reduce/.
 *** Objects
 use /Object.assign/
-*** Notee on /const/
+*** Note on /const/
 const is useful, but it does not make your data immutable. It prevents your variables from being reassigned. These two things should not be conflated.
 ** Pure Functions
 A pure function is a function that does not change the program’s state and does not produce an observable side effect. The output of a pure function relies solely on its input values. Wherever and whenever a pure function is called, its return value will always be the same when given the same inputs.
@@ -100,3 +100,344 @@ However, this can be avoided with tail call optimisation.
 ** Tail Call Optimisation
 
 
+* From Preethi Kasireddy email course
+1) The function depends only on the input provided to it to produce a
+   result (and not on any external state).
+2) The function does not cause any observable side effects, such as
+   modifying a global object or modifying a parameter passed by
+   reference.
+3) If a function consistently yields the same result for the same
+   input, it is referentially transparent. 
+   Pure functions + immutable data = referential transparency
+4) A declarative program declares “what” the program does without
+   necessarily telling us “how” it does it.
+5) “imperative” programming, describes exactly how to achieve a result
+   by using statements that specify control flow (e.g. for-loops,
+   if-else statements, etc.) or state changes.
+
+   Long story short: 
+   /Declarative/ = *WHAT*
+   /Imperative/ = *HOW*
+6) 
+
+
+* Professor Frisby egghead course
+** E.g
+#+BEGIN_SRC js
+const Box = x =>
+      ({
+        map: f => Box(f(x)),
+        fold: f => f(x),
+        inspect: () => `Box(${x})`,
+      });
+
+const nextCharForNumberString = str =>
+      Box(str)
+      .map(s => s.trim())
+      .map(r => new Number(r))
+      .map(i => i + 1)
+      .map(i => String.fromCharCode(i))
+      .fold(c => c.toLowerCase());
+
+const result = nextCharForNumberString(' 64');
+
+console.log(result);
+#+END_SRC
+
+#+RESULTS:
+: a
+: undefined
+
+** E.g
+#+BEGIN_SRC js
+const Box = x =>
+      ({
+        map: f => Box(f(x)),
+        fold: f => f(x),
+        inspect: () => `Box(${x})`,
+      });
+
+const moneyToFloat = str =>
+      Box(str)
+      .map(s => s.replace(/\$/g, ''))
+      .map(r => parseFloat(r));
+
+const percentToFload = str =>
+      Box(str.replace(/\%/g, ''))
+      .map(replaced => parseFloat(replaced))
+      .map(number => number * 0.01);
+
+const applyDiscount = (price, discount) =>
+      moneyToFloat(price)
+      .fold(cost =>
+            percentToFload(discount)
+            .fold(savings =>
+                  cost - cost * savings));
+
+const result = applyDiscount('$5.00', '20%');
+
+console.log(result);
+#+END_SRC
+
+#+RESULTS:
+: 4
+: undefined
+
+** Enforce a null check with composable code branching using Either
+*** e.g. 1
+#+BEGIN_SRC js
+
+const Right = x =>
+      ({
+        map: f => Right(f(x)),
+        fold: (f, g) => g(x),
+        inspect: () => `Right(${x})`,
+      });
+
+const Left = x =>
+      ({
+        map: f => Left(x),
+        fold: (f, g) => f(x),
+        inspect: () => `Left(${x})`,
+      });
+
+
+const result = Right(2)
+      .map(x => x + 1)
+      .map(x => x / 2)
+      .fold(x => 'error', x => x)
+
+console.log(result);
+#+END_SRC
+
+#+RESULTS:
+: 1.5
+: undefined
+*** e.g 2
+#+BEGIN_SRC js
+// const Either = Right || Left;
+
+const Right = x =>
+      ({
+        map: f => Right(f(x)),
+        fold: (f, g) => g(x),
+        inspect: () => `Right(${x})`,
+      });
+
+const Left = x =>
+      ({
+        map: f => Left(x),
+        fold: (f, g) => f(x),
+        inspect: () => `Left(${x})`,
+      });
+
+
+const fromNullable = x =>
+      x != null ? Right(x) : Left(x);
+
+const findColor = name => 
+      fromNullable({red: '#ff4444', blue: '#3b6998', yellow: '#fff68f'}[name]);
+
+console.log(
+  findColor('jellow')
+    .map(x => x.slice(1))
+    .map(x => x.toUpperCase())
+    .fold(x => 'no color', x => x)
+);
+
+#+END_SRC
+
+#+RESULTS:
+: no color
+: undefined
+** Use chain for composable error handling with nested Eithers
+*** e.g 1
+#+BEGIN_SRC js
+const fs = require('fs');
+
+const Right = x =>
+      ({
+        chain: f => f(x),
+        map: f => Right(f(x)),
+        fold: (f, g) => g(x),
+        inspect: () => `Right(${x})`,
+      });
+
+const Left = x =>
+      ({
+        chain: f => Left(x),
+        map: f => Left(x),
+        fold: (f, g) => f(x),
+        inspect: () => `Left(${x})`,
+      });
+
+
+const tryCatch = f => {
+  try {
+
+    return Right(f());
+  } catch (e) {
+    console.log(e.message);
+    return Left(e)
+  }
+};
+
+const getPort = () => 
+      tryCatch(() => fs.readFileSync('./config.json'))
+      .chain(c => tryCatch(() => JSON.parse(c))) // we already have a Right ot Left so we use chain
+      .fold(e => 3000,          // in case of error it'll be 3000
+            c => c.port);       // if everything went fine
+
+const result = getPort();
+
+console.log(result);
+
+#+END_SRC
+
+#+RESULTS:
+: ENOENT: no such file or directory, open './config.json'
+: 3000
+: undefined
+** A collection of Either examples compared to imperative code
+*** e.g 1
+#+BEGIN_SRC js
+  // imperative
+  const openSite = () => {
+    if (current_user) {
+      return renderPage(current_user);
+    } else {
+      return showLogin();
+    }
+  }
+
+  // declarative
+  const openSite = () =>
+        fromNullable(current_user)
+        .fold(showLogin, renderPage);
+#+END_SRC
+*** e.g 2
+#+BEGIN_SRC js
+  // imperative
+  const getPrefs = user => {
+    if(user.premium) {
+      return loadPrefs(user.preferences)
+    } else {
+      return defaultPrefs;
+    }
+  }
+
+  // declarative
+  const getPrefs = user =>
+        (user.premium ? Right(user) : Left('not premium'))
+        .map(u => u.preferences)
+        .fold(() => defaultPrefs, prefs => loadPrefs(prefs));
+#+END_SRC
+*** e.g 3
+#+BEGIN_SRC js
+  // imperative
+  const streeName = user => {
+    const address = user.address;
+
+    if (address) {
+      const street = address.street
+
+      if(street) {
+        return street.name
+      }
+    }
+
+    return 'no street';
+  }
+
+  // declarative
+
+  const streetName = user =>
+        fromNullable(user.address)
+        .chain(a => fromNullable(a.street))
+        .map(s => s.name)
+        .fold(e => 'no street', n => n);
+#+END_SRC
+*** e.g 4
+#+BEGIN_SRC js
+  // imperative
+  const concatUniq = (x, ys) => {
+    const found = ys.filter(y => y === x)[0]
+
+    return found? ys : ys.concat(x)
+  }
+  // declarative
+  const concatUniq (x, ys) =>
+        fromNullable(ys.filter(y => y===x)[0])
+        .fold(() => ys.concat(x), y => ys)
+#+END_SRC
+*** e.g 5
+#+BEGIN_SRC js
+  // imperative
+  const wrapExamples = example => {
+    if(example.previewPath) {
+      try {
+        example.preview = fs.readFileSync(example.previewPath)
+      } catch (e) { }
+    }
+
+    return example
+  }
+
+  // declarative
+  const readFile = x => tryCatch(() => fs.readFileSync(x));
+  const wrapExamples = example =>
+        fromNullable(example.previewPath)
+        .chain(readFile)
+        .fold(() => example,
+              ex => Object.assign( {preview: p}, ex))
+#+END_SRC
+*** e.g 6
+#+BEGIN_SRC js
+  const parseDbUrl = cfg => {
+    try {
+      const c = JSON.parse(cfg)
+
+      if(c.url) {
+        return c.url.match(/postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/)
+      }
+    } catch (e) {
+      return null
+    }
+  }
+  const parseDbUrl = cfg =>
+        tryCatch(() => JSON.parse(cfg))
+        .chain(c => fromNullable(c.url))
+        .fold(e => null,
+              u => u.match(/postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/))
+#+END_SRC
+** Create types with Semigroups
+#+BEGIN_SRC js
+const Sum = x =>
+      ({
+        x,
+        concat: o => 
+          Sum(x + o.x),
+        inspect: () => `Sum(${x})`,
+      });
+// const result = Sum(23).concat(Sum(7)); // Sum(30)
+
+const All = x =>
+      ({
+        x,
+        concat: o => 
+          All(x && o.x),
+        inspect: () => `All(${x})`,
+      });
+// const result = All(true).concat(All(true)); // True
+
+const First  = x =>
+      ({
+        x,
+        concat: _ => 
+          First(x),
+        inspect: () => `First(${x})`,
+      });
+
+const result = First('blah').concat(First(true)).concat('meow');
+console.log(result);
+#+END_SRC
