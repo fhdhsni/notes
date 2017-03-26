@@ -45,6 +45,16 @@ Note 'hello' is not an string it's a list
 is_list 'hello' # true
 #+END_SRC
 
+*** Binary list
+=<<1, 2, 3>>=
+- Every element is 1 byte long.
+- Concatenating to binary list
+=<<1, 2, 3>> <> <<4>>=
+Binaries can be tagged with a size atribute
+=<<1::size(16)>>= # 16 bits (2 bytes)
+
+=<<65>> <> <<" Farhad">>= # "A Farhad"
+
 *** Anonymous functions
 #+BEGIN_SRC elixir
 iex> add = fn a, b -> a + b end
@@ -54,7 +64,7 @@ iex> add.(1, 2)
 #+END_SRC
 To call an anonymous function we use . notation like =add.(1, 2)=
 
-*** (Linked) Lists
+*** (/Linked/) Lists
 Elixir uses square brackets to specify a list of values. Values can be of any type:
 #+BEGIN_SRC elixir
   mylist = [1, 2, true, 3]
@@ -72,7 +82,6 @@ tl(list) # [2, 3]
 [1 | [2]] === [1, 2] # true
 [1 | [2 | [3]]] === [1, 2, 3] # true
 #+END_SRC
-
 
 *** Tuples
 Elixir uses curly brackets to define
@@ -103,6 +112,14 @@ Tuples, on the other hand, are stored contiguously in memory. This
 means getting the tuple size or accessing an element by index is
 fast. However, updating or adding elements to tuples is expensive
 because it requires copying the whole tuple in memory.
+|----------------+-------------------+-------------------|
+|                | List              | Tuple             |
+|----------------+-------------------+-------------------|
+| Structure      | Linked list       | Contiguous memory |
+| Insertion      | Fast (prepending) | Expensive         |
+| Size           | Slow              | Fast              |
+| Fetch by index | Slow              | Fast              |
+| Fetch first    | Fast              | Fast              |
 
 ** Pattern Matching
 =a = 8=
@@ -117,19 +134,24 @@ want to do pattern matching with a variable you can use pin (^)
 operator
 =^a = 8= doesn't bind variable to 8 but it does pattern matching
 
-** Keyword lists
+Pattern Matching in maps is very useful.
+#+BEGIN_SRC elixir
+%{name: name} = %{name: "Farhad", age: 25}
+name # "farhad"
+#+END_SRC
 
+** Keyword lists
 In many functional programming languages, it is common to use a list
 of 2-item tuples as the representation of a key-value data
 structure. In Elixir, when we have a list of tuples and the first item
 of the tuple (i.e. the key) is an atom, we call it a keyword list:
 
 #+BEGIN_SRC elixir
-me = [{:name, "Farhad"}, {:status, "Awesome"}]
-[name: "Farhad", status: "Awesome"] === me # true
+  me = [{:name, "Farhad"}, {:status, "Awesome"}] # a list with two tuples(each one a 2-itme tuple) inside it
+  [name: "Farhad", status: "Awesome"] === me # true
 
-Keyword.get me, :name #"Farhad"
-me[:status] # "Awesome"
+  Keyword.get me, :name #"Farhad"
+  me[:status] # "Awesome"
 
 #+END_SRC
 
@@ -141,8 +163,6 @@ me[:status] # "Awesome"
 cook = fn(heat, foods) -> Keyword.values(foods) |> Enum.map(&(heat <> &1)) end
 cook.("Fried ", [meat: "sausage", veg: "beans"]) # ["Fried sausage", "Fried beans"]
 #+END_SRC
-
-
 
 ** Maps
 Whenever you need a key-value store, maps are the “go to” data
@@ -156,15 +176,16 @@ structure in Elixir.
 
   Map.get(foo, :name)             # notFarhad
   foo[:username]                  # fhdhsni
-  foo.name                        # notFarhad
+  foo.name                        # only if keys are atoms
 #+END_SRC
 
 Keyword syntax is allowed as long as all of the keys are atoms
 #+BEGIN_SRC elixir
 %{a: 1, b: 2} === %{:a => 1, :b => 2} # true
-#+END_SRC
+ #+END_SRC
 
-Maps have the following syntax for updating a key’s value:
+Maps have the following syntax for updating a key’s value.
+Note: *new keys cannot be added*
 #+BEGIN_SRC elixir
   me = %{:name => "Farhad", :age => 25}
   notMe = %{me | :name => "someone else"} # Adding new keys are not allowed
@@ -208,9 +229,7 @@ IO.puts Math.zero?(1)         #=> false
 IO.puts Math.zero?([1, 2, 3]) #=> ** (FunctionClauseError)
 IO.puts Math.zero?(0.0)       #=> ** (FunctionClauseError)
 #+END_SRC
-
 Using =do:= syntax
-
 #+BEGIN_SRC elixir
 defmodule Math do
   def zero?(0), do: true
@@ -284,13 +303,175 @@ Concat.join "hello", "world", "_" # will run second clause
  the first definition of =join= whereas the second one will only be
  invoked when three arguments are passed. thus providing a default
  value for =sep= in second clause is unnecessary and has no effect.
+*** Recursive function
+#+BEGIN_SRC elixir
+defmodule Graph do
+  def count(%{children: []}), do: 1
+  
+  def count(%{children: children}) do
+    [first | rest] = children
+    count(first) + count(%{children: rest})
+  end
+
+end
+
+
+graph = %{
+  children: [
+    %{children: []},
+    %{children: []},
+    %{children: [
+         %{children: []},
+         %{children: []}
+       ]
+    },
+    %{children: []}
+  ]
+}
+
+Graph.count(graph)
+#+END_SRC
 
 ** Miscellaneous
-- if statement is just a macro that takes =true= or =false= as it's
-  first argument and a keyword list as it's second argument
+*** =if= 
+    if statement is just a macro that takes =true= or =false= as it's
+    first argument and a keyword list as it's second argument. use =case= or =cond= instead
 #+BEGIN_SRC elixir
   if true, do: :this, else :that     # 
   # it's actually a macro
   if(true, [do: :this, else: :that]) # :this
   if(false, [do: :this, else: :that]) # :that
 #+END_SRC
+
+*** =alias=
+Referencing a module by a different name
+#+BEGIN_SRC elixir
+defmodule AnotherModule do
+  def add(a, b), do: a + b
+end
+
+defmodule Foo do
+  alias AnotherModule, as: M
+
+  def fun, do: M.add 2, 5
+end
+#+END_SRC
+
+*** =import=
+
+**** Importing the whole module 
+#+BEGIN_SRC elixir
+defmodule AnotherModule do
+  def add(a, b), do: a + b
+end
+
+defmodule Foo do
+  import AnotherModule
+
+  def fun, do: add 2, 10
+end
+
+Foo.fun # 12
+#+END_SRC
+
+**** Importing the only the specified function from a module 
+ #+BEGIN_SRC elixir
+ defmodule AnotherModule do
+  def add(a, b), do: a + b
+  def add(a, b, c), do: a + b + c
+end
+
+defmodule Foo do
+  import AnotherModule, only: [add: 2]
+
+  def fun, do: add 2, 10, 2
+end
+
+Foo.fun # %CompileError{description: "undefined function add/3", file: "nofile", line: 9}
+ #+END_SRC
+ Above snippet raise an error because we only imported to =add/2=
+ function. the number keyword list is the arity of the given function
+
+*** =cond=
+Remember =cond= has now falling through like a switch case does in other languages
+#+BEGIN_SRC elixir
+  cond do
+    expression -> body
+    expression -> body
+    ...
+  end
+#+END_SRC
+#+BEGIN_SRC elixir
+defmodule Fun do
+  def foo(%{age: age}) do
+    cond do
+      age > 50 -> "You gonna die, pretty soon actully"
+      age > 30 -> "Enjoy misery"
+      true     -> "Hmm"
+    end
+  end
+end
+
+Fun.foo(%{name: "Farhad", age: 51}) # "You gonna die, pretty soon actully"
+#+END_SRC
+
+*** =case=
+When a *pattern* matches the value of the *expression*, the body is executed
+#+BEGIN_SRC elixir
+  case expression do
+    pattern -> body
+    pattern -> body
+    ...
+  end
+#+END_SRC
+#+BEGIN_SRC elixir
+  defmodule Fun do
+    def foo(%{age: age}) do
+      case age do
+        :old           -> "You gonna die, pretty soon actully"
+        :not_That_Old  -> "Enjoy misery"
+        _              -> "Hmm" #note the use of underscore in lieu of true like in =cond=
+      end
+    end
+  end
+
+  Fun.foo(%{name: "Farhad", age: :something}) # Hmm
+#+END_SRC
+*** =with=
+#+BEGIN_SRC elixir
+ with
+  pattern <- expression
+  pattern <- expression
+  ...
+do
+  body
+end
+#+END_SRC
+
+#+BEGIN_SRC elixir
+opts = %{:width => 10, :height => 15}
+with {:ok, width} <- Map.fetch(opts, :width),
+     {:ok, height} <- Map.fetch(opts, :height),
+  do: {:ok, width * height}
+#+END_SRC
+*** =try do ... rescue ... after ... end=
+Use try rescue as last resort.
+After is optional.
+#+BEGIN_SRC elixir
+defmodule M do
+  def say_hi(name) do
+    try do
+      "Hey #{String.upcase name}!!!"
+  rescue
+    _e -> raise "Fuck off" 
+    end
+  end
+end
+M.say_hi 3
+#+END_SRC
+*** =raise=
+#+BEGIN_SRC elixir
+raise "an exception"
+#+END_SRC
+*** =throw/catch=
+*** 
