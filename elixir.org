@@ -17,13 +17,26 @@
 
 :NOTE:
 =10 / 2= returns a float. If you need integer use =div(10, 2)=
+
 =rem(10, 3)= returns the reminder
 :END:
 
 *** Atoms
 Atoms are constants where their name is their own value.
-:hello == :"hello" 
-is true
+#+BEGIN_SRC elixir
+:hello == :"hello" # true
+#+END_SRC 
+Module names are atoms
+#+BEGIN_SRC elixir
+defmodule MyMod do
+  def foo(name) do
+    "Hi #{name}"
+  end
+end
+is_atom(MyMod) #true
+#+END_SRC
+
+=nil= is also an atom.
 
 *** Booleans
 In fact they are atoms
@@ -31,8 +44,12 @@ In fact they are atoms
 is true
 
 *** Strings
-Strings in Elixir are inserted between *double quotes*, and they are encoded in UTF-8:
-for interpolation
+Strings are just binaries in Elixir. They are inserted between *double
+quotes*, and they are encoded in UTF-8: for interpolation
+
+#+BEGIN_SRC elixir
+<<104, 101, 108, 108, 111>> == "hello" # true
+#+END_SRC
 
 #+BEGIN_SRC elixir
   name = "Farhad"
@@ -40,7 +57,7 @@ for interpolation
   |> IO.puts
 #+END_SRC
 
-Note 'hello' is not an string it's a list
+Note 'hello' is not a string it's a Character list
 #+BEGIN_SRC elixir
 is_list 'hello' # true
 #+END_SRC
@@ -48,16 +65,19 @@ is_list 'hello' # true
 *** Binary list
 =<<1, 2, 3>>=
 - Every element is 1 byte long.
-- Concatenating to binary list
+- Concatenating two binary list
 =<<1, 2, 3>> <> <<4>>=
 Binaries can be tagged with a size atribute
 =<<1::size(16)>>= # 16 bits (2 bytes)
 
 =<<65>> <> <<" Farhad">>= # "A Farhad"
+#+BEGIN_SRC elixir
+<<104, 101, 108, 108, 111>> == "hello" # true
+#+END_SRC
 
 *** Anonymous functions
 #+BEGIN_SRC elixir
-iex> add = fn a, b -> a + b end
+iex> add = fn a, b -> a + b end # same as &(&1 + &2)
 #Function<12.71889879/2 in :erl_eval.expr/5>
 iex> add.(1, 2)
 3
@@ -65,6 +85,7 @@ iex> add.(1, 2)
 To call an anonymous function we use . notation like =add.(1, 2)=
 
 *** (/Linked/) Lists
+Elixir lists are immutable head/tail pairs.
 Elixir uses square brackets to specify a list of values. Values can be of any type:
 #+BEGIN_SRC elixir
   mylist = [1, 2, true, 3]
@@ -72,9 +93,10 @@ Elixir uses square brackets to specify a list of values. Values can be of any ty
   [1, 2, 3] ++ [4, 5, 6] # [1, 2, 3, 4, 5, 6]
   # also there's a --
 #+END_SRC
+Appending to the end of a list is a slow operation because it needs to
+copy the whole list. Think to twice before doin' so.
 
 The head is the first element of a list and the tail is the remainder of the list.
-
 #+BEGIN_SRC elixir
 list = [1, 2, 3]
 hd(list) # 1
@@ -141,6 +163,7 @@ name # "farhad"
 #+END_SRC
 
 ** Keyword lists
+It's a high level type (under the hood they are just lists).
 In many functional programming languages, it is common to use a list
 of 2-item tuples as the representation of a key-value data
 structure. In Elixir, when we have a list of tuples and the first item
@@ -191,6 +214,52 @@ Note: *new keys cannot be added*
   notMe = %{me | :name => "someone else"} # Adding new keys are not allowed
 #+END_SRC
 
+*** struct
+Structs are extensions built on top of maps that provide compile-time
+checks and default values.
+#+BEGIN_SRC elixir
+iex> defmodule User do
+...>   defstruct name: "John", age: 27
+...> end
+#+END_SRC
+
+The keyword list used with defstruct defines what fields the struct
+will have along with their *default* values.
+#+BEGIN_SRC elixir
+iex> %User{}
+%User{age: 27, name: "John"}
+iex> %User{name: "Meg"}
+%User{age: 27, name: "Meg"}
+
+#+END_SRC
+Structs provide compile-time guarantees that only the fields (and all
+of them) defined through defstruct will be allowed to exist in a
+struct:
+#+BEGIN_SRC elixir
+iex> %User{oops: :field}
+ (KeyError) key :oops not found in: %User{age: 27, name: "John"}
+#+END_SRC
+
+As being said earlier sturcts are just maps
+
+#+BEGIN_SRC elixir
+%User{} == %{__struct__: User, age: 27, name: "John"} # true
+#+END_SRC 
+
+*** Range
+Range struct
+#+BEGIN_SRC elixir
+  0..100 == %Range{first: 0, last: 100} # true
+  0..100 == %{__struct__: Range, first: 0, last: 100} # true
+#+END_SRC
+*** Regular Expressions
+%Regex{
+  opts: "",
+  source: "hello"
+}
+#+BEGIN_SRC elixir
+is_map ~r/hello/ # true
+#+END_SRC
 ** Functions, Guard clauses and Modules
 Function declarations support guards and multiple clauses. If a
 function has several clauses, Elixir will try each clause until it
