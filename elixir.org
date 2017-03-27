@@ -1,11 +1,17 @@
 * Elixir
+:NOTE:
+- *.ex files will be compiled.
 
-- *.ex files will be compiled
 - *.exs are script files (won't get compiled)
-- snake_case naming convention
-- # starts a comment line
-- ~/.iex.exs is iex configuration file (more info iex> h IEx.configure)
 
+- snake_case naming convention
+
+- # starts a comment line
+
+- ~/.iex.exs is iex configuration file (more info =iex> h IEx.configure=)
+
+- === (triple equal) is used for comparing floats to integers (2 === 2.0 returns false)
+:END:
 ** Types
 *** Numbers
 - Integers (large numbers can be used with _ e.g 1_000_000_000)
@@ -25,7 +31,7 @@
 Atoms are constants where their name is their own value.
 #+BEGIN_SRC elixir
 :hello == :"hello" # true
-#+END_SRC 
+#+END_SRC
 Module names are atoms
 #+BEGIN_SRC elixir
 defmodule MyMod do
@@ -143,25 +149,115 @@ because it requires copying the whole tuple in memory.
 | Fetch by index | Slow              | Fast              |
 | Fetch first    | Fast              | Fast              |
 
+** Operators
+*** in
+To see if an element is present in a list
+#+BEGIN_SRC elixir
+"fhd" in ["fhd", "hsni", "blah"] # true
+#+END_SRC
+*** ++ and --
+#+BEGIN_SRC elixir
+[1, 2, 3] ++ [4] # [1, 2, 3, 4] # be careful here. this might be slow
+[1, 2, 3] ++ [1, 3] # [2]
+#+END_SRC
+*** |
+
+#+BEGIN_SRC elixir
+me = ["fhd", "hsni"]
+[25 | me] # [25, "fhd", "hsni"]
+
+[h | t] = me
+h # fhd
+t # hsni
+
+l = [1, 2, 3, 4, 5]
+[a, b, c | tail] = l
+#+END_SRC
+*** <>
+To concatenate two binaries. Remember in elixir strings are binaries
+#+BEGIN_SRC elixir
+"Farhad" <> " " <> "hsni" # Farhad hsni
+<<104, 101, 108, 108, 111>> <> " " <> "world" # hello world
+#+END_SRC
+*** =~
+#+BEGIN_SRC elixir
+"Hello World" =~ ~r/hello/i #true
+"Hello World" =~ "Hello" # true
+#+END_SRC
+*** Bitwise Operators
+*** Logical Operators
+**** and, or, &&, ||
+=and=, =or= only accepts booleans
+=&&=, =||= is non-strict and accepts any value
+
+Using =||= to set a default:
+#+BEGIN_SRC elixir
+user = %{name: nil}
+name = user.name || "Farhad"
+name # Farhad
+#+END_SRC
+*** Capture Operator: &
+captures or creates an anonymous function
+
+Without capture operator
+#+BEGIN_SRC elixir
+  Enum.filter [1, 2, 3, "four"], fn(val) ->
+    is_number(val)
+  end
+#+END_SRC
+With capture operator
+#+BEGIN_SRC elixir
+  Enum.filter [1, 2, 3, "four"], &is_number/1 # [1, 2, 3]
+  ## or ##
+  Enum.filter [1, 2, 3, "four"], &is_number(&1) # [1, 2, 3]
+#+END_SRC
+
+We can even use capture operator to capture other operators like +
+#+BEGIN_SRC elixir
+Enum.reduce [1, 2, 3], &(&1 + &2) # 6
+## capturing + operator
+Enum.reduce [1, 2, 3], &+/2
+#+END_SRC
+
+Using capture operator to capture functions from other modules
+#+BEGIN_SRC elixir
+Enum.map ["fhd", "hsni"], &String.upcase/1
+#+END_SRC
 ** Pattern Matching
-=a = 8=
-bind variable a to number 8
-=8 = a=
+=a = 8= bind variable a to number 8 =8 = a= is a valid expression
+since 8 matches a.
 
-is a valid expression since 8 matches a
-
-if on the left hand side of = operator is variable it'll bind to the
+If on the left hand side of = operator is variable it'll be bind to the
 right hand side but if it's a value, pattern matching happens. If you
 want to do pattern matching with a variable you can use pin (^)
-operator
-=^a = 8= doesn't bind variable to 8 but it does pattern matching
+operator. =^a = 8= doesn't bind variable to 8 but it does pattern matching.
 
-Pattern Matching in maps is very useful.
+Pattern Matching in maps are very useful.
 #+BEGIN_SRC elixir
 %{name: name} = %{name: "Farhad", age: 25}
 name # "farhad"
 #+END_SRC
+Matching binaries
+#+BEGIN_SRC elixir
+"username: " <> usr = "username: fhdhsni"
+usr #fhdhsni
+#+END_SRC
 
+#+BEGIN_SRC elixir
+defmodule Bar do
+  @moduledoc """
+
+  """
+  defstruct first_name: nil, last_name: nil
+
+  def name(%Bar{} = user), do: user.first_name <> " " <> user.last_name
+  def name(unsupported), do: raise "what the hell is #{inspect unsupported}?"
+
+  def send_name, do: name(%Bar{first_name: "Farhad", last_name: "Hsni"})
+end
+
+Bar.send_name
+#+END_SRC
 ** Keyword lists
 It's a high level type (under the hood they are just lists).
 In many functional programming languages, it is common to use a list
@@ -219,17 +315,17 @@ Structs are extensions built on top of maps that provide compile-time
 checks and default values.
 #+BEGIN_SRC elixir
 iex> defmodule User do
-...>   defstruct name: "John", age: 27
+...>   defstruct name: "Farhad", age: 25 # nil is also common as default value
 ...> end
 #+END_SRC
 
 The keyword list used with defstruct defines what fields the struct
 will have along with their *default* values.
 #+BEGIN_SRC elixir
-iex> %User{}
-%User{age: 27, name: "John"}
-iex> %User{name: "Meg"}
-%User{age: 27, name: "Meg"}
+  iex> %User{}
+  %User{age: 25, name: "Farhad"}
+  iex> %User{name: "Esi"}         # we don't provide the age, default value (25) will be used
+  %User{age: 25, name: "Esi"}
 
 #+END_SRC
 Structs provide compile-time guarantees that only the fields (and all
@@ -237,15 +333,28 @@ of them) defined through defstruct will be allowed to exist in a
 struct:
 #+BEGIN_SRC elixir
 iex> %User{oops: :field}
- (KeyError) key :oops not found in: %User{age: 27, name: "John"}
+ (KeyError) key :oops not found in: %User{age: 25, name: "Farhad"}
 #+END_SRC
 
 As being said earlier sturcts are just maps
 
 #+BEGIN_SRC elixir
-%User{} == %{__struct__: User, age: 27, name: "John"} # true
-#+END_SRC 
+%User{} == %{__struct__: User, age: 25, name: "FArhad"} # true
+#+END_SRC
 
+Under the hood a =__struct__= funciton will be defined in the module
+#+BEGIN_SRC elixir
+defmodule User do
+  defstruct name: "Farhad", email: "farhad.hsni@gmail.com"
+end
+#+END_SRC
+#+BEGIN_SRC elixir
+  defmodule User do
+    def __struct__ do
+      %{__struct__: User, name: "Farhad", email: "farhad.hsni@gmail.com"}
+    end
+  end
+#+END_SRC
 *** Range
 Range struct
 #+BEGIN_SRC elixir
@@ -281,16 +390,11 @@ finds one that matches.  Using guard clauses:
   Example.hello "Farhad"          # Fuck off
   Example.hello 25                # No idea what you doin'
 #+END_SRC
-mulitple clause
+Mulitple clauses
 #+BEGIN_SRC elixir
 defmodule Math do
-  def zero?(0) do
-    true
-  end
-
-  def zero?(x) when is_integer(x) do
-    false
-  end
+  def zero?(0), do: true
+  def zero?(x) when is_integer(x), do: false
 end
 
 IO.puts Math.zero?(0)         #=> true
@@ -314,7 +418,7 @@ is_function(fun) # true
 fun.(0) # true
 #+END_SRC
 
-Using capture syntax for creating functions 
+Using capture syntax for creating functions
 
 #+BEGIN_SRC elixir
   fun = &(&1 + &2)                # same as: fn x, y -> x + y end
@@ -372,11 +476,36 @@ Concat.join "hello", "world", "_" # will run second clause
  the first definition of =join= whereas the second one will only be
  invoked when three arguments are passed. thus providing a default
  value for =sep= in second clause is unnecessary and has no effect.
+
+Note the header function defines the default value of =acc=. Also note that less generalized functions are 
+higher and more generalized functions are at the bottom. In this example if we put =def reduce([], _func, acc), do: acc=
+bellow =def reduce(list, func, acc), do: do_reduce(list, func, acc)= we get a warning:
+=warning: this clause cannot match because a previous clause at line 6 always matches=
+since the more generalized function is higher and it always match.
+#+BEGIN_SRC elixir
+defmodule MyList do
+  @moduledoc """
+  
+  """
+  def reduce(list, func, acc \\ 0)
+  def reduce([], _func, acc), do: acc
+  def reduce(list, func, acc), do: do_reduce(list, func, acc)
+  defp do_reduce([h | t], func, acc) do
+    acc = func.(h) + acc
+    reduce(t, func, acc)
+  end
+end
+
+[1, 2, 3]
+|> MyList.reduce(&(&1 * &1), 4)
+|> IO.puts
+#+END_SRC 
+
 *** Recursive function
 #+BEGIN_SRC elixir
 defmodule Graph do
   def count(%{children: []}), do: 1
-  
+
   def count(%{children: children}) do
     [first | rest] = children
     count(first) + count(%{children: rest})
@@ -400,13 +529,141 @@ graph = %{
 
 Graph.count(graph)
 #+END_SRC
+Another example
+#+BEGIN_SRC elixir
+defmodule MyList do
+  @moduledoc """
+  
+  """
+  def length(list), do: length(list, 0)
+  defp length([], count), do: count
+  defp length([_|t], count), do: length(t, count + 1)
+end
 
+MyList.length([1, 2, "three", "four"]) # 4
+#+END_SRC
+**** Tail Call Optimization
+When a function calls itself as the last operation
+#+BEGIN_SRC elixir
+defmodule MyList do
+  @moduledoc """
+  
+  """
+  def each([], _fun), do: :ok
+  def each([h | t], func) do
+    func.(h)
+    each(t, func)
+  end
+end
+
+MyList.each([1, 2, 3, 4], &(IO.puts &1))
+#+END_SRC
+** Module attributes
+   Module attributes in Elixir serve three purposes:
+1. They serve to annotate the module, often with information to be used by the user or the VM.
+2. They work as constants.
+3. They work as a temporary module storage to be used during compilation.
+*** =@moduledoc= and  =@doc=
+=@moduledoc= provides documentation for the current module.
+=@doc= provides documentation for the function or macro that follows the attribute.
+#+BEGIN_SRC elixir
+defmodule Math do
+  @moduledoc """
+  Provides math-related functions.
+
+  ## Examples
+
+      iex> Math.sum(1, 2)
+      3
+
+  """
+
+  @doc """
+  Calculates the sum of two numbers.
+  """
+  def sum(a, b), do: a + b
+end
+#+END_SRC
+** Enum module
+Types which implements Enumerable hence can be used with Enum methods
+- Lists
+- Keyword Lists
+- Maps (not Structs)
+- Ranges
+- Streams
+*** Some useful Enum methods
+**** Enum.map
+**** Enum.each
+**** Enum.at
+Note when this method is used with Maps is returns a tuple.
+#+BEGIN_SRC elixir
+Enum.at %{:name => "Farhad", :age => 25}, 0, :default # {:age, 25}
+#+END_SRC
+
+**** Enum.filter 
+Note the anonymous function gets a tuple and returns a keyword list
+#+BEGIN_SRC elixir
+%{:name => "Farhad", :age => 25}
+|> Enum.filter(fn({_key, val}) -> is_number val end) # returns a keyword list [age: 25]
+#+END_SRC
+
+**** Enum.reduce
+
+**** Enum.into
+Converts an =Enumerable= to another tpe. Target must implement =Collectable= protocol.
+lists and maps both implement collectable protocol
+
+In the example we convert a keyword list to a map
+#+BEGIN_SRC elixir
+%{:name => "Farhad", :age => 25}
+|> Enum.filter(fn({_k, v}) -> is_binary(v) end) # retuns a keyword list [name: "Farhad"]
+|> Enum.into(%{}) # make it a map %{name: "Farhad"}
+#+END_SRC
+
+**** Enum.take
+#+BEGIN_SRC elixir
+Enum.take(10..20, 5)  # [10, 11, 12, 13, 14]
+#+END_SRC
+
+** Streams
+=Stream= is a lazy version of =Enum=.  Unlike =Enum= which does it's
+job immediately, =Stream= waits until you ask for the result. This
+could end up to be more efficient; like iterating over a list once for
+all rather than doin' it for each operation like =Enum= does.
+
+#+BEGIN_SRC elixir
+[1, 2, "buckle up your shoe", 3, 4]
+|> Stream.filter(&is_number/1) # I don't feel like doin' it write now
+|> Stream.filter(&(rem(&1, 2) == 0)) # nope not yet
+|> Enum.into([]) # okay, I'll do it. [2, 4]
+#+END_SRC
+
+#+BEGIN_SRC elixir
+list = [1, 2, 3, "string", 4, 8]
+stream = Stream.filter(list, &is_number/1)  # stream stores the anonymous functions and returns a Stream struct
+stream = Stream.filter(stream, &(rem(&1, 2) == 0)) # stream stores the anonymous functions and returns a Stream struct
+ Enum.into(stream, []) # up until now Stream hasn't done any actuall work. By Enum.into we make it to do the operations we asked for earlier
+#+END_SRC
+
+*** Stream.cycle
+Creates a stream that cycles through the given enumerable, infinitely.
+#+BEGIN_SRC elixir
+Stream.cycle([1, 2, 3, "meow"])
+|> Enum.take(8)
+#+END_SRC
+*** Stream.iterate
+Emits a sequence of values, starting with =start_value=. Successive
+values are generated by calling =next_fun= on the previous value.
+#+BEGIN_SRC elixir
+Stream.iterate(0, &(&1+1)) |> Enum.take(5) # [0, 1, 2, 3, 4]
+#+END_SRC
+*** Stream.resource
 ** Miscellaneous
-*** =if= 
+*** =if=
     if statement is just a macro that takes =true= or =false= as it's
     first argument and a keyword list as it's second argument. use =case= or =cond= instead
 #+BEGIN_SRC elixir
-  if true, do: :this, else :that     # 
+  if true, do: :this, else :that     #
   # it's actually a macro
   if(true, [do: :this, else: :that]) # :this
   if(false, [do: :this, else: :that]) # :that
@@ -425,10 +682,19 @@ defmodule Foo do
   def fun, do: M.add 2, 5
 end
 #+END_SRC
+Using a module by last part of its name
+#+BEGIN_SRC elixir
+defmodule Some.Other.Mod do
+  def add(a, b), do: a + b
+end
 
+defmodule MyMod do
+  alias Some.Other.Mod
+  def fun(a, b), do: Mod.add(a, b) # just using Mod
+end
+#+END_SRC
 *** =import=
-
-**** Importing the whole module 
+**** Importing the whole module
 #+BEGIN_SRC elixir
 defmodule AnotherModule do
   def add(a, b), do: a + b
@@ -443,7 +709,7 @@ end
 Foo.fun # 12
 #+END_SRC
 
-**** Importing the only the specified function from a module 
+**** =only=
  #+BEGIN_SRC elixir
  defmodule AnotherModule do
   def add(a, b), do: a + b
@@ -451,7 +717,7 @@ Foo.fun # 12
 end
 
 defmodule Foo do
-  import AnotherModule, only: [add: 2]
+  import AnotherModule, only: [add: 2] # 2 is the arity
 
   def fun, do: add 2, 10, 2
 end
@@ -459,10 +725,29 @@ end
 Foo.fun # %CompileError{description: "undefined function add/3", file: "nofile", line: 9}
  #+END_SRC
  Above snippet raise an error because we only imported to =add/2=
- function. the number keyword list is the arity of the given function
+ function. The number is the arity of the given function.
 
+**** =except=
+#+BEGIN_SRC elixir
+defmodule Some.Other.Mod do
+  def add(a, b), do: a + b
+  def subtract(a, b), do: a - b
+end
+
+defmodule MyMod do
+  import Some.Other.Mod, except: [add: 2] # don't import add/2
+
+  # def foo(a, b), do: add(a, b) #throws an error, we didn't import add/2
+  def bar(a, b), do: subtract(a, b)
+end
+
+# MyMod.foo(10, 20) # %CompileError{description: "undefined function add/2", file: "nofile", line: 8}
+
+MyMod.bar(20, 10) # 10
+#+END_SRC
 *** =cond=
-Remember =cond= has now falling through like a switch case does in other languages
+Run the first block where expression is truthy.
+Remember =cond= has no falling through like a switch case does in other languages.
 #+BEGIN_SRC elixir
   cond do
     expression -> body
@@ -485,7 +770,7 @@ Fun.foo(%{name: "Farhad", age: 51}) # "You gonna die, pretty soon actully"
 #+END_SRC
 
 *** =case=
-When a *pattern* matches the value of the *expression*, the body is executed
+When a *pattern* matches the value of the *expression*, the body is executed.
 #+BEGIN_SRC elixir
   case expression do
     pattern -> body
@@ -505,6 +790,25 @@ When a *pattern* matches the value of the *expression*, the body is executed
   end
 
   Fun.foo(%{name: "Farhad", age: :something}) # Hmm
+#+END_SRC
+Another example
+#+BEGIN_SRC elixir
+case File.read("foobar.txt") do
+  {:ok, content} ->
+    IO.puts "content of given file: #{content}"
+  {:error, reason} ->
+    Io.puts "error #{reason} occurred"
+  other ->
+    IO.puts "An unknown error occurred. #{other}"
+end
+#+END_SRC
+Using Guard clase in =case=
+#+BEGIN_SRC elixir
+v = "foo"
+case v do
+  v when v in [nil, false, ""] -> "moew"
+  _ -> "not meow"
+end
 #+END_SRC
 *** =with=
 #+BEGIN_SRC elixir
@@ -532,7 +836,7 @@ defmodule M do
     try do
       "Hey #{String.upcase name}!!!"
   rescue
-    _e -> raise "Fuck off" 
+    _e -> raise "Fuck off"
     end
   end
 end
@@ -543,4 +847,18 @@ M.say_hi 3
 raise "an exception"
 #+END_SRC
 *** =throw/catch=
-*** 
+*** =defdelegate=
+#+BEGIN_SRC elixir
+defmodule Some.Other.Mod do
+  def add(a, b), do: a + b
+  def subtract(a, b), do: a - b
+end
+
+defmodule MyMod do
+  defdelegate bar(a, b), to: Some.Other.Mod, as: :add
+  defdelegate subtract(a, b), to: Some.Other.Mod
+end
+
+MyMod.bar(20, 10) # 30
+MyMod.subtract(23, 3) # 3
+#+END_SRC
