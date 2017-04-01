@@ -822,7 +822,164 @@ a heredoc string
 ~c(foobar) # 'foo bar'
 #+END_SRC
 
+** Mix, Hex and others
+The build tool for elixir
+- =mix new foobar= to create foobar project
+- =iex -S mix= to start iex in the context of a mix project
+- There're two ways to set a key-value config in config.exs
+  + =config :projectName, key: value=
+  + =config :projectName, Module.Name, key: value=
+- To get a configuration from =config.exe=
+  + =Application.get_env(:projectName, :key)= 
+  + =Application.get_env(:projectName, __MODULE__)[:key]= 
+- to install hex =mix local.hex=
+- to get deps specified in mix file =mix deps.get=
+- to remove deps that you have removed from mix file =mix deps.clean PACKAGE_NAME=
+- to update a dependency; bump the version in mix file then =mix deps.update PACKAGE_NAME=
+- add `config :package_name, setting_a: "value"` to =config/config.exs= to configure a package
+- =mix hex.outdated= to find out which packages are outdated
+- for uploading your package to Hex, add package/0 setting to Mixfile
+#+BEGIN_SRC elixir
+  defp package do
+    [
+      files: ["lib", "mix.exs", "README.md"],
+      contributors: ["Your Name"],
+      licenses: ["MIT"],
+      links: %{
+        "Github" => "https://github.com/fhdhsni/repo"
+      }
+    ]
+  end
+#+END_SRC
+  + remember to update application/0 to specify each one of your runtime dependencies as an application in the :application list
+    #+BEGIN_SRC elixir
+    def application do
+      [application: [:dependency_a, :dependency_b]]
+    end
+  #+END_SRC
+  + update project/0 setting
+    #+BEGIN_SRC elixir
+      def project do
+        [app: :my_project_name,
+         version: "0.0.1",
+         elixir: "~> 1.0",
+         build_embedded: Mix.env == :prod,
+         start_permanent: Mix.env == :prod,
+         source_url: "https://github.com/fhdhsni/repo",
+         description: "short description of project",
+         package: package,
+         deps: deps,
+        ]
+      end
+    #+END_SRC
+  + =mix hex.publish=
+** ExUnit
+- =assert=
+  + expects truthy values
+- =refute=
+  + expects falsy values
+- =assert_raise=
+  + Assert that a code block raises an exception
+- =assert_in_delta=
+  + Assert that two things differ in a specific way
+- =assert_receive=
+  + Assert that a process message was received
+*** Shared setup
+#+BEGIN_SRC elixir
+defmodule CryptoTest do
+  use ExUnit.Case
+  doctest Crypto
 
+  setup do
+    variable = 3
+    {:ok, variable: variable}
+  end
+  
+  test "the truth", %{variable: variable} do
+    refute 1 + 1 == variable
+  end
+end
+#+END_SRC
+*** ExUnit.CaseTemlate
+*** Running tests asynchronously
+#+BEGIN_SRC elixir
+  defmodule MyApp.MathTest do
+    use ExUnit.Case, async: true
+
+    # ...
+  end
+#+END_SRC
+*** Tagging
+#+BEGIN_SRC elixir
+defmodule CryptoTest do
+  # This would tag all the tests in the module as slow
+  @moduletag :slow
+
+  use ExUnit.Case
+  doctest Crypto
+
+  # This tags only one test
+  @tag :slow
+  test "2 plus one should be three" do
+    assert 2 + 1 == 3
+  end
+end
+#+END_SRC
+Then you can exclude tests with a given tag by adding the following snippet to =test/test_helpers.exs=
+#+BEGIN_SRC elixir
+ExUnit.start()
+ExUnit.configure exclude: [:slow]
+#+END_SRC
+
+**** skip
+There's also the built-in =skip= tag
+#+BEGIN_SRC elixir
+@tag :skip
+# org
+@tag skip: "Reason"
+#+END_SRC
+*** Pending Tests
+#+BEGIN_SRC elixir
+# Automatically tagged with @tag :not_implemented
+  test ".add subs two numbers"
+  test ".div divides two numbers"
+  test ".mul multiples two numbers"
+#+END_SRC
+*** Doctests
+use =doctests MyApp.MyModule= in test file to consider doc examples as tests
+
+Written inline with documentation for a module of function typically under an =## example= heading.
+#+BEGIN_SRC elixir
+  defmodule MyApp.Math do
+    @doc """
+    Adds two numbers together and returns the sum.
+
+    # Examples
+
+      iex> Math.add(1, 2)
+      3
+
+      iex> sum = Math.add(5, 5)
+      ...> Math.add(sum. 5)
+      15
+    """
+    def add(a, b), do: a + b
+  end
+#+END_SRC
+
+*** Running tests
+Exclude tests tagged with :slow
+=mix test --exclude slow=
+or include them
+=mix test --include slow=
+or only run those with this tag
+=mix test --only slow=
+
+** Processes
+*** spawn
+*** self
+*** send
+*** receive
 ** Miscellaneous
 *** =if=
     if statement is just a macro that takes =true= or =false= as it's
