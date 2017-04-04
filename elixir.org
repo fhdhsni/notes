@@ -977,9 +977,234 @@ or only run those with this tag
 
 ** Processes
 *** spawn
+=spawn(a_function)=
+=spawn(someModule, :some_function, [arg1, arg2])=
+**** spawn
+Spawned process is isolated. If it raises an error parent process won't die.
+**** spawn_link
+In this way failure in the spawned process propagates to parent
+process.  It's also possible to link processes via =Process.link/1=
+
+In the parent process we can =:trap_exit= and to something other than
+dying if the spawned process died.
+#+BEGIN_SRC elixir
+  Process.flag(:trap_exit, true)
+  pid = spawn_link(fn -> ... end)
+
+  receive do
+    {:EXIT, pid, reason} ->
+      # Revive pid?
+  end
+#+END_SRC
+**** spawn_monitor
+#+BEGIN_SRC elixir
+  {juliet, _ref} = spawn_monitor(fn -> ... end)
+  receive do
+    {:DOWN, _ref, :process, pid} ->
+      # Revive juliet
+  end
+#+END_SRC
 *** self
+returns current process PID
 *** send
+The process that sends the message does not block on send/2, it puts
+the message in the recipient’s mailbox and continues.
 *** receive
+If there is no message in the mailbox matching any of the patterns,
+the current process will wait until a matching message arrives. A
+timeout can also be specified with =after= block:
+#+BEGIN_SRC
+iex> receive do
+...>   {:hello, msg}  -> msg
+...> after
+...>   1_000 -> "nothing after 1s"
+...> end
+"nothing after 1s"
+#+END_SRC
+Messages that don't match any of provided patterns will be left in the
+process's mailbox. Mailbox may fill up.
+*** flush
+It flushes and prints all the messages in the mailbox.
+*** kill
+=Process.exit(pid, :kil)=
+
+** GenServer & OTP
+A primitive emulation of GenServer.
+
+Server:
+#+BEGIN_SRC elixir
+defmodule Server do
+  @moduledoc ~s"""
+  account = Server.start(BankAccount, 0)
+
+  send(account, {:deposit, 50})
+  send(account, {:withdraw, 20})
+
+  send(account, :balance) # should receive {:balance, 30}
+  """
+
+  def start(callback_module, state) do
+    parent = self()
+    spawn fn ->
+      loop(callback_module, parent, state)
+    end
+  end
+
+  def loop(callback_module, parent, state) do
+    receive do
+      message ->
+        state = callback_module.handle_message(message, parent, state)
+        loop(callback_module, parent, state)
+    end
+  end
+end
+#+END_SRC
+
+BankAccount:
+#+BEGIN_SRC elixir
+defmodule BankAccount do
+  
+  def handle_message({:deposit, amount}, _from, balance) do
+    balance + amount
+  end
+
+  def handle_message({:withdraw, amount}, _from, balance) do
+    balance - amount
+  end
+
+  def handle_message(:balance, from, balance) do
+    send(from, {:balance, balance})
+    balance
+  end
+
+end
+#+END_SRC
+
+*** GenServer
+#+BEGIN_SRC elixir
+  {:ok, pid} = GenServer.start(CallbackModule, [arg1, arg2], opts) # if it crashed it won't bring the current process down
+  {:ok, pid} = GenServer.start_link(CallbackModule, [arg1, arg2], opts)
+#+END_SRC
+- =GenServer.cast=
+  + Send a message with expecting or waiting for a response
+- =GenServer.call=
+  + Send a message and wait for a response (hence blocking the current process)
+**** Implementing BankAccount with GenServer
+#+BEGIN_SRC elixir
+defmodule BankAccount do
+  use GenServer
+
+  def init(balance), do: {:ok, balance}
+  # receives the argument that we
+  # gave to GenServer.start
+  # function and returns the
+  # inital state to be stored in
+  # the process
+
+
+  def handle_cast({:deposit, amount}, balance), do: {:noreply, balance + amount}
+  def handle_cast({:withdraw, amount}, balance), do: {:noreply, balance - amount}
+  # take the message that was sent as the first arugment and current
+  # state of process as the last argument. If the first element of
+  # tuple is :reply whatever comes next will be send back to the
+  # caller. last element of the tuple is the new state
+
+  def handle_call(:balance, _from, balance), do: {:reply, balance, balance}
+  # thrid element is the new state
+  # second element will be send back to the caller
+  # read handle_cast comment
+end
+#+END_SRC
+To use it:
+#+BEGIN_SRC 
+  {:ok, account} = GenServer.start(BankAccount, 0)
+  GenServer.cast(account, {:deposit, 50})
+  GenServer.cast(account, {:withdraw, 25})
+  balance = GenServer.call(account, :balance) # 25
+#+END_SRC
+**** BankAccount as a GenServer
+#+BEGIN_SRC elixir
+defmodule BankAccount do
+  use GenServer
+
+  def start(balance) do
+    {:ok, account} = GenServer.start(__MODULE__, balance)
+    account
+  end
+
+  def deposit(account, amount) do
+    GenServer.cast(account, {:deposit, amount})
+  end
+
+  def withdraw(account, amount) do
+    GenServer.cast(account, {:withdraw, amount})
+  end
+
+  def balance(account) do
+    GenServer.call(account, :balance)
+  end
+
+  ###
+  # GenServer API
+  ###
+
+  # Handle cast messages with `handle_cast`. No response is expected,
+  # so reply with the {:noreply, ...} tuple format
+  def handle_cast({:deposit, amount}, balance) do
+    {:noreply, balance + amount}
+  end
+
+  def handle_cast({:withdraw, amount}, balance) do
+    {:noreply, balance - amount}
+  end
+
+  # Handle call messages with the `handle_call` callback. Responses are usually
+  # expected, so respond with the {:reply, ...} tuple format.
+  def handle_call(:balance, _from, balance) do
+    {:reply, balance, balance}
+  end
+
+end
+#+END_SRC
+To use it:
+#+BEGIN_SRC 
+  account = BankAccount.start(0)
+  BankAccount.deposit(account, 50)
+  BankAccount.withdraw(account, 25)
+  BankAccount.balance(account)      # 25
+#+END_SRC
+**** When to Use GenServer
+Not always, for e.g above example can be implemented with the help of structs.
+
+Implementing BankAccount with struct:
+#+BEGIN_SRC elixir
+defmodule BankAccount do
+  defstruct balance: 0
+
+  def new(balance) do
+    %__MODULE__{balance: balance}
+  end
+
+  def deposit(account, amount) do
+    %{account | balance: account.balance + amount}
+  end
+
+  def withdraw(account, amount) do
+    %{account | balance: account.balance - amount}
+  end
+
+  def balance(account) do
+    account.balance
+  end
+
+end
+#+END_SRC
+**** GenServer Features
+- GenServer processes are distributed across cores
+- A GenServer process works on one message at a time
+- GenServer processes can be supervised and restarted
+- GenServer process state can be upgraded in place
+
 ** Miscellaneous
 *** =if=
     if statement is just a macro that takes =true= or =false= as it's
