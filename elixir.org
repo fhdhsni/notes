@@ -1028,7 +1028,7 @@ It flushes and prints all the messages in the mailbox.
 *** kill
 =Process.exit(pid, :kil)=
 
-** GenServer & OTP
+** GenServer
 A primitive emulation of GenServer.
 
 Server:
@@ -1085,10 +1085,23 @@ end
   {:ok, pid} = GenServer.start(CallbackModule, [arg1, arg2], opts) # if it crashed it won't bring the current process down
   {:ok, pid} = GenServer.start_link(CallbackModule, [arg1, arg2], opts)
 #+END_SRC
-- =GenServer.cast=
-  + Send a message with expecting or waiting for a response
-- =GenServer.call=
-  + Send a message and wait for a response (hence blocking the current process)
+1. Note that the list =[arg1, arg2]= is sent to =init= function defined inside =CallbackModule=
+2. =opts= is optional.
+3. =init= function sets the initial state with ={:ok, initial_state}= response
+4. =handle_call= is synchronous and 
+   - Handles =GenServer.call=
+   - Its signature is =handle_call(arg, from_pid, current_state)=. =arg= is =GenServer.call(pid, *arg*)=
+   - Should reply like ={:reply, return_value, new_state}=
+5. =handle_cast= is asynchronous and
+   - Handles =GenServer.cast=
+   - Its signature =handle_cast(arg, current_state)=
+   - Should reply ={:noreply, new_state}=
+6. =handle_info= is asynchronous and
+   - handles messages from everyone(like =Process.send=) except for GenServer.
+7. =GenServer.cast=
+   + Send a message without expecting or waiting for a response
+8. =GenServer.call=
+   + Send a message and wait for a response (hence blocking the current process)
 **** Implementing BankAccount with GenServer
 #+BEGIN_SRC elixir
 defmodule BankAccount do
@@ -1205,6 +1218,63 @@ end
 - GenServer processes can be supervised and restarted
 - GenServer process state can be upgraded in place
 
+** Superviser
+=Basic= module:
+#+BEGIN_SRC elixir
+defmodule Basic do
+  use GenServer
+
+  def start_link(arg) do
+    IO.puts "inside Basic start_link..."
+    GenServer.start_link(__MODULE__, arg)
+  end
+  def init(arg) do
+    IO.inspect arg
+    IO.puts "inside Basic init..."
+    {:ok, []}
+  end
+end
+#+END_SRC
+
+=BasicSupervisor= module:
+#+BEGIN_SRC elixir
+defmodule BasicSupervisor do
+  use Supervisor
+
+  def start_link(arg) do
+    Supervisor.start_link(__MODULE__, arg) # passes =arg= to init
+  end
+
+  def init(arg) do
+    children = [
+      worker(Basic, [arg]) # passing =arg= (not [arg]) to Basic.start_link
+    ]
+    supervise(children, strategy: :one_for_one)
+  end
+
+end
+#+END_SRC
+
+To use it:
+#+BEGIN_SRC 
+iex(1)> {:ok, s_pid} = BasicSupervisor.start_link("Jack")
+inside Basic start_link...
+"Jack"
+inside Basic init...
+{:ok, #PID<0.126.0>}
+
+iex(2)> [{_, pid,_ ,_}] = Supervisor.which_children(s_pid)
+[{Basic, #PID<0.127.0>, :worker, [Basic]}]
+iex(6)> pid
+pid
+#PID<0.127.0>
+
+iex(3)> GenServer.stop(pid)
+inside Basic start_link...
+"Jack"
+:ok
+inside Basic init...
+#+END_SRC
 ** Miscellaneous
 *** =if=
     if statement is just a macro that takes =true= or =false= as it's
