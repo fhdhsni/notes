@@ -1102,6 +1102,11 @@ end
    + Send a message without expecting or waiting for a response
 8. =GenServer.call=
    + Send a message and wait for a response (hence blocking the current process)
+9. GenServer process can be named
+   =GenServer.start_link(CallbackModule, [args], name:foobar)= so we
+   don't need the pid =GenServer.cast(foobar, {:save, state})=
+10. 
+
 **** Implementing BankAccount with GenServer
 #+BEGIN_SRC elixir
 defmodule BankAccount do
@@ -1218,7 +1223,8 @@ end
 - GenServer processes can be supervised and restarted
 - GenServer process state can be upgraded in place
 
-** Superviser
+** Supervisor
+*** example 1
 =Basic= module:
 #+BEGIN_SRC elixir
 defmodule Basic do
@@ -1275,6 +1281,62 @@ inside Basic start_link...
 :ok
 inside Basic init...
 #+END_SRC
+
+*** example 2
+Implementing a simple TODO app
+
+#+BEGIN_SRC elixir
+defmodule Todo do
+  use GenServer
+
+  def start_link(state, opts \\ []), do: GenServer.start_link(__MODULE__, state, opts)
+
+  def handle_cast({:add, task}, todo), do: {:noreply, [task | todo]}
+
+  def handle_cast({:remove, task_index}, todo) do
+    new_Todo = List.delete_at(todo, task_index)
+    {:noreply, new_Todo}
+  end
+
+  def handle_call(:list, _from, todo), do: {:reply, create_todo_list(todo), todo}
+
+  def create_todo_list(todo, str \\ "", n \\ 1)
+  def create_todo_list([], str, _n) do
+    IO.puts str
+    str
+  end
+
+  def create_todo_list(todo, str, n) do
+    [h | t] = todo
+    str = str <> "#{n}- #{h}\n"
+    n = n + 1
+    create_todo_list(t, str, n)
+  end
+
+end
+#+END_SRC
+And its supervisor
+#+BEGIN_SRC elixir
+defmodule Todo.Supervisor do
+  use Supervisor
+
+  def start_link do
+    Supervisor.start_link(__MODULE__, [])
+  end
+
+  def init([]) do
+    children = [
+      worker(Todo, [[]]) 
+    ]
+    supervise(children, strategy: :one_for_one)
+  end
+end
+#+END_SRC
+*** Notes
+- to create a mix project with a Supervisor =mix nes my_project --sup=
+- workers can have ids =worker(SupervisedProcess, [], id: "some_id")=
+- Supervisors themself can be supervised =worker(Supervisor_module, [])=
+- for data storage you might find =ets=, =dets=, or =Mnesia= more useful than third party tools
 ** Miscellaneous
 *** =if=
     if statement is just a macro that takes =true= or =false= as it's
