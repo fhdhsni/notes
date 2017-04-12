@@ -1105,7 +1105,6 @@ end
 9. GenServer process can be named
    =GenServer.start_link(CallbackModule, [args], name:foobar)= so we
    don't need the pid =GenServer.cast(foobar, {:save, state})=
-10. 
 
 **** Implementing BankAccount with GenServer
 #+BEGIN_SRC elixir
@@ -1337,6 +1336,94 @@ end
 - workers can have ids =worker(SupervisedProcess, [], id: "some_id")=
 - Supervisors themself can be supervised =worker(Supervisor_module, [])=
 - for data storage you might find =ets=, =dets=, or =Mnesia= more useful than third party tools
+- =simple_one_for_one= is for dynamically launching processes.
+** Task & Agents
+*** Tasks
+Asynchronous Processing
+#+BEGIN_SRC elixir
+  task = Task.async fn ->
+    IO.puts "Hello world!"
+  end
+
+  # OR
+
+  task = Task.async(OI. :puts, ["Hello World"])
+
+  result = Task.await(task)
+#+END_SRC
+
+#+BEGIN_SRC elixir
+defmodule Play do
+  def pmap(list, fun) do
+    list
+    |> Enum.map(&Task.async(fn -> fun.(&1) end))
+    |> Enum.map(&Task.await/1)
+  end
+end
+#+END_SRC
+
+To Supervise A Task
+
+Supervisor:
+#+BEGIN_SRC elixir
+defmodule Play.Supervisor do
+  use Supervisor
+  
+  def start_link do
+    Supervisor.start_link(__MODULE__, [], name: __MODULE__)
+  end
+
+  def init(_) do
+    children = [
+      supervisor(Task.Supervisor, [[name: MyApp.TaskSupervisor]])
+    ]
+    supervise(children, strategy: :transient)
+  end
+end
+#+END_SRC
+
+Then after =Play.Supervisor.start_link=:
+#+BEGIN_SRC elixir
+# You can start supervised tasks like so:
+Task.Supervisor.start_child(MyApp.TaskSupervisor, fn ->
+  IO.puts "Hello world!"
+end)
+
+Task.Supervisor.async(MyApp.TaskSupervisor, IO, :puts, ["Hello world!"])
+|> Task.await
+#+END_SRC
+
++ =yield(task, timeout \\ 5000)=
+  - Temporarily blocks the current process waiting for a task reply.
+*** Agent
+Agents are a simple abstraction around state.
+#+BEGIN_SRC  elixir
+  {:ok, agent} = Agent.start_link(fn -> 0 end)
+  Agent.update(agent, fn(state) -> state + 1 end)
+  Agent.get(agent, fn(state) -> state end)
+#+END_SRC
+
+implementing =BankAccount= with Agents 
+#+BEGIN_SRC elixir
+defmodule BankAccount do
+  def start_link(balance) do
+    Agent.start_link(fn -> balance end)
+  end
+  
+  def deposit(account, amount) do
+    Agent.update(account, &(&1 + amount))
+  end
+  
+  def withdraw(account, amount) do
+    Agent.update(account, &(&1 - amount))
+  end
+  
+  def balance(account) do
+    Agent.get(account, &(&1))
+  end 
+end
+#+END_SRC
+
 ** Miscellaneous
 *** =if=
     if statement is just a macro that takes =true= or =false= as it's
