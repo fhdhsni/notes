@@ -667,7 +667,7 @@ Stream.iterate(0, &(&1+1)) |> Enum.take(5) # [0, 1, 2, 3, 4]
 #+END_SRC
 *** Stream.resource
 ** Comprehension
-It's another name for =for= macro in Elixir
+It's another name for =for= macro in Elixir which returns a list.
 
 The =for= macro has three parts:
 1. Generators
@@ -1423,7 +1423,29 @@ defmodule BankAccount do
   end 
 end
 #+END_SRC
+** Nodes
+A Node is an instance of BEAM virtual machine.
+- =Node.self= 
+  + to get the current node's name
+- =Node.list=
+  + to get a list of connected nodes
+- =iex --sname node_name=
+  + to start a named node
+- =Node.connect(:Farhad@Manjaro)=
+  + to connect to a node
+- =Node.spawn or Node.spawn_link=
+  + to spawn a process in a node
+#+BEGIN_SRC elixir
+  pid = Node.spawn :fhd@Manjaro, fn ->
+    IO.puts "yohoo"
+  end
+#+END_SRC
 
+*** Note
+- Code is /not sent/
+- All data in the message will be /copied/
+- Be aware of Network Latency
+- 
 ** Miscellaneous
 *** =if=
     if statement is just a macro that takes =true= or =false= as it's

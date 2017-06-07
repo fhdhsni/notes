@@ -1,0 +1,222 @@
+* Intro to lisp
+
+1) 
+   The printed representation of both atoms and lists are called
+   “symbolic expressions” or, more concisely, “s-expressions”.  The word
+   “expression” by itself can refer to either the printed representation,
+   or to the atom or list as it is held internally in the computer.  Often,
+   people use the term “expression” indiscriminately.  (Also, in many
+   texts, the word “form” is used as a synonym for expression.)
+
+2) 
+   The single apostrophe, ‘'’, that I put in front of some of the
+   example lists in preceding sections is called a “quote”; when it
+   precedes a list, it tells Lisp to do nothing with the list, other than
+   take it as it is written.
+
+3) 
+   The second complication occurs because some functions are unusual and
+   do not work in the usual manner.  Those that don’t are called “special
+   forms”.  They are used for special jobs, like defining a function, and
+   there are not many of them. For example, =if= is a special form.
+
+4) 
+   As well as special forms, there are also “macros”.  A macro is a
+   construct defined in Lisp, which differs from a function in that it
+   translates a Lisp expression into another expression that is to be
+   evaluated in place of the original expression. For example =when=
+   is a macro.
+
+5) 
+    if the function that the Lisp interpreter is looking at is not a
+   special form, and if it is part of a list, the Lisp interpreter
+   looks to see whether the list has a list inside of it.  If there is
+   an inner list, the Lisp interpreter first figures out what it
+   should do with the inside list, and then it works on the outside
+   list.  If there is yet another list embedded inside the inner list,
+   it works on that one first, and so on.  It always works on the
+   innermost list first.  The interpreter works on the innermost list
+   first, to evaluate the result of that list.  The result may be used
+   by the enclosing expression. Otherwise, the interpreter works left
+   to right, from one expression to the next.
+
+6) 
+     The symbol ‘number-or-marker-p’ says that the Lisp interpreter is
+   trying to determine whether the information presented it (the value of
+   the argument) is a number or a marker (a special object representing a
+   buffer position).  What it does is test to see whether the ‘+’ is being
+   given numbers to add.  It also tests to see whether the argument is
+   something called a marker, which is a specific feature of Emacs Lisp.
+   (In Emacs, locations in a buffer are recorded as markers.  When the mark
+   is set with the ‘C-@’ or ‘C-<SPC>’ command, its position is kept as a
+   marker.  The mark can be considered a number—the number of characters
+   the location is from the beginning of the buffer.)  In Emacs Lisp, ‘+’
+   can be used to add the numeric value of marker positions as numbers.
+
+7) 
+      The ‘p’ of ‘number-or-marker-p’ is the embodiment of a practice
+   started in the early days of Lisp programming.  The ‘p’ stands for
+   “predicate”.  In the jargon used by the early Lisp researchers, a
+   predicate refers to a function to determine whether some property is
+   true or false.  So the ‘p’ tells us that ‘number-or-marker-p’ is the
+   name of a function that determines whether it is true or false that the
+   argument supplied is a number or a marker.  Other Lisp symbols that end
+   in ‘p’ include ‘zerop’, a function that tests whether its argument has
+   the value of zero, and ‘listp’, a function that tests whether its
+   argument is a list.
+
+8) =(quote hello)= is an expansion of the abbreviation ='hello=
+
+9) Print something in echo area
+    #+BEGIN_SRC elisp
+      (message "He saw %d %s"
+               (- fill-column 32)
+               (concat "red "
+                       (substring
+                        "The quick brown foxes jumped." 16 21)
+                       " leaping."))
+    #+END_SRC
+
+10) 
+    There are several ways by which a variable can be given a value.  One of
+    the ways is to use either the function ‘set’ or the function ‘setq’.
+    Another way is to use ‘let’
+
+11) Setting the Value of a Variable
+    1) Using ‘set’
+       - Note also, that when you use ‘set’, you need to quote both arguments
+         to ‘set’, unless you want them evaluated.
+    2) Using ‘setq’
+       - ‘setq’ permits you to set several different variables to
+         different values, all in one expression. The first argument
+         is bound to the value of the second argument, the third
+         argument is bound to the value of the fourth argument, and so
+         on.
+            #+BEGIN_SRC elisp
+            (setq trees '(pine fir oak maple)
+                       herbivores '(gazelle antelope zebra))
+            #+END_SRC
+
+12) Atoms are multi-character symbols, like ‘forward-paragraph’, single
+    character symbols like ‘+’, strings of characters between double
+    quotation marks, or numbers.
+
+13) In Lisp, ‘nil’ is also used to mean “false” and is a synonym for
+    the empty list, ‘()’.
+
+14) The word “buffer”, by the way, comes from the meaning of the word
+    as a cushion that deadens the force of a collision.  In early
+    computers, a buffer cushioned the interaction between files and
+    the computer’s central processing unit.  The drums or tapes that
+    held a file and the central processing unit were pieces of
+    equipment that were very different from each other, working at
+    their own speeds, in spurts.  The buffer made it possible for them
+    to work together effectively.  Eventually, the buffer grew from
+    being an intermediary, a temporary holding place, to being the
+    place where work is done.  This transformation is rather like that
+    of a small seaport that grew into a great city: once it was merely
+    the place where cargo was warehoused temporarily before being
+    loaded onto ships; then it became a business and cultural center
+    in its own right.
+
+15) The ‘buffer-name’ function returns the _name_ of the buffer; to
+    get the buffer _itself_, a different function is needed: the
+    ‘current-buffer’ function.  If you use this function in code, what
+    you get is the buffer itself.
+
+16) A function definition has up to five parts.
+    #+BEGIN_SRC elisp
+    (defun FUNCTION-NAME (ARGUMENTS...)
+       "OPTIONAL-DOCUMENTATION..."
+       (interactive ARGUMENT-PASSING-INFO)     ; optional
+       BODY...)
+    #+END_SRC
+
+    The argument list is followed by the documentation string that
+    describes the function.  This is what you see when you type ‘C-h
+    f’ and the name of a function.  Incidentally, when you write a
+    documentation string like this, you should make the first line a
+    complete sentence since some commands, such as ‘apropos’, print
+    only the first line of a multi-line documentation string.  Also,
+    you should not indent the second line of a documentation string,
+    if you have one, because that looks odd when you use ‘C-h f’
+    (‘describe-function’).  The documentation string is optional, but
+    it is so useful, it should be included in almost every function
+    you write.
+
+17) Interestingly, when you call an interactive function
+    interactively, the value returned is not automatically displayed
+    in the echo area.  This is because you often call an interactive
+    function for its side effects, such as moving forward by a word or
+    line, and not for the value returned.  If the returned value were
+    displayed in the echo area each time you typed a key, it would be
+    very distracting.
+
+18) =(interactive)=
+    - Example
+      #+BEGIN_SRC elisp
+        (defun multiply-by-seven (number)       ; Interactive version.
+          "Multiply NUMBER by seven."
+          (interactive "p")
+          (message "The result is %d" (* 7 number)))
+      #+END_SRC
+
+    You can use this code by typing ‘C-u’ and a number and then typing
+    ‘M-x multiply-by-seven’ and pressing <RET>.
+
+    
+   In this function, the expression, ‘(interactive "p")’, is a list of
+   two elements.  The ‘"p"’ tells Emacs to pass the prefix argument to the
+   function and use its value for the argument of the function.
+
+   The argument will be a number.  This means that the symbol ‘number’
+   will be bound to a number in the line:
+   
+   =(message "The result is %d" (* 7 number))=
+
+   For example, if your prefix argument is 5, the Lisp interpreter will
+   evaluate the line as if it were:
+
+   =(message "The result is %d" (* 7 5))=
+
+  -  *Another example*
+
+    #+BEGIN_SRC elisp
+      (defun playground (arg char)
+        "docstring"
+        (interactive "p\ncWhat's the char?")
+        (dotimes (i arg)
+          (message "%d" arg)
+          (insert char)))
+    #+END_SRC
+
+      a function with two or more arguments can have information
+    passed to each argument by adding parts to the string that follows
+    ‘interactive’.  When you do this, the information is passed to
+    each argument in the same order it is specified in the
+    ‘interactive’ list.  In the string, each part is separated from
+    the next part by a ‘\n’, which is a newline.  For example, you can
+    follow ‘p’ with a ‘\n’ and an ‘cZap to char: ’.  This causes Emacs
+    to pass the value of the prefix argument (if there is one) and the
+    character.
+    
+    In this case, the function definition looks like the following,
+    where ‘arg’ and ‘char’ are the symbols to which ‘interactive’
+    binds the prefix argument and the specified character
+
+19) 
+
+
+
+* Useful Functions and Variables
+1. (buffer-name)
+2. (buffer-file-name)
+3. (current-buffer)
+4. (other-buffer)
+5. (set-buffer)
+6. (buffer-size)
+7. (point)
+8. (point-min)
+9. (point-max)
+10. (mark-whole-buffer)
+11. 
