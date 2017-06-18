@@ -1,0 +1,238 @@
+# mostly taken from from CS50 course.
+
+** Data Structures
+*** Hash table
+
+- Collision resolution
+  1) Linear probing
+     + linear probing searches the table for the closest following
+       free location and inserts the new key there.
+  2) Separate chaining
+     1) It uses linked lists
+- A good hash function
+  + Makes use of all info provided by key
+  + Hash values should spread evenly across hash tables (in order to
+    reduce the length of linked lists)
+
+*** Singly Linked List
+Arrays are very inflexible when it comes to resizing.
+
+- Singly Linked Lists are easy to grow and shrink without any wasted space.
+- A linked list *node* is a special kind of [[structs]] with two members:
+  1. Data of some data type (int, char, float)
+  2. A pointer to another node of the same type
+#+BEGIN_SRC C
+  typedef struct sllist
+  {
+    SOME_TYPE val;
+    struct sllist* next;
+  }
+#+END_SRC
+A few operations that we need to understand:
+1. How to create a linked list when it doesn't already exist?
+2. Search through a linked list to find an element.
+3. Insert a new node into the linked list.
+4. Delete a single element from a linked list.
+5. Delete an entire linked list.
+
+*** Array
+- We use arrays to hold values of the *same type* at contiguous memory
+  locations.
+- Which has been partiioned into small, identically-sized block of
+  spaced called elements.
+- Can be accessed directly by an index number (so-called *random
+  access*) so they are great for element lookup.
+- In some programming languages (like in C) going behind alocated
+  memory, may cause a [[https://en.wikipedia.org/wiki/Segmentation_fault][Segmentation fault]].
+- In memory, two dimensional arrays are no different than
+  one-dimensional. They're just for human perception.
+- Arrays are usually *passed by reference* to the callee, not a copy
+  of it. If that's the case we can say an array's name is actually a
+  pointer to its first element. See [[Pointer (in C)]]
+-
+
+*** structs
+    or structures
+- Structures provide a way to unify serveral variables of different
+  types into a single, new variable type which can be assigned its own
+  type name.
+- We use structures(structs) to group together elements of a variety
+  of data types that have a logical connection.
+#+BEGIN_SRC C
+   struct car
+   {
+     int year;
+     char model[10];
+     char plate[7];
+     int odometer;
+     double engine_size;
+   };
+   struct car maycar;
+   maycar.year = 23;
+#+END_SRC
+
+** Algorithms
+   - Sort
+   - Search
+   - Breadth First
+   - Depth First
+** Networks
+*** Internet
+These are rudimentarified stuff for pea-brain people like me.
+
+- As originally developed, the IP addressing scheme would effectively
+  allocate a unique 32-bit address to each device hoping to connect
+  to the internet.
+
+- Instead of representing these 32-bit addresses as hexadecimal(as we
+  do with memory locations), we represent them as four clusters of
+  8-bits (4 * 8 bits = 32 bits) using decimal notation.
+
+- For e.g. =w.x.y.z= where each letter is a non-negative value in the range of [0, 255] like 123.45.67.89
+
+- If each IP address is 32 bits, that means there are roughly 4
+  billion addresses to give out. That is no enough. The remedy is
+  IPv6 (verses IPv4) that assigns 128-bit addresses instead of 32-bit
+  addresses.
+
+- In IPv6 we have 8 clusters of 16 bits (8 * 16 bits = 128 bits). For
+  e.g =s:t:u:v:w:x:y:z= where each letter is represented by 1 to 4
+  hexadecimal digits in the range of [0, ffff] like
+  =1234:5678:90ab:cdef:fedc:ba09:8765:4321=
+
+**** DHCP
+How do we get an IP address? How do we know if one is free or taken?
+There's a Dynamic Host Configuration Protocol (DHCP) server, whose
+role is to assign IP addresses to devices.
+
+**** DNS
+- Domain Name System (DNS) exists to help us translate IP addresses
+  to more memorable names that are more human-comprehensible.
+0.0.0.0 -> foo.com
+0.0.0.1 -> bar.ca
+...
+255.255.255.254 -> biblityboo.ir
+255.255.255.255 -> biblityboo2.net
+
+- Large DNS server systems (like Google's own) are more like
+  aggregators, collecting smaller sets of DNS information and pooling
+  them togethe, updaing frequently.
+- DNS record sets are fairly decentralized.
+
+**** Access Points
+- Other than IPv6 (which is not common yet), one of teh ways to deal
+  with IPv4 addressing problem is to start assigning multiple people
+  to the same IP address.
+- The IP address is assigned to a /router/, whose job is to act as a
+  traffic cop that allows data requests from all of the devices on
+  that network to be processed through a single IP address.
+
+
+*** IP
+
+*** TCP
+Transmission Control Protocol
+
+** Databases
+** Basic Computing Principles
+*** OO
+** Programming Paradigms
+*** MVC
+Primary motivation is *security*.
+
+**** Model
+This is where important data (i.e database) for the site lives, and it
+may be updated, referenced and such.
+
+**** View
+These are the pages the user sees when they are interacting with your
+site, usually based on interaction with the Model.
+
+**** Controller
+This is where the so-called /business logic/ of you site lives. Users
+may submit information to the controller, which will then decide what
+to present to the user.
+
+** Miscellaneous
+*** Pointer (in C)
+- Pointers provide an alternative way to pass data between functions.
+- Memory (RAM) is basically a huge *array* of 8-bit wide bytes. So it provide random access just like Arrays.
+- When we say 32/64bit system it means every address in memory is 32/64 bits long.
+|--------------------------------+-------------------------------------------------------------|
+| Data Type                      |                                              Size(in bytes) |
+|--------------------------------+-------------------------------------------------------------|
+| int                            |                                                           4 |
+| char                           |                                                           1 |
+| float                          |                                                           4 |
+| double                         |                                                           8 |
+| long long                      |                                                           8 |
+| char*, int*, float*, whatever* | depends on being a 32 or 64 bit machine, it's either 4 or 8 |
+|                                | since they are just addresses of memory                     |
+|--------------------------------+-------------------------------------------------------------|
+
+Side Note: [[https://en.wikipedia.org/wiki/Endianness][Endianness]]
+- Pointers are just addresses to locations in memory where variables live.
+#+BEGIN_SRC C
+  int k;
+  k = 5;
+  int* pk = NULL;   /* pk says: you gonna find an int in the address that I'm goin' to hold (currenty NULL) */
+  pk = &k;          /* read & as 'address of' */
+  /* now *pk is 5. Here * is dereference operator we can read it as 'go to' */
+#+END_SRC
+=pk= holds the location of =k= in memory. =pk= will be something like =0x80C74820=.
+- So a pointer is a data item whose value is a memory address.
+-
+*** Dynamic Memory Allocation
+- We can use pointers to get access to a block of *dynamically-alocated memory* at runtime.
+- Dynamically allocated memory comes from a pool of memory known as
+  the *heap* (that is to say it's not from *[[Stack]]*)
+- In C
+  + We get this dynamically-allocated memory by making a call to the C
+    standard library function =malloc(needed_size)=, passing as its parameter the
+    number of bytes requested.
+  + After obtaining memory (if it can), =malloc= will return a pointer
+    to that memory (or NULL if it was not able to).
+#+BEGIN_SRC C
+  // statically obtain an integer
+  int x;
+
+  // dynamically obtain an interger
+  int *px = malloc(sizeof(int));
+
+  // array of floats on the Stack
+  float in_stack_array[X];
+
+  // array of floats on the heap
+  float* heap_array = malloc(x * sizeof(float));
+#+END_SRC
+- The Big Problem:
+  + Dynamically-allocated memory is not automatically returned to the
+    system for later use when function in which it's created finishes
+    execution.
+  + Failing to return memory back to the system when you're finished
+    with it result in a *memory leak* which can compromise you
+    system's performance.
+  + When you finish working with dynamically-allocated memory, you must =free()= it.
+#+BEGIN_SRC C
+  char* word = malloc(50 * sizeof(char));
+  /* do stuff with word */
+
+  /* Now we're done. */
+  free(word);
+#+END_SRC
+Another example
+#+BEGIN_SRC C
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  int main (void) {
+    int* b = malloc(sizeof(int));
+    ,*b = 99;
+    printf("%d\n", *b);          /* some serious stuff  */
+    free(b);                     /* let it go */
+
+    return 0;
+  }
+#+END_SRC
+
+*** Stack

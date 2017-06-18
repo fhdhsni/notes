@@ -82,6 +82,7 @@ Binaries can be tagged with a size atribute
 <<104, 101, 108, 108, 111>> == "hello" # true
 #+END_SRC
 
+
 *** Anonymous functions
 #+BEGIN_SRC elixir
 iex> add = fn a, b -> a + b end # same as &(&1 + &2)
