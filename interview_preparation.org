@@ -1,4 +1,4 @@
-# mostly taken from from CS50 course.
+#+OPTIONS: tex:t
 
 ** Data Structures
 *** Hash table
@@ -72,10 +72,69 @@ A few operations that we need to understand:
 #+END_SRC
 
 ** Algorithms
-   - Sort
-   - Search
-   - Breadth First
-   - Depth First
+*** Sort
+**** binary search
+- In binary search, the idea of the algorithm is to divide and
+  conquer, reducing the search area by half each time, trying to find
+  a target number.
+- Array must be sorted.
+- In pseudocode (we need to keep track of =target_element=, =start_index=, =end_index=, =middle_index=):
+  + Repeat until the (sub)array is of size 0:
+    * Calculate the middle point of the current (sub)array.
+    * if the target is at the middle, stop.
+    * Otherwise, if the target is less than what's at the middle,
+      repeat, changing the end point to be just the left of the
+      middle.
+    * Otherwise, if the target is greater than what's at the middle,
+      repeat, changeing the start point to be just to the right of the
+      middle.
+    * Remember: =start_index= < =end_index= should always evaluate to =true= or
+      else =target_element= doesn't exist in the given array.
+- In the worst case, binary search requires O(log n) time on a sorted
+  array with n elements. In general, we can split search region in
+  half [log_2 n] + 1 times before it becomes empty.
+- Best-case scenario: 𝞨(1)
+
+=> if k = log_2 n then 2^k = n
+=> so k times we can multiply 1 by 2 until we get to n
+=> that is to say, we can divide n by 2 for k times until we get to 1
+
+PHP implemention (╯°□°)╯︵ ┻━┻
+#+BEGIN_SRC php
+  <?php
+  function binary_search($arr, $target) {
+
+      return do_binary_search($arr, $target, 0, count($arr) - 1);
+  }
+
+  function do_binary_search($arr, $target, $start_index, $end_index) {
+      if($start_index > $end_index) {
+
+          return false;
+      }
+
+      $mid = floor(($start_index + $end_index) / 2);
+
+      if($arr[$mid] == $target) {
+
+          return $mid;
+      } elseif ($target < $arr[$mid]) {
+
+          return do_binary_search($arr, $target, $start_index, $mid - 1);
+      } else {
+
+          return do_binary_search($arr, $target, $mid + 1, $end_index);
+      }
+  }
+
+  echo binary_search([1, 2, 8, 9], 9); // 3
+#+END_SRC
+
+- see [[https://www.cs.cmu.edu/~15110-f12/Unit05PtB-handout.pdf][cs.cmu.edu]]
+
+*** Search
+*** Breadth First
+*** Depth First
 ** Networks
 *** Internet
 These are rudimentarified stuff for pea-brain people like me.
@@ -236,3 +295,17 @@ Another example
 #+END_SRC
 
 *** Stack
+
+*** Compilers
+**** Preprocessing
+- In c, lines beginning with =#= are preprocessor directives.
+- Using =clang=, =-E= flag only runs the preprocessor.
+- It simply copy and pastes stuff in, say =#include <stdio.h>= to our source file.
+**** Compilation
+- Transforming from one language to another is compiling.
+- Using =clang=, =-S= flag, compiles =C= to =assembly=.
+**** Assembling
+Transforming assembly code to machine code (Object code? what is it?).
+- Using =clang=, =-c= flag, compiles =assembly= to machine code (e.g. =clang -c foo.s= it outputs =foo.o=)
+**** Linking
+???
