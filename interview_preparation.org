@@ -1,4 +1,4 @@
-#+OPTIONS: tex:t
+Mostly from [[http:cs50.harvard.edu][Harvard's CS50]] course.
 
 ** Data Structures
 *** Hash table
@@ -18,23 +18,63 @@
 Arrays are very inflexible when it comes to resizing.
 
 - Singly Linked Lists are easy to grow and shrink without any wasted space.
+- We don't have random access.
 - A linked list *node* is a special kind of [[structs]] with two members:
   1. Data of some data type (int, char, float)
   2. A pointer to another node of the same type
-#+BEGIN_SRC C
-  typedef struct sllist
-  {
-    SOME_TYPE val;
-    struct sllist* next;
-  }
-#+END_SRC
-A few operations that we need to understand:
-1. How to create a linked list when it doesn't already exist?
-2. Search through a linked list to find an element.
-3. Insert a new node into the linked list.
-4. Delete a single element from a linked list.
-5. Delete an entire linked list.
+  #+BEGIN_SRC C
+    typedef struct sllist           /* sllist is a temperary name because the type we're defining is self-referential */
+    {
+      SOME_TYPE val;
+      struct sllist* next;          /* it's a pointer to another linked list */
+    }
+      sllnode;                      /* the permanent name of our new defined type */
+  #+END_SRC
 
+- A few operations that we need to understand:
+  1. How to create a linked list when it doesn't already exist?
+     #+BEGIN_SRC c
+     sllnode* create(SOME_TYPE val);
+     #+END_SRC
+     * Steps involved:
+       1. Dynaically allocate space for a new =sllnode=.
+       2. Check to make sure we didn't run out of memory.
+       3. Initialize the node's =val= field.
+       4. Initialize the node's =next= field. It's =NULL= if it's the only node.
+       5. Return a pointer to the newly created =sllnode=.
+  2. Search through a linked list to find an element.
+     #+BEGIN_SRC c
+     bool find(sllnode* head, SOME_TYPE val)
+     #+END_SRC
+     * Steps involved:
+       1. Created a traversal pointer pointing to the list's head.
+       2. If the current node's =val= is what we're looking for, report success.
+       3. If not, set the traversal pointer to the next pointer in the list and go back to steb (2).
+       4. If you reached the end of the list, report failure. 
+  3. Insert a new node into the linked list.
+     #+BEGIN_SRC C
+     sllnode* insert(sllnode* head, SOME_TYPE val)
+     #+END_SRC
+     * Steps involved:
+       1. Dynamically allocate space for a new sllnode.
+       2. Check to make sure we didn't run out of memory.
+       3. Insert the ndoe *at the beginning of the linked list*.
+       4. Return a pointer to the new head of the linked list.
+  4. Delete a single element from a linked list.
+     * With singly-linked list it's kinda clunky, check [[Doubly-Linked Lists]].
+  5. Delete an entire linked list.
+     #+BEGIN_SRC C
+     void destroy(sllnode* head)
+     #+END_SRC
+     * Steps involved:
+       1. If you've reached a null pointer, stop.
+       2. Delete *the rest of the list*. If we start the deletion from
+          top->bottom (and not bottom->top), well, we can't. We free
+          the head and there's no way to access the rest of the
+          list. And memory leak happens. (╯°□°)╯︵ ┻━┻
+       3. Free the current node.
+
+*** Doubly-Linked Lists
 *** Array
 - We use arrays to hold values of the *same type* at contiguous memory
   locations.
@@ -73,7 +113,99 @@ A few operations that we need to understand:
 
 ** Algorithms
 *** Sort
-**** binary search
+**** Bubble sort
+- In pseudocode:
+  * Set a flag to false
+  * Repeate while flag is false
+    + Set flag to true
+    + Look at each adjacent pair
+      - If two adjacent elements are not in order , swap them and set the flag to false.
+        
+- Worst-case scenario O(n^2) because we have to make n iteration
+  through the list and checking all n elements each pass through.
+- Best-case scenario 𝛀(n) (we have to make n comparison even for sorted arrays)
+- After k iteration, last k elements are in their proper place so we can
+  ignore them.
+
+PHP implemention:
+#+BEGIN_SRC php
+  <?php
+
+  function bubble_sort($arr) {
+      $is_sorted = false;
+
+      while (! $is_sorted) {
+          $is_sorted = true;
+
+          $arr_length_minus_one = count($arr) - 1; // because we don't wanna go out of bound
+          $last_unsorted_item = $arr_length_minus_one;
+
+          for($i = 0; $i < $last_unsorted_item; $i++) {
+              if ($arr[$i] > $arr[$i + 1]) {
+                  $is_sorted = false;
+
+                  $temp = $arr[$i];
+                  $arr[$i] = $arr[$i + 1];
+                  $arr[$i + 1] = $temp;
+              }
+          }
+          $last_unsorted_item -= 1;
+      }
+
+      return $arr;
+  }
+
+  print_r(bubble_sort([2, 1, 3, 5, 4, 6]));
+#+END_SRC
+**** Insertion sort
+The idea is to build the sorted array in place, shifting elements out
+of the way if necessary to make room as we go.
+
+- In pseudocode:
+  + Call the first elment of the array /sorted/
+  + Repeat until all elements are sorted:
+    * Look at the next unsorted element. Insert into the "sorted"
+      portion by shifting the requisite number of elements.
+- Worst-case scenario: The array is in reverse order; we have to shift
+  each of the n elements n positions each time we make an insertion => O(n^2)
+
+- Best-case scenario: The array is already sorted => 𝛀(n)
+
+PHP implemention:
+#+BEGIN_SRC php
+<?php
+
+function insertion_sort ($arr) {
+    $arr_len = count($arr);
+    $second_element_in_the_arr = 1;
+    
+    for($i = $second_element_in_the_arr; $i < $arr_len; $i++) {
+        $element = $arr[$i];
+        $j = $i;
+
+        // iterate over the sorted portion from right to left
+        // stop iteration when the element to the left of our current position is less than the current element we are trying to insert
+        // we are moving through the sorted portion from right to left but moving through unsorted portion from left to right
+        while ($j > 0 and $arr[$j - 1] > $element) {
+            $arr[$j] = $arr[$j - 1]; // shif elements one space to the right
+            $j -= 1;                 // in sorted section go one element to the left
+        }
+
+        $arr[$j] = $element;
+    }
+
+    return $arr;
+}
+#+END_SRC
+
+**** Merge Sort
+
+*** Search
+**** Linear search
+     Worst-case scenario O(n)  
+     Best-case scenario 𝛀(1)
+
+**** Binary search
 - In binary search, the idea of the algorithm is to divide and
   conquer, reducing the search area by half each time, trying to find
   a target number.
@@ -93,7 +225,7 @@ A few operations that we need to understand:
 - In the worst case, binary search requires O(log n) time on a sorted
   array with n elements. In general, we can split search region in
   half [log_2 n] + 1 times before it becomes empty.
-- Best-case scenario: 𝞨(1)
+- Best-case scenario: 𝛀(1)
 
 => if k = log_2 n then 2^k = n
 => so k times we can multiply 1 by 2 until we get to n
@@ -132,7 +264,6 @@ PHP implemention (╯°□°)╯︵ ┻━┻
 
 - see [[https://www.cs.cmu.edu/~15110-f12/Unit05PtB-handout.pdf][cs.cmu.edu]]
 
-*** Search
 *** Breadth First
 *** Depth First
 ** Networks
@@ -167,11 +298,16 @@ role is to assign IP addresses to devices.
 **** DNS
 - Domain Name System (DNS) exists to help us translate IP addresses
   to more memorable names that are more human-comprehensible.
-0.0.0.0 -> foo.com
-0.0.0.1 -> bar.ca
-...
-255.255.255.254 -> biblityboo.ir
-255.255.255.255 -> biblityboo2.net
+
+|              IP | URI               |
+|-----------------+-------------------|
+|         0.0.0.0 | foo.com           |
+|         0.0.0.1 | bar.ca            |
+|                 |                   |
+|     ...MORE IPs | ...MORE ADDRESSES |
+|                 |                   |
+| 255.255.255.254 | biblityboo.ir     |
+| 255.255.255.255 | bibxlityboo2.net  |
 
 - Large DNS server systems (like Google's own) are more like
   aggregators, collecting smaller sets of DNS information and pooling
@@ -188,9 +324,79 @@ role is to assign IP addresses to devices.
 
 
 *** IP
+- "the Internet" is an /interconnected network/ comprised of smaller
+  networks woven together and agreeing to communicate with one
+  another.
+- How do these networks know how to communicate with one another? This
+  is the responsibility of the Internet Protocol(IP).
+- Since we can't wire all those small networks together, we use *routers*.
+- Instead of being connected to every other network, each network is
+  connected to a limited number of routers (each of which is connected
+  to other nearby routers), and each router has instructions (routing
+  table) to where to send a /packet/ with a certain IP address. So not
+  all those small networks have to physically connect to each
+  other. It's somehow similar to recursion in programming. Reaching to
+  destination one step at (one router) at a time.
+  + So networks are not directly connected to each other at all (??),
+    and rely on routers to distribute communications.
+  + On a small scale, this configuration may actually be more
+    inefficient than just having direct connections.
+  + But on a large scale, this reduces the costs of network
+    infrastructure.
+- The data isn't being sent as one huge block. that would throttle the
+  network for all the other users. Hence comes the *packets*.
+- As such, another crucial part of IP is splitting data into *packets*.
+- IP is also know as a /connectionless/ protocol. There is not
+  necessarily a defined path from the sender to the receiver, and vice
+  versa.
+- This means that in response to traffic that might be "clogging" up
+  one paricular path through the Internet, some packets can be
+  "re-routed" around the traffic jam to follow the most optimal path,
+  based on the current state of the network.
+- IP doesn't guaranty delivery (like in case a packet is dropped), for
+  that we rely on [[TCP]].
 
 *** TCP
 Transmission Control Protocol
+
+- If the Internet Protocol(IP) is thought of as the protocol for
+  getting information from a sending machine to a receiving machine,
+  then TCP can be thought of as directing the transmitted packet to
+  the correct program on the receiving machine.
+- It is important to be able to identify both where the receiver is
+  and what the packet is for, so TCP and IP are almost an inseparable
+  pair: TCP/IP
+- Each program/utility/service on a machine is assigned a /port
+  number/. Coupled with an IP address, we can now uniquely identify a
+  specific program on a specific machine.
+- The other thing that TCP is crucial for is /guaranteeing delivery/
+  of packets, which IP alone does not do.
+- TCP does this by including information about how many packets the
+  receiver should expect to get, and in what order, and transmitting
+  that information alongside the data.
+- Some ports are so commonly used that they have been standardized
+  across all computers.
+|--------------------+-----|
+| FTP(file transfer) |  21 |
+| SMTP(e-mail)       |  25 |
+| DNS                |  53 |
+| HTTP               |  80 |
+| HTTPS              | 443 |
+|--------------------+-----|
+
+- Steps of the TCP/IP process:
+  1. When a program goes to send data, TCP breaks it into smaller
+     chunks and communicates those packets to the computer's network
+     software, adding a TCP layer onto the packet. (what port it
+     should go, number and order of packets...)
+  2. IP routes the individual packets from sender to receiver; this
+     info is part of the IP layer surrounding the packet.
+  3. When the destination computer gets the packet, TCP looks at the
+     header to see which program it belongs to; and since the routes
+     packets take may differ, TCP also must present those packets to
+     the detination program in the proper order. If a packet is
+     missing (say it has been dropped along the way), TCP requests the
+     lost packet from the sender.
 
 ** Databases
 ** Basic Computing Principles
@@ -294,8 +500,6 @@ Another example
   }
 #+END_SRC
 
-*** Stack
-
 *** Compilers
 **** Preprocessing
 - In c, lines beginning with =#= are preprocessor directives.
@@ -309,3 +513,30 @@ Transforming assembly code to machine code (Object code? what is it?).
 - Using =clang=, =-c= flag, compiles =assembly= to machine code (e.g. =clang -c foo.s= it outputs =foo.o=)
 **** Linking
 ???
+*** Call Stack
+- When we call a function, the system sets aside space in memory for
+  that function to do its necessary work.
+  + We call such chunks of memory *stack frames* or *function frames*
+- More than one function's stack frame may exist in memory at a given
+  time.
+- More than one function's can have open frame but only one function
+  can have active frame.
+- These frames are arranged in a *stack*. The frame for the
+  most-recently called function is always on the top of the stack.
+- When a new function is called, a new frame is pushed onto the top of
+  the stack and becomes the active frame.
+- When a function finishes its work, its frame is popped off of the
+  stack, and the frame immediately below it becomes the new, active,
+  function on the top of the stack. The function picks up immediately
+  where it left off.
+** Tips
+- Think out loud
+- Repeat the question
+- Make sure you understand the problem by working through a few small
+  and simple test cases. This will give you time to think and get some
+  intuition on the problem. Your test cases should cover all normal
+  and boundary cases(null, negatives, fractions, zero, empty, etc.)
+- Write down function header/interface/calss def first and validate it
+  with you interviewer to make sure you understand the problem first.
+- Don't get frustrated.
+- Don't try to come up with the most efficient algorithm from the first go.
