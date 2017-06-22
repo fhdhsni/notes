@@ -3,16 +3,18 @@ Mostly from [[http:cs50.harvard.edu][Harvard's CS50]] course.
 ** Data Structures
 *** Hash table
 
-- Collision resolution
+- Collision resolution:
   1) Linear probing
-     + linear probing searches the table for the closest following
-       free location and inserts the new key there.
+     linear probing searches the table for the closest following
+     free location and inserts the new key there.
+
   2) Separate chaining
-     1) It uses linked lists
-- A good hash function
-  + Makes use of all info provided by key
-  + Hash values should spread evenly across hash tables (in order to
-    reduce the length of linked lists)
+     It uses linked lists
+
+- A good hash function:
+  1. Makes use of all info provided by key
+  2. Hash values should spread evenly across hash tables (in order to
+     reduce the length of linked lists)
 
 *** Singly Linked List
 Arrays are very inflexible when it comes to resizing.
@@ -36,37 +38,37 @@ Arrays are very inflexible when it comes to resizing.
      #+BEGIN_SRC c
      sllnode* create(SOME_TYPE val);
      #+END_SRC
-     * Steps involved:
-       1. Dynaically allocate space for a new =sllnode=.
-       2. Check to make sure we didn't run out of memory.
-       3. Initialize the node's =val= field.
-       4. Initialize the node's =next= field. It's =NULL= if it's the only node.
-       5. Return a pointer to the newly created =sllnode=.
+     Steps involved:
+     1. Dynaically allocate space for a new =sllnode=.
+     2. Check to make sure we didn't run out of memory.
+     3. Initialize the node's =val= field.
+     4. Initialize the node's =next= field. It's =NULL= if it's the only node.
+     5. Return a pointer to the newly created =sllnode=.
   2. Search through a linked list to find an element.
      #+BEGIN_SRC c
      bool find(sllnode* head, SOME_TYPE val)
      #+END_SRC
-     * Steps involved:
+     Steps involved:
        1. Created a traversal pointer pointing to the list's head.
        2. If the current node's =val= is what we're looking for, report success.
        3. If not, set the traversal pointer to the next pointer in the list and go back to steb (2).
-       4. If you reached the end of the list, report failure. 
+       4. If you reached the end of the list, report failure.
   3. Insert a new node into the linked list.
      #+BEGIN_SRC C
      sllnode* insert(sllnode* head, SOME_TYPE val)
      #+END_SRC
-     * Steps involved:
+     Steps involved:
        1. Dynamically allocate space for a new sllnode.
        2. Check to make sure we didn't run out of memory.
        3. Insert the ndoe *at the beginning of the linked list*.
        4. Return a pointer to the new head of the linked list.
   4. Delete a single element from a linked list.
-     * With singly-linked list it's kinda clunky, check [[Doubly-Linked Lists]].
+     With singly-linked list it's kinda clunky, check [[Doubly-Linked Lists]].
   5. Delete an entire linked list.
      #+BEGIN_SRC C
      void destroy(sllnode* head)
      #+END_SRC
-     * Steps involved:
+     Steps involved:
        1. If you've reached a null pointer, stop.
        2. Delete *the rest of the list*. If we start the deletion from
           top->bottom (and not bottom->top), well, we can't. We free
@@ -75,6 +77,21 @@ Arrays are very inflexible when it comes to resizing.
        3. Free the current node.
 
 *** Doubly-Linked Lists
+- In singly-linkeds we can only ever move in one direction through the
+  list.
+- A doubly-linked list allows us to move forward and backward through
+  the list, all by simly adding one extra pointer to our =struct=
+  definition.
+#+BEGIN_SRC C
+  typedef struct dllist
+  {
+    SOME_TYPE val;
+    struct dllist* prev;
+    struct dllist* next;
+  }
+    dllnode;
+#+END_SRC
+
 *** Array
 - We use arrays to hold values of the *same type* at contiguous memory
   locations.
@@ -89,9 +106,8 @@ Arrays are very inflexible when it comes to resizing.
 - Arrays are usually *passed by reference* to the callee, not a copy
   of it. If that's the case we can say an array's name is actually a
   pointer to its first element. See [[Pointer (in C)]]
--
 
-*** structs
+*** struct
     or structures
 - Structures provide a way to unify serveral variables of different
   types into a single, new variable type which can be assigned its own
@@ -111,7 +127,136 @@ Arrays are very inflexible when it comes to resizing.
    maycar.year = 23;
 #+END_SRC
 
+*** Trie
+   /traı/
+- Tries combine structures and pointers together to store data in an
+  intersting way.
+- The data to be searched for in the trie is now a roadmap.
+  - If you can follow the map from beginning to end, the data exist in the trie.
+  - If you can't it doesn't exist.
+- Unlike with a hash table, there are no collisions, and no two pieces
+  of data (unless they are identical) have the same path.
+- To insert an element into the trie, simply build the correct path from the root to the leaf.
+- To search for an element in the trie, use successive digits to
+  navigate from the root, and if you can make it to the end without
+  hitting a dead end (a NULL pointer), you've fount it.
+
+#+BEGIN_SRC C
+  typedef struct _trie
+  {
+    char university[20];
+    struct _trie* paths[10];
+  }
+    trie;
+#+END_SRC
+*** Stack
+- This data structure is commonly implemented in one of two ways: as
+  an *array* or as a *linked* list.
+- In either case, the important rule is that when data is added to the
+  stack, it sits "on top," and so if an element needs to be removed,
+  the most recently added element is the only element that can legally
+  be removed.
+- /Last in, first out/ (LIFO)
+- So there only two operations that may legally be performed on a
+  stack.
+  - *push*: Add a new element to the top of the stack.
+  - *pop*: Remove the most recently-added element from the top of the
+    stack.
+- Array-based implementation
+  #+BEGIN_SRC C
+    typedef struct _stack
+    {
+      SOME_VALUE array[CAPACITY];
+      int top;
+    }
+      stack;
+  #+END_SRC
+  In general case push() needs to:
+  + Accept a pointer to the stack.
+  + Accept data of SOME_VALUE to be added to the stack.
+  + Add that data to the stack at the top of the stack.
+  + Change the location of the top of the stack.
+  
+  In Gerneral case, pop() needs to:
+  + Accept a pointer to the stack.
+  + Change the location of the top of the stack.
+  + Return the value that was removed ('remove' is used loosely, we just
+    ignore the value and pretend that it doesn't exist anymore) from the
+    stack.
+*** Queue
+- This data structure is commonly implemented in one of two ways: 1)
+  as an array or as a linked list.
+- In either case, the important rule is that when data is added to the
+  queue, it is tacked onto the end, and so if an element needs to be
+  removed, the element at the front is the only element that can
+  legally be removed.
+- /First in, first out/ (FIFO)
+- There are only two operations that may legally be performed:
+  + *Enqueue*: Add a new element to the /end/ of the queue.
+  + *Dequeue*: Remove the oldest element from the /front/ of the queue.
+
+#+BEGIN_SRC C
+  typedef struct _queue
+  {
+    SOME_VALUE array[CAPACITY];
+    int front;
+    int size;
+  }
+    queue;
+#+END_SRC
+
 ** Algorithms
+*** Computational Complexity
+- Being able to analyze an algorithm allows us to have an idea of how
+  well it scales as we throw larger and larger data sets at it.
+- When we talk about the complexity of an algorithm, we generally
+  refer to the worst-case senario. We refer to this as O.
+- We sometimes also care about the best-case senario. We refer to this as 𝛀.
+- What is a data set? Whatever makes the most sense in context.
+- We can measure an algorithm based on how it handles these input. Let's call this measure f(n).
+- We don't actually care about what f(n) is precisely. Rather, we care
+  only about its tendency, which is dictated by its highest-order
+  term.
+
+| n         | fn(n) = n^3   | f(n) = n^3 + n^2 | f(n) = n^3 - 8n^2 + 20n |
+|-----------+---------------+------------------+-------------------------|
+| 1         | 1             | 2                | 13                      |
+| 10        | 1,000         | 1,100            | 400                     |
+| 1,000     | 1,000,000,000 | 1,001,000,000    | 992,020,000             |
+| 1,000,000 | 1.0 × 10^18   | 1.000001 × 10^18 | 9.99992 × 10^17         |
+|           |               |                  |                         |
+
+Some more common Computational Complexity
+
+| O(1)       | Constant time     |
+| O(log n)   | logarithmic time  |
+| O(n)       | linear time       |
+| O(n log n) | linearithmic time |
+| O(n^2)     | quadratic time    |
+| O(n^c)     | polynomial time   |
+| O(C^n)     | exponential time  |
+| O(n!)      | factorial time    |
+| O(∞)       | infinite time     |
+
+|------------------+-----------------+--------------------+----------------+-----------|
+| Algorithm        | Time Complexity | 	Space Complexity |                |           |
+|------------------+-----------------+--------------------+----------------+-----------|
+|                  | Best            | Average            | Worst          | 	Worst   |
+|------------------+-----------------+--------------------+----------------+-----------|
+| Quicksort    	  | Ω(n log(n))     | Ⲑ(n log(n))        | O(n^2)         | O(log(n)) |
+| Mergesort    	  | Ω(n log(n))     | Ⲑ(n log(n))        | O(n log(n))    | O(n)      |
+| Timsort      	  | Ω(n)            | Ⲑ(n log(n))        | O(n log(n))    | O(n)      |
+| Heapsort     	  | Ω(n log(n))     | Ⲑ(n log(n))        | O(n log(n))    | O(1)      |
+| Bubble Sort  	  | Ω(n)            | Ⲑ(n^2)             | O(n^2)         | O(1)      |
+| Insertion Sort	 | Ω(n)            | Ⲑ(n^2)             | O(n^2)         | O(1)      |
+| Selection Sort	 | Ω(n^2)          | Ⲑ(n^2)             | O(n^2)         | O(1)      |
+| Tree Sort    	  | Ω(n log(n))     | Ⲑ(n log(n))        | O(n^2)         | O(n)      |
+| Shell Sort       | Ω(n log(n))     | Ⲑ(n(log(n))^2)     | O(n(log(n))^2) | O(1)      |
+| Bucket Sort      | Ω(n+k)          | Ⲑ(n+k)             | O(n^2)         | O(n)      |
+| Radix Sort       | Ω(nk)           | Ⲑ(nk)              | O(nk)          | O(n+k)    |
+| Counting Sort	  | Ω(n+k)          | Ⲑ(n+k)             | O(n+k)         | O(k)      |
+| Cubesort     	  | Ω(n)            | Ⲑ(n log(n))        | O(n log(n))    | O(n)      |
+
 *** Sort
 **** Bubble sort
 - In pseudocode:
@@ -120,14 +265,14 @@ Arrays are very inflexible when it comes to resizing.
     + Set flag to true
     + Look at each adjacent pair
       - If two adjacent elements are not in order , swap them and set the flag to false.
-        
+
 - Worst-case scenario O(n^2) because we have to make n iteration
   through the list and checking all n elements each pass through.
 - Best-case scenario 𝛀(n) (we have to make n comparison even for sorted arrays)
 - After k iteration, last k elements are in their proper place so we can
   ignore them.
 
-PHP implemention:
+PHP implementation:
 #+BEGIN_SRC php
   <?php
 
@@ -171,14 +316,14 @@ of the way if necessary to make room as we go.
 
 - Best-case scenario: The array is already sorted => 𝛀(n)
 
-PHP implemention:
+PHP implementation:
 #+BEGIN_SRC php
 <?php
 
 function insertion_sort ($arr) {
     $arr_len = count($arr);
     $second_element_in_the_arr = 1;
-    
+
     for($i = $second_element_in_the_arr; $i < $arr_len; $i++) {
         $element = $arr[$i];
         $j = $i;
@@ -199,10 +344,26 @@ function insertion_sort ($arr) {
 #+END_SRC
 
 **** Merge Sort
+- In merge sort, the idea of the algorithm is to sort smaller arrays
+  and then combine those arrays together (merge them) in sorted order.
+- In pseudocode
+  1. Sort the left half of the array (assuming n > 1) // if an array is consist of a single element it's already sorted.
+  2. Sort the right half of the array (assuming n > 1)
+  3. Merge the two halves together
+- *Worst-case scenario*: We have to split /n/ elements up and recombine
+  them, effectively doubling the sorted subarrays as we build them
+  up. (combining sorted 1-element arrays into 2-element arrys,
+  combined sorted 2-element arrays into 4-element arrays...) => O(n log n)
+- *Worst-case scenario*: The array is already perfectly sorted. But we
+  stil have tosplit and recombine it back together. => 𝛀(n log n)
+- Its space complexity is O(n)
+PHP implementation:
+#+BEGIN_SRC php
 
+#+END_SRC
 *** Search
 **** Linear search
-     Worst-case scenario O(n)  
+     Worst-case scenario O(n)
      Best-case scenario 𝛀(1)
 
 **** Binary search
@@ -231,7 +392,7 @@ function insertion_sort ($arr) {
 => so k times we can multiply 1 by 2 until we get to n
 => that is to say, we can divide n by 2 for k times until we get to 1
 
-PHP implemention (╯°□°)╯︵ ┻━┻
+PHP implementation (╯°□°)╯︵ ┻━┻
 #+BEGIN_SRC php
   <?php
   function binary_search($arr, $target) {
@@ -530,6 +691,8 @@ Transforming assembly code to machine code (Object code? what is it?).
   function on the top of the stack. The function picks up immediately
   where it left off.
 ** Tips
+From [[https://github.com/kennyyu/workshop][this workshop]]:
+
 - Think out loud
 - Repeat the question
 - Make sure you understand the problem by working through a few small
