@@ -1,0 +1,48 @@
+* PWD
+1. Web App Install banner
+2. Splash Screen
+3. Offline Support
+4. Time to first paint
+5. Time to first meaningful paint
+6. Time to fisrt meaningful interaction
+7. Responsive
+8. Web App Manifest
+9. SW (1. App Shell Skeleton (sw-precach?) 2.Content caching (sw-toolbox?))
+
+* PRPL or whatever
+
+GOAL: 
+1. Being interactive under 5 seconds on shitty devices with shitty network connection.
+2. On 3G, it's 3 seconds.
+3. On cable, under 1000 ms.
+4. Repeat views (useing SW) as close to zero as possible.
+
+** *P*ush and Preload
+1.
+#+begin_src html
+<link rel="dns-prefetch" href="//o.twimg.com">
+#+end_src
+
+2. 
+#+begin_src html
+<link rel=preload href="babolibaboli.boo/foo.js"
+#+end_src
+
+** *r*ender
+1. =requestidlecallback=
+scedule work when there's a free time at the end of a frame.
+
+** *p*recache
+1. SW
+2. Application Shell (Or maybe ignore app shell and load the content first)
+   - Inline critical CSS in =<head>=
+   - Async load CSS/JS for current view. (e.g <link async ...>)
+
+** *l*azy-load
+Code spliting
+Commons chunk plugin (webpack)
+Route-based code spliting 
+
+bit.ly/twitterlite-perf
+bit.ly/twitterlite-casestudy
+

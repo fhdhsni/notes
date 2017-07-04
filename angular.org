@@ -1,0 +1,13 @@
+* Angular Rocks
+
+**  The Component Lifecycle
+|   | Lifecycle Hook        | Timing                                                  |
+|---+-----------------------+---------------------------------------------------------|
+| 1 | ngOnChanges           | Before #2 and when data-bound property value change     |
+| 2 | ngOnInit              | On component initialization, after first ngOnChanges    |
+| 3 | ngDoCheck             | During every Angular change detection cycle             |
+| 4 | ngAfterContentInit    | After inserting content(=<ng-content>=)                 |
+| 5 | ngAfterContentChecked | After every check of inserted content                   |
+| 6 | ngAfterViewInit       | After initializing the component's views/child views    |
+| 7 | ngAfterViewChecked    | After every check of the component's views/ child view  |
+| 8 | ngOnDestroy           | Just before Angular 2 destroys the Directive/ component |
