@@ -1,6 +1,7 @@
 * Angular Rocks
 
-**  The Component Lifecycle
+- The Component Lifecycle
+
 |   | Lifecycle Hook        | Timing                                                  |
 |---+-----------------------+---------------------------------------------------------|
 | 1 | ngOnChanges           | Before #2 and when data-bound property value change     |
@@ -11,3 +12,86 @@
 | 6 | ngAfterViewInit       | After initializing the component's views/child views    |
 | 7 | ngAfterViewChecked    | After every check of the component's views/ child view  |
 | 8 | ngOnDestroy           | Just before Angular 2 destroys the Directive/ component |
+
+** Tips
+- Speaking of =src/app/app.module.ts=
+  + Componentes goes into =declarations=.
+  + In general, the declarations array contains a list of application
+    components, pipes, and directives that belong to the module.
+  + Modules (e.g forms, http,...) goes into =imports=
+    + also routes (e.g =RouterModule.forRoot([{path: 'heroes',
+      component: HeroesComponent}])=) goes into =imports= section of
+      =app.module.ts=
+  + services goes into =providers=
+    * The providers array tells Angular to create a fresh instance of
+      the HeroService when it creates an AppComponent. The
+      AppComponent, as well as its child components, can use that
+      service to get hero data.
+
+
+- data services are invariably asynchronous,
+
+- The =forRoot()=  method is called because a configured router is
+  provided at the app's root. The forRoot() method supplies the Router
+  service providers and directives needed for routing, and performs
+  the initial navigation based on the current browser URL.
+
+- An Observable is a stream of events that you can process with array-like operators.
+  + A request-cancel-new-request sequence is difficult to implement with Promises, but easy with Observables.
+
+** Basics
+How this whole thing is getting started?
+main.ts => app.module.ts => app.component.ts => ...
+
+** Component & Databinding
+*** Databinding
+The comunication between "Business Logic" and Template (HTML file)
+1. Output data
+   1. String interpolation *{{data}}*
+   2. Property Binding *[property]="data"*
+2. React to user event
+   1. *(event)="expression"*
+3. two-way databinding *[(ngModel)]="data"*
+
+** Directives
+They are instructions in the DOM.
+*** Structural Directives
+**** ngIf;else
+#+BEGIN_SRC html
+<p *ngIf="serverName; else noServer">{{ serverName }}</p>
+<ng-template #noServer>
+  <p>There's No Server</p>
+</ng-template>
+#+END_SRC
+
+**** ngFor
+**** ngSwitch
+*** Attribute Directives
+**** ngStyle
+#+BEGIN_SRC html
+<p [ngStyle]="{backgroundColor: isServerOnline ? 'lightgreen' : 'lightpink'}">{{ isServerOnline }}</p>
+#+END_SRC
+
+**** ngClass
+
+** Services and DI
+
+** Routing
+
+** Observables
+
+** Forms
+
+** Pipes
+
+** Http
+
+** Authentication
+
+** Optimization & ngModules
+
+** Deployment
+
+** Animation & Testing
+
+

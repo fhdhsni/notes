@@ -1,4 +1,4 @@
-* 
+*  foo
 1) DOM is constructed incrementally, as the bytes arrive.
 2) When browser dispaches a network request for CSS it doesn't stop
    parsing the rest of HTML. I continues parsing html and constructing
@@ -19,7 +19,7 @@
 10) Async all the things
     * regular: block on HTTP request, pars, execute, proceed
     * async: download in background, execute when ready
-* 
+* bar
 1) Redirecting to a new host means a new DNS lookup.
 2) Even after the Paint JavaScript can manipulate the DOM and CSSOM, which may trigger a:
    * Style recalculation

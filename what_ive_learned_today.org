@@ -1,0 +1,41 @@
+* ERD or whatever
+Tue Jul 11 17:50:37 +0430 2017 (Third day at Drupz)
+
+Entity Relationship Diagram: This dude acts like a blueprint for our database.
+
+There are five major parts to an =ERD=:
+
+1. Entity:
+  Represent a person, place or thing that you want to track at a database.
+2. Attributes:
+  Describes various characteristic about an individual entity.
+  It doesn't have to be unique or something
+3. Primary Keys:
+  An attribute that uniquely identifies an entity. And when we need more
+  than one attribute to uniquely identify an intance of our entity
+  that's a composite key.
+4. Relationship:
+  Describes how one or more entities interact with each other
+5. Cardinality:
+  The count of instances that are allowed or are necessary between entity relationships.
+  E.g. take a phone number entity, it must belong to someone. But
+  someone may have zero, one or bizillion phone number.
+  Cardinality is broken down to two parts: 
+   1) Minimum Cardinality: Minimum number of instances that are
+      required in the relationship. That is the fewest number of rows
+      that we need for a relationship.
+      
+   1) Maximum Cardinality: Maximum number of instances that are
+      allowed. We can exceed this number in our relationship
+
+** Crow's foot notation
+In a nutshell:
+- | means one
+- E means many
+- || one(and only one)
+- O| zero or one
+- |E one or many
+- OE zero or many
+   #+CAPTION: Crow's foot notation, stolen from internet
+   #+NAME: Crows-Foot-notation-symbols
+   [[./Crows-Foot-notation-symbols.png]]
