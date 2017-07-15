@@ -2,16 +2,16 @@
 
 - The Component Lifecycle
 
-|   | Lifecycle Hook        | Timing                                                  |
-|---+-----------------------+---------------------------------------------------------|
-| 1 | ngOnChanges           | Before #2 and when data-bound property value change     |
-| 2 | ngOnInit              | On component initialization, after first ngOnChanges    |
-| 3 | ngDoCheck             | During every Angular change detection cycle             |
-| 4 | ngAfterContentInit    | After inserting content(=<ng-content>=)                 |
-| 5 | ngAfterContentChecked | After every check of inserted content                   |
-| 6 | ngAfterViewInit       | After initializing the component's views/child views    |
-| 7 | ngAfterViewChecked    | After every check of the component's views/ child view  |
-| 8 | ngOnDestroy           | Just before Angular 2 destroys the Directive/ component |
+|   | Lifecycle Hook        | Timing                                                                                    |
+|---+-----------------------+-------------------------------------------------------------------------------------------|
+| 1 | ngOnChanges           | Before #2 and when data-bound property value changes (so it may be called multiple times) |
+| 2 | ngOnInit              | On component initialization, after first ngOnChanges                                      |
+| 3 | ngDoCheck             | During every Angular change detection cycle                                               |
+| 4 | ngAfterContentInit    | After inserting content(=<ng-content>=) has been projected into view                      |
+| 5 | ngAfterContentChecked | After every check of inserted content                                                     |
+| 6 | ngAfterViewInit       | After initializing the component's views/child views                                      |
+| 7 | ngAfterViewChecked    | After every check of the component's views/ child view                                    |
+| 8 | ngOnDestroy           | Just before Angular 2 destroys the Directive/ component                                   |
 
 ** Tips
 - Speaking of =src/app/app.module.ts=
@@ -28,7 +28,6 @@
       AppComponent, as well as its child components, can use that
       service to get hero data.
 
-
 - data services are invariably asynchronous,
 
 - The =forRoot()=  method is called because a configured router is
@@ -39,6 +38,9 @@
 - An Observable is a stream of events that you can process with array-like operators.
   + A request-cancel-new-request sequence is difficult to implement with Promises, but easy with Observables.
 
+- =encapsulation: ViewEncapsulation.Emulated= // other options None,
+  Native (native means using Shadow DOM)
+
 ** Basics
 How this whole thing is getting started?
 main.ts => app.module.ts => app.component.ts => ...
@@ -48,14 +50,90 @@ main.ts => app.module.ts => app.component.ts => ...
 The comunication between "Business Logic" and Template (HTML file)
 1. Output data
    1. String interpolation *{{data}}*
-   2. Property Binding *[property]="data"*
+   2. Property Binding *[property]="data"*. BTW these two are
+      equal. <img src="{{item.imagePath}}"/> and <img [src]="item.imagePath"/>
 2. React to user event
    1. *(event)="expression"*
 3. two-way databinding *[(ngModel)]="data"*
+4. Custom property binding:
+   + By default all properies of a given component are accessible only
+     inside that component. To bind to a property of a given component
+     by its parent component use =@Input()= decorator.
+   + We also can inform parent component of a given component that a
+     property of its child has changed. We do this by the help of
+     =@Output()= and =EventEmitter=. For e.g.
+
+    #+BEGIN_SRC js
+      import { Component, Output, EventEmitter } from '@angular/core';
+
+      @Component({
+        selector: 'app-foobar',
+        templateUrl: './foobar.component.html',
+      })
+      export class FoobarComponent implements OnInit {
+        @Output('deleted') delete = new EventEmitter();
+
+        onDelete() {
+          this.delete.emit(this.myname);
+        }
+        constructor() { }
+      }
+    #+END_SRC
+
+    And in the parent component template:
+    #+BEGIN_SRC html
+    <app-foobar (deleted)="what($event)"></app-foobar>
+    #+END_SRC
+
+    And in the parent component class
+    #+BEGIN_SRC js
+      import { Component } from '@angular/core';
+
+      @Component({
+        selector: 'app-root',
+        templateUrl: './app.component.html',
+      })
+      export class AppComponent {
+        what(event) {
+          console.log(event);
+        }
+      }
+    #+END_SRC
+
+5. =@ViewChild('Desired-selector-we-want-to-get-from-telmplate')=: You
+   can use ViewChild to get the first element or the directive
+   matching the selector from the view DOM. If the view DOM changes,
+   and a new child matches the selector, the property will be updated.
+   Note that it's only available after =ngAfterViewInit()= is called. 
+6. =@ContentChild('selector')= we can't get its value before we reach
+   =ngAfterContentInit()=
+
+   inside app.component.html
+   #+BEGIN_SRC html
+     <app-foobar>
+      <p #stuff> foobarzoomar </p>
+     </app-foobar>
+   #+END_SRC
+
+   inside foobar.component.html
+   #+BEGIN_SRC html
+   <ng-content></ng-content>
+   #+END_SRC
+
+   inside foobar.component.ts
+   #+BEGIN_SRC js
+   @ContentChild('stuff') pStuff: ElementRef;
+  
+   ngAfterContentInit(): void {
+     console.log(this.pStuff.nativeElement.textContent)
+   }
+   #+END_SRC
 
 ** Directives
 They are instructions in the DOM.
 *** Structural Directives
+Note that we can only have one structural directive on a given
+element.
 **** ngIf;else
 #+BEGIN_SRC html
 <p *ngIf="serverName; else noServer">{{ serverName }}</p>
@@ -66,6 +144,14 @@ They are instructions in the DOM.
 
 **** ngFor
 **** ngSwitch
+#+BEGIN_SRC html
+<div [ngSwitch]="value">
+  <p *ngSwitchCase = "5">Value is 5</p>
+  <p *ngSwitchCase = "10">Value is 10</p>
+  <p *ngSwitchCase = "100">Value is 100</p>
+  <p *ngSwitchDefault> foobar </p>
+</div>
+#+END_SRC
 *** Attribute Directives
 **** ngStyle
 #+BEGIN_SRC html
@@ -74,7 +160,133 @@ They are instructions in the DOM.
 
 **** ngClass
 
+*** Build Your Own Directive
+**** Basic approach 
+Start with =ng g d foo-bar=.
+
+#+BEGIN_SRC js
+import { Directive, ElementRef, OnInit } from '@angular/core';
+
+@Directive({
+  selector: '[appBasicHighlight]'
+})
+export class BasicHighlightDirective implements OnInit {
+  constructor(private elementRef: ElementRef) {}
+  ngOnInit(): void {
+    this.elementRef.nativeElement.style.backgroundColor = 'deeppink';
+  }
+}
+#+END_SRC
+
+#+BEGIN_SRC html
+<p appBasicHighlight>This Is A Paragraph.</p>
+#+END_SRC
+**** Better approach
+#+BEGIN_SRC js
+import { Directive, ElementRef, OnInit, Renderer2 } from '@angular/core';
+
+@Directive({
+  selector: '[appBasicHighlight]'
+})
+export class BasicHighlightDirective implements OnInit {
+  constructor(private elRef: ElementRef, private renderer: Renderer2) { }
+
+  ngOnInit(): void {
+    this.renderer.setStyle(this.elRef.nativeElement, 'background-color', 'lightblue');
+  }
+}
+#+END_SRC
+**** HostListener
+#+BEGIN_SRC js
+import { Directive, ElementRef, Renderer2, HostListener } from '@angular/core';
+
+@Directive({
+  selector: '[appBasicHighlight]'
+})
+export class BasicHighlightDirective {
+  constructor(private elRef: ElementRef, private renderer: Renderer2) { }
+
+  @HostListener('mouseenter') mouseover(eventData: Event) {
+    this.renderer.setStyle(this.elRef.nativeElement, 'background-color', 'lightblue');
+  }
+  @HostListener('mouseleave') mouseleave(eventData: Event) {
+    this.renderer.setStyle(this.elRef.nativeElement, 'background-color', 'unset');
+  }
+}
+#+END_SRC
+**** HostBinding
+#+BEGIN_SRC js
+import { Directive, HostListener, HostBinding } from '@angular/core';
+
+@Directive({
+  selector: '[appBasicHighlight]'
+})
+export class BasicHighlightDirective {
+  @HostBinding('style.backgroundColor') myBackgroundColor: string;
+
+  constructor() { }
+
+  @HostListener('mouseenter') mouseover() {
+    this.myBackgroundColor = 'lightgreen';
+  }
+  @HostListener('mouseleave') mouseleave() {
+    this.myBackgroundColor = 'unset';
+  }
+}
+#+END_SRC
+**** Passing Data to a Directive
+#+BEGIN_SRC js
+  import { Directive, HostListener, HostBinding, Input, OnInit } from '@angular/core';
+
+  @Directive({
+    selector: '[appBasicHighlight]'
+  })
+
+  export class BasicHighlightDirective implements OnInit {
+    @Input('defaultColor') defColor = 'unset'; // we can also use an
+                                               // alias with the name of
+                                               // directive just like
+                                               // [ngClas]
+    @HostBinding('style.backgroundColor') myBackgroundColor: string;
+    constructor() { }
+    ngOnInit(): void { this.myBackgroundColor = this.defColor; }
+    @HostListener('mouseenter') mouseover() { this.myBackgroundColor = 'lightgreen'; }
+    @HostListener('mouseleave') mouseleave() { this.myBackgroundColor = this.defColor; }
+  }
+#+END_SRC     
+**** Custom Structural Directive
+#+BEGIN_SRC js
+import { Directive, Input, TemplateRef, ViewContainerRef } from '@angular/core';
+@Directive({
+  selector: '[appUnless]'
+})
+export class UnlessDirective {
+  @Input() set appUnless(condition: boolean) {
+    // For outside world this is
+    // technically is a property. When we
+    // assign something to `unless` this
+    // method gets executed
+    if (!condition) {
+      this.vcRef.createEmbeddedView(this.templateRef);
+    } else {
+      this.vcRef.clear();
+    }
+  }
+  constructor(private templateRef: TemplateRef<any>, private vcRef: ViewContainerRef) { }
+}
+#+END_SRC
+
+#+BEGIN_SRC html
+<p *appUnless="toggler">foobar</p>
+#+END_SRC
+
 ** Services and DI
+Note that Angular dependency injecor is a hierarchical injector. That
+is to say if we provide our service in a given component, the same
+instance of our service is available for that component and all its
+child. For e.g. if we add our service to =providers= of
+=app.module.ts= the same instance of that service will be available
+application-wide.
 
 ** Routing
 
@@ -93,5 +305,3 @@ They are instructions in the DOM.
 ** Deployment
 
 ** Animation & Testing
-
-

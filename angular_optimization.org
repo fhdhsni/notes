@@ -1,0 +1,11 @@
+1. Measure before optimize
+2. Focus on the big parts
+3. Tree shake your ES6 modules
+
+*** AOT
+- Compile templates before bundling
+- Huge app start up improvement
+- Huge runtime performance improvement
+- No need to ship compiler (size & security)
+
+*** tsickle("ts2cl")
