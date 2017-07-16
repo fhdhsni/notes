@@ -1,18 +1,5 @@
 * Angular Rocks
 
-- The Component Lifecycle
-
-|   | Lifecycle Hook        | Timing                                                                                    |
-|---+-----------------------+-------------------------------------------------------------------------------------------|
-| 1 | ngOnChanges           | Before #2 and when data-bound property value changes (so it may be called multiple times) |
-| 2 | ngOnInit              | On component initialization, after first ngOnChanges                                      |
-| 3 | ngDoCheck             | During every Angular change detection cycle                                               |
-| 4 | ngAfterContentInit    | After inserting content(=<ng-content>=) has been projected into view                      |
-| 5 | ngAfterContentChecked | After every check of inserted content                                                     |
-| 6 | ngAfterViewInit       | After initializing the component's views/child views                                      |
-| 7 | ngAfterViewChecked    | After every check of the component's views/ child view                                    |
-| 8 | ngOnDestroy           | Just before Angular 2 destroys the Directive/ component                                   |
-
 ** Tips
 - Speaking of =src/app/app.module.ts=
   + Componentes goes into =declarations=.
@@ -41,6 +28,19 @@
 - =encapsulation: ViewEncapsulation.Emulated= // other options None,
   Native (native means using Shadow DOM)
 
+** The Component Lifecycle
+
+|   | Lifecycle Hook        | Timing                                                                                    |
+|---+-----------------------+-------------------------------------------------------------------------------------------|
+| 1 | ngOnChanges           | Before #2 and when data-bound property value changes (so it may be called multiple times) |
+| 2 | ngOnInit              | On component initialization, after first ngOnChanges                                      |
+| 3 | ngDoCheck             | During every Angular change detection cycle                                               |
+| 4 | ngAfterContentInit    | After inserting content(=<ng-content>=) has been projected into view                      |
+| 5 | ngAfterContentChecked | After every check of inserted content                                                     |
+| 6 | ngAfterViewInit       | After initializing the component's views/child views                                      |
+| 7 | ngAfterViewChecked    | After every check of the component's views/ child view                                    |
+| 8 | ngOnDestroy           | Just before Angular 2 destroys the Directive/ component                                   |
+
 ** Basics
 How this whole thing is getting started?
 main.ts => app.module.ts => app.component.ts => ...
@@ -63,7 +63,7 @@ The comunication between "Business Logic" and Template (HTML file)
      property of its child has changed. We do this by the help of
      =@Output()= and =EventEmitter=. For e.g.
 
-    #+BEGIN_SRC js
+    #+BEGIN_SRC typescript
       import { Component, Output, EventEmitter } from '@angular/core';
 
       @Component({
@@ -86,7 +86,7 @@ The comunication between "Business Logic" and Template (HTML file)
     #+END_SRC
 
     And in the parent component class
-    #+BEGIN_SRC js
+    #+BEGIN_SRC typescript
       import { Component } from '@angular/core';
 
       @Component({
@@ -121,7 +121,7 @@ The comunication between "Business Logic" and Template (HTML file)
    #+END_SRC
 
    inside foobar.component.ts
-   #+BEGIN_SRC js
+   #+BEGIN_SRC typescript
    @ContentChild('stuff') pStuff: ElementRef;
   
    ngAfterContentInit(): void {
@@ -164,7 +164,7 @@ element.
 **** Basic approach 
 Start with =ng g d foo-bar=.
 
-#+BEGIN_SRC js
+#+BEGIN_SRC typescript
 import { Directive, ElementRef, OnInit } from '@angular/core';
 
 @Directive({
@@ -182,7 +182,7 @@ export class BasicHighlightDirective implements OnInit {
 <p appBasicHighlight>This Is A Paragraph.</p>
 #+END_SRC
 **** Better approach
-#+BEGIN_SRC js
+#+BEGIN_SRC typescript
 import { Directive, ElementRef, OnInit, Renderer2 } from '@angular/core';
 
 @Directive({
@@ -197,7 +197,7 @@ export class BasicHighlightDirective implements OnInit {
 }
 #+END_SRC
 **** HostListener
-#+BEGIN_SRC js
+#+BEGIN_SRC typescript
 import { Directive, ElementRef, Renderer2, HostListener } from '@angular/core';
 
 @Directive({
@@ -215,7 +215,7 @@ export class BasicHighlightDirective {
 }
 #+END_SRC
 **** HostBinding
-#+BEGIN_SRC js
+#+BEGIN_SRC typescript
 import { Directive, HostListener, HostBinding } from '@angular/core';
 
 @Directive({
@@ -235,7 +235,7 @@ export class BasicHighlightDirective {
 }
 #+END_SRC
 **** Passing Data to a Directive
-#+BEGIN_SRC js
+#+BEGIN_SRC typescript
   import { Directive, HostListener, HostBinding, Input, OnInit } from '@angular/core';
 
   @Directive({
@@ -255,7 +255,7 @@ export class BasicHighlightDirective {
   }
 #+END_SRC     
 **** Custom Structural Directive
-#+BEGIN_SRC js
+#+BEGIN_SRC typescript
 import { Directive, Input, TemplateRef, ViewContainerRef } from '@angular/core';
 @Directive({
   selector: '[appUnless]'
@@ -281,17 +281,327 @@ export class UnlessDirective {
 #+END_SRC
 
 ** Services and DI
-Note that Angular dependency injecor is a hierarchical injector. That
-is to say if we provide our service in a given component, the same
-instance of our service is available for that component and all its
-child. For e.g. if we add our service to =providers= of
-=app.module.ts= the same instance of that service will be available
-application-wide.
+- Note that Angular dependency injecor is a hierarchical injector. That
+  is to say if we provide our service in a given component, the same
+  instance of our service is available for that component and all its
+  child. For e.g. if we add our service to =providers= of
+  =app.module.ts= the same instance of that service will be available
+  application-wide.
+- If you inject a service to something, that something should have a
+  metadata atached to it. That's why we have to add =@Injectable()=
+  decorator to services when we want to inject something into them.
 
 ** Routing
+*** Defining the Routes
+
+#+BEGIN_SRC typescript
+import { BrowserModule } from '@angular/platform-browser';
+import { NgModule } from '@angular/core';
+import { Routes, RouterModule } from '@angular/router'
+// other imports ...
+
+const appRoutes: Routes = [
+  { path: '', component: HomeComponent },
+  { path: 'users', component: UsersComponent },
+  { path: 'servers', component: ServersComponent },
+];
+
+@NgModule({
+  declarations: [
+    AppComponent,
+    /* ... */
+  ],
+  imports: [
+    BrowserModule,
+    RouterModule.forRoot(appRoutes)
+  ],
+  providers: [],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+#+END_SRC
+
+*** Where to load the components
+
+#+BEGIN_SRC html
+<router-outlet></router-outlet>
+#+END_SRC
+
+This marks the place in our document where we want the angular router
+to load the component of currently selected route.
+
+*** =routerLink= Directive
+#+BEGIN_SRC html
+<a routerLink="/">HOME</a>
+<a routerLink="/servers">SERVERs</a>
+<a routerLink="['/users']">USER</a>
+#+END_SRC
+Paths beginning with =/= are absolute and without =/= they are
+relative to the current path.
+
+*** Styling active route
+#+BEGIN_SRC html
+<a
+  routerLinkActive="myClassForActiveLinks"
+  [routerLinkActiveOptions]="{exact: true}"
+  routerLink="">HOME</a>
+
+<a routerLinkActive="myClassForActiveLinks" routerLink="servers">SERVERs</a>
+<a routerLinkActive="myClassForActiveLinks" routerLink="users">USER</a>
+#+END_SRC
+If we don't provide `[routerLinkActiveOptions]="{exact: true}"`
+=myClassForActiveLinks= will be added to HOME for all the paths
+becuase it kinda matches all the paths.
+
+*** Navigating Programmatically
+#+BEGIN_SRC typescript
+  import { Component, Input } from '@angular/core';
+  import { LoggingService } from "app/logging.service";
+  import { Router } from "@angular/router";
+
+  @Component({
+    selector: 'app-root',
+    templateUrl: './app.component.html',
+  })
+
+  export class AppComponent {
+    constructor(private router: Router) { }
+
+    onClick() {
+      this.router.navigate(['/servers']); // <= This is how we navigate programmatically
+    }
+  }
+#+END_SRC
+
+To navigate around relatively:
+
+#+BEGIN_SRC typescript
+  constructor(private router: Router, private: ActivatedRoute) { }
+  this.router.navigate(['servers'], {relativeTo: this.route});
+#+END_SRC
+
+To handle query parameters
+#+BEGIN_SRC typescript
+  this.router.navigate(['servers'], {relativeTo: this.route, queryParamsHandling: 'preserve'});
+#+END_SRC
+The other option is 'merge'
+
+*** redirectTo
+#+BEGIN_SRC typescript
+const appRoutes: Routes = [
+  { path: '', component: HomeComponent },
+  { path: 'not-found', component: PageNotFoundComponent },
+  { path: '**', redirectTo: '/not-found' }
+];
+#+END_SRC
+
+Make sure the generic path '**' is the last path in your route.
+
+*** Passing Parameters to Routes
+Use =constructor(private route: ActivatedRoute) { }= to get access to
+currently active route
+
+In app.module.ts
+#+BEGIN_SRC typescript
+const appRoutes: Routes = [
+  { path: '', component: HomeComponent },
+  { path: 'users', component: UsersComponent },
+  { path: 'users/:id/:name', component: UserComponent },
+  { path: 'servers', component: ServersComponent },
+];
+#+END_SRC
+
+In UserComponent
+#+BEGIN_SRC typescript
+import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute } from "@angular/router";
+
+@Component({
+  selector: 'app-user',
+  templateUrl: './user.component.html',
+})
+
+export class UserComponent implements OnInit {
+
+  constructor(private route: ActivatedRoute) { }
+
+  ngOnInit() {
+    const id = this.route.snapshot.params['id']; // get the :id
+    const name = this.route.snapshot.params['name']; // get the :name
+    console.log(`id = ${id}, name = ${name}`);
+  }
+}
+#+END_SRC
+
+Let's say we are in '/users/9/farhad' so we loaded the `UserComponent`
+and while we are in that route and component we go to
+'/users/42/jafar' in this case =ngOnInit()= of UserComponent won't
+execute again and we can't use 
+#+BEGIN_SRC typescript
+  ngOnInit() {
+    const id = this.route.snapshot.params['id']; // get the :id
+    const name = this.route.snapshot.params['name']; // get the :name
+    console.log(`id = ${id}, name = ${name}`);
+  }
+#+END_SRC
+to get the Params the remedy is to =subscribe(=) to Params:
+
+In UserComponent:
+#+BEGIN_SRC typescript
+  import { Component, OnInit } from '@angular/core';
+  import { ActivatedRoute, Params } from "@angular/router";
+
+  @Component({
+    selector: 'app-user',
+    templateUrl: './user.component.html',
+  })
+
+  export class UserComponent implements OnInit {
+
+    constructor(private route: ActivatedRoute) { }
+
+    ngOnInit() {
+      let id = this.route.snapshot.params['id']; // get the :id
+      let name = this.route.snapshot.params['name']; // get the :name
+      console.log(`id = ${id}, name = ${name}`);
+
+      this.route.params.subscribe((p: Params) => { // here we subscribe to params
+        id = p['id'];
+        name = p['name'];
+        console.log(`id = ${id}, name = ${name}`);
+      });
+    }
+
+  }
+#+END_SRC
+
+and in user.component.html
+#+BEGIN_SRC html
+  <p>
+    user works!
+  </p>
+  <button [routerLink]="['/users', 9, 'Mosa']">goto /users/9/mosa</button>
+#+END_SRC
+
+**** How to unsubscribe
+Note that Angular does this for us, but it's good to know;
+#+BEGIN_SRC typescript
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { ActivatedRoute, Params } from "@angular/router";
+import { Subscription } from "rxjs/Subscription";
+
+@Component({
+  selector: 'app-user',
+  templateUrl: './user.component.html',
+})
+
+export class UserComponent implements OnInit, OnDestroy {
+  paramSubscription: Subscription;
+
+  constructor(private route: ActivatedRoute) { }
+
+  ngOnInit() {
+    let id = this.route.snapshot.params['id']; // get the :id
+    let name = this.route.snapshot.params['name']; // get the :name
+    console.log(`id = ${id}, name = ${name}`);
+
+    this.paramSubscription = this.route.params.subscribe((p: Params) => {
+      id = p['id'];
+      name = p['name'];
+      console.log(`id = ${id}, name = ${name}`);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.paramSubscription.unsubscribe();
+  }
+}
+#+END_SRC
+
+*** Passing Query Parameters and Fragments
+**** Query Parameters
+#+BEGIN_SRC html
+<button
+  [routerLink]="['/servers', 9, 'edit']"
+  [queryParams]="{allowEdit: '1'}">/servers/9/edit</button>
+#+END_SRC
+This becomes http://localhost:4200/servers/9/edit?allowEdit=1 
+
+**** Fragments
+#+BEGIN_SRC html
+<button
+  routerLinkActive="active-link"
+  [routerLink]="['/servers', 9, 'edit']"
+  fragment="loading">/servers/9/edit</button>
+#+END_SRC
+
+This becomes http://localhost:4200/servers/9/edit#loading
+
+**** Do it programmatically
+***** Query Parameters
+#+BEGIN_SRC typescript
+  onClick() {
+    this.router.navigate(['/servers', 998, 'edit'], { queryParams: { allowEdit: '1' } });
+  }
+#+END_SRC
+This goes to http://localhost:4200/servers/9/edit#loading
+
+**** Retrieving Query Parameters and Fragments
+#+BEGIN_SRC typescript
+import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute } from "@angular/router";
+
+@Component({
+  selector: 'app-edit-server',
+  templateUrl: './edit-server.component.html',
+})
+export class EditServerComponent implements OnInit {
+
+  constructor(private route: ActivatedRoute) { }
+  ngOnInit() {
+    console.log(this.route.snapshot.queryParams);
+    console.log(this.route.snapshot.fragment);
+  }
+}
+#+END_SRC
+
+For example for http://localhost:4200/servers/9/edit?name=jafar#loading 
+we get ={name: jafar}= for =this.route.snapshot.queryParams= and =loading= for
+=this.route.snapshot.fragment=.
+
+The alternative is to use observable. Like:
+#+BEGIN_SRC javascript
+this.route.queryParams.subscribe(...);
+this.route.fragment.subscribe(...);
+#+END_SRC
+
+*** Child Nested Routes
+
+#+BEGIN_SRC typescript
+const appRoutes: Routes = [
+  { path: '', component: HomeComponent },
+  {
+    path: 'user', component: UserComponent, children: [
+      { path: 'jafar', component: JafarComponent },
+      { path: 'farhad', component: FarhadComponent }
+    ]
+  },
+];
+#+END_SRC
+Note that child routes need seperate outlet. i.e. they need
+=router-outlet= in user.component.html. 
+
+In user.component.html
+#+BEGIN_SRC html
+<p>
+  user works!
+</p>
+
+<router-outlet>
+</router-outlet>
+#+END_SRC
 
 ** Observables
-
 ** Forms
 
 ** Pipes
