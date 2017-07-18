@@ -295,30 +295,30 @@ export class UnlessDirective {
 *** Defining the Routes
 
 #+BEGIN_SRC typescript
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
-import { Routes, RouterModule } from '@angular/router'
-// other imports ...
+  import { BrowserModule } from '@angular/platform-browser';
+  import { NgModule } from '@angular/core';
+  import { Routes, RouterModule } from '@angular/router'
+  // other imports ...
 
-const appRoutes: Routes = [
-  { path: '', component: HomeComponent },
-  { path: 'users', component: UsersComponent },
-  { path: 'servers', component: ServersComponent },
-];
+  const appRoutes: Routes = [
+    { path: '', component: HomeComponent },
+    { path: 'users', component: UsersComponent }, // note there's not / at the beginning of routes
+    { path: 'servers', component: ServersComponent }, // note there's not / at the beginning of routes
+  ];
 
-@NgModule({
-  declarations: [
-    AppComponent,
-    /* ... */
-  ],
-  imports: [
-    BrowserModule,
-    RouterModule.forRoot(appRoutes)
-  ],
-  providers: [],
-  bootstrap: [AppComponent]
-})
-export class AppModule { }
+  @NgModule({
+    declarations: [
+      AppComponent,
+      /* ... */
+    ],
+    imports: [
+      BrowserModule,
+      RouterModule.forRoot(appRoutes)
+    ],
+    providers: [],
+    bootstrap: [AppComponent]
+  })
+  export class AppModule { }
 #+END_SRC
 
 *** Where to load the components
@@ -386,6 +386,29 @@ To handle query parameters
 #+END_SRC
 The other option is 'merge'
 
+**** Note
+
+By default, Angular matches paths by prefix. That means, that the
+following route will match both =/recipes= and just =/=
+
+={ path: '', redirectTo: '/somewhere-else' }=
+
+Actually, Angular will give you an error here, because that's a common
+gotcha: This route will now ALWAYS redirect you! Why?
+
+Since the default matching strategy is "prefix" , Angular checks if
+the path you entered in the URL does start with the path specified in
+the route. Of course every path starts with '' (Important: That's no
+whitespace, it's simply "nothing").
+
+To fix this behavior, you need to change the matching strategy to
+="full"=:
+
+={ path: '', redirectTo: '/somewhere-else', pathMatch: 'full' }=
+
+Now, you only get redirected, if the full path is '' (so only if you
+got NO other content in your path in this example).
+
 *** redirectTo
 #+BEGIN_SRC typescript
 const appRoutes: Routes = [
@@ -444,7 +467,7 @@ execute again and we can't use
     console.log(`id = ${id}, name = ${name}`);
   }
 #+END_SRC
-to get the Params the remedy is to =subscribe(=) to Params:
+to get the Params the remedy is to =subscribe()= to Params:
 
 In UserComponent:
 #+BEGIN_SRC typescript
@@ -601,9 +624,605 @@ In user.component.html
 </router-outlet>
 #+END_SRC
 
+*** Seperate Routing module
+In app.module.ts
+#+BEGIN_SRC typescript
+  import { BrowserModule } from '@angular/platform-browser';
+  import { NgModule } from '@angular/core';
+  import { AppComponent } from "app/app.component";
+  import { HomeComponent } from './home/home.component';
+  import { UserComponent } from './user/user.component';
+  import { JafarComponent } from './jafar/jafar.component';
+  import { FarhadComponent } from './farhad/farhad.component';
+  import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+  import { AppRoutingModule } from './app-routing.module';
+
+
+  @NgModule({
+    declarations: [
+      AppComponent,
+      HomeComponent,
+      UserComponent,
+      JafarComponent,
+      FarhadComponent,
+      PageNotFoundComponent,
+    ],
+    imports: [
+      BrowserModule,
+      AppRoutingModule,           // <<== importing our routing module
+    ],
+    providers: [],
+    bootstrap: [AppComponent]
+  })
+  export class AppModule { }
+#+END_SRC
+
+In app-routing.module.ts
+#+BEGIN_SRC typescript
+import { NgModule } from '@angular/core';
+import { Routes, RouterModule } from '@angular/router'
+import { AppComponent } from "app/app.component";
+import { HomeComponent } from './home/home.component';
+import { UserComponent } from './user/user.component';
+import { JafarComponent } from './jafar/jafar.component';
+import { FarhadComponent } from './farhad/farhad.component';
+import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+
+const appRoutes: Routes = [
+  { path: '', component: HomeComponent },
+  {
+    path: 'user', component: UserComponent, children: [
+      { path: 'jafar', component: JafarComponent },
+      { path: 'farhad', component: FarhadComponent }
+    ]
+  },
+  { path: 'user/:id', component: UserComponent },
+  { path: 'not-found', component: PageNotFoundComponent },
+  { path: '**', redirectTo: '/not-found' }
+];
+
+@NgModule({
+  imports: [
+    RouterModule.forRoot(appRoutes)
+  ],
+  exports: [RouterModule]
+})
+
+export class AppRoutingModule { }
+#+END_SRC
+
+*** Fucking Guards
+Functionality, logic, code which is excuted before a route is loaded
+or once you want to leave a route.
+
+**** canActivate
+There's so much non-relative thing in this example. Ignore them.
+
+app.module.ts
+#+BEGIN_SRC typescript
+  import { BrowserModule } from '@angular/platform-browser';
+  import { NgModule } from '@angular/core';
+  import { AppComponent } from "app/app.component";
+  import { HomeComponent } from './home/home.component';
+  import { UserComponent } from './user/user.component';
+  import { JafarComponent } from './jafar/jafar.component';
+  import { FarhadComponent } from './farhad/farhad.component';
+  import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+  import { AppRoutingModule } from './app-routing.module';
+  import { AuthGuardService } from "app/auth-guard.service";
+  import { AuthService } from "app/auth.service";
+
+
+  @NgModule({
+    declarations: [
+      AppComponent,
+      HomeComponent,
+      UserComponent,
+      JafarComponent,
+      FarhadComponent,
+      PageNotFoundComponent,
+    ],
+    imports: [
+      BrowserModule,
+      AppRoutingModule,
+    ],
+    providers: [AuthService, AuthGuardService], // Here's we add to service that we need
+    bootstrap: [AppComponent]
+  })
+  export class AppModule { }
+#+END_SRC
+
+auth.service.ts
+#+BEGIN_SRC typescript
+import { Injectable } from '@angular/core';
+
+@Injectable()
+export class AuthService {
+  loggedIn = false;
+
+  isAuthenticated() {
+    return new Promise(
+      (resolve, reject) => setTimeout(() => resolve(this.loggedIn), 800));
+  }
+
+  login() {
+    this.loggedIn = true;
+  }
+
+  logout() {
+    this.logout;
+  }
+}
+#+END_SRC
+
+auth-guard.service.ts
+#+BEGIN_SRC typescript
+import { Injectable } from '@angular/core';
+import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from "@angular/router";
+import { Observable } from "rxjs/Observable";
+import { AuthService } from "app/auth.service";
+
+@Injectable()
+export class AuthGuardService implements CanActivate {
+  constructor(private authService: AuthService, private router: Router) { }
+
+  canActivate(route: ActivatedRouteSnapshot,
+    state: RouterStateSnapshot): boolean | Observable<boolean> | Promise<boolean> {
+
+    return this.authService.isAuthenticated()
+      .then((authenticated: boolean) => {
+        if (authenticated) {
+          return true;
+        }
+        this.router.navigate(['/'])
+      })
+  }
+}
+#+END_SRC
+
+app-routing.module.ts
+#+BEGIN_SRC typescript
+  import { NgModule } from '@angular/core';
+  import { Routes, RouterModule } from '@angular/router'
+  import { AppComponent } from "app/app.component";
+  import { HomeComponent } from './home/home.component';
+  import { UserComponent } from './user/user.component';
+  import { JafarComponent } from './jafar/jafar.component';
+  import { FarhadComponent } from './farhad/farhad.component';
+  import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+  import { AuthGuardService } from "app/auth-guard.service";
+
+  const appRoutes: Routes = [
+    { path: '', component: HomeComponent },
+    {
+      path: 'user', component: UserComponent, children: [
+        { path: 'jafar', component: JafarComponent },
+        { path: 'farhad', component: FarhadComponent },
+      ]
+    },
+    { path: 'user/:id', canActivate: [AuthGuardService], component: UserComponent }, // we added canActivate
+    { path: 'not-found', component: PageNotFoundComponent },
+    { path: '**', redirectTo: '/not-found' }
+  ];
+
+  @NgModule({
+    imports: [
+      RouterModule.forRoot(appRoutes)
+    ],
+    exports: [RouterModule]
+  })
+
+  export class AppRoutingModule { }
+#+END_SRC
+
+**** canActivateChild
+It's the same as =canActivate= but also works for childs.
+
+auth-guard.service.ts
+#+BEGIN_SRC typescript
+  import { Injectable } from '@angular/core';
+  import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router, CanActivateChild } from "@angular/router";
+  import { Observable } from "rxjs/Observable";
+  import { AuthService } from "app/auth.service";
+
+  @Injectable()
+  export class AuthGuardService implements CanActivate, CanActivateChild {
+
+    constructor(private authService: AuthService, private router: Router) { }
+
+    canActivate(route: ActivatedRouteSnapshot,
+      state: RouterStateSnapshot): boolean | Observable<boolean> | Promise<boolean> {
+
+      return this.authService.isAuthenticated()
+        .then((authenticated: boolean) => {
+          if (authenticated) {
+            return true;
+          }
+          this.router.navigate(['/'])
+        })
+    }
+
+    // here we implement canActivateChild
+    canActivateChild(childRoute: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean | Observable<boolean> | Promise<boolean> {
+      return this.canActivate(childRoute, state);
+    }
+  }
+#+END_SRC
+
+app-routing.module.ts
+#+BEGIN_SRC typescript
+  import { NgModule } from '@angular/core';
+  import { Routes, RouterModule } from '@angular/router'
+  import { AppComponent } from "app/app.component";
+  import { HomeComponent } from './home/home.component';
+  import { UserComponent } from './user/user.component';
+  import { JafarComponent } from './jafar/jafar.component';
+  import { FarhadComponent } from './farhad/farhad.component';
+  import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+  import { AuthGuardService } from "app/auth-guard.service";
+
+  const appRoutes: Routes = [
+    { path: '', component: HomeComponent },
+    {
+      path: 'user', canActivateChild: [AuthGuardService], component: UserComponent, children: [ // here we add canActivateChild
+        { path: 'jafar', component: JafarComponent },
+        { path: 'farhad', component: FarhadComponent },
+        { path: ':id', component: UserComponent },
+      ]
+    },
+    { path: 'not-found', component: PageNotFoundComponent },
+    { path: '**', redirectTo: '/not-found' }
+  ];
+
+  @NgModule({
+    imports: [
+      RouterModule.forRoot(appRoutes)
+    ],
+    exports: [RouterModule]
+  })
+
+  export class AppRoutingModule { }
+#+END_SRC
+
+**** canDeactivate
+For e.g it can be used to keep the user from accidentally navigating
+away from a route.
+
+app.module.ts
+#+BEGIN_SRC typescript
+  import { BrowserModule } from '@angular/platform-browser';
+  import { NgModule } from '@angular/core';
+  import { AppComponent } from "app/app.component";
+  import { HomeComponent } from './home/home.component';
+  import { UserComponent } from './user/user.component';
+  import { FarhadComponent } from './farhad/farhad.component';
+  import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+  import { AppRoutingModule } from './app-routing.module';
+  import { AuthGuardService } from "app/auth-guard.service";
+  import { AuthService } from "app/auth.service";
+  import { CanDeactivateService } from "app/can-deactivate.service";
+
+
+  @NgModule({
+    declarations: [
+      AppComponent,
+      HomeComponent,
+      UserComponent,
+      FarhadComponent,
+      PageNotFoundComponent,
+    ],
+    imports: [
+      BrowserModule,
+      AppRoutingModule,
+    ],
+    providers: [AuthService, AuthGuardService, CanDeactivateService], // we added CanDeactivateService
+    bootstrap: [AppComponent]
+  })
+  export class AppModule { }
+
+#+END_SRC
+
+app-routing.module.ts
+#+BEGIN_SRC typescript
+  import { NgModule } from '@angular/core';
+  import { Routes, RouterModule } from '@angular/router'
+  import { AppComponent } from "app/app.component";
+  import { HomeComponent } from './home/home.component';
+  import { UserComponent } from './user/user.component';
+  import { FarhadComponent } from './farhad/farhad.component';
+  import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+  import { AuthGuardService } from "app/auth-guard.service";
+  import { CanDeactivateService } from "app/can-deactivate.service";
+
+  const appRoutes: Routes = [
+    { path: '', component: HomeComponent },
+    {
+      path: 'user', canActivateChild: [AuthGuardService], component: UserComponent, children: [
+        { path: 'farhad', component: FarhadComponent, canDeactivate: [CanDeactivateService] }, // we added CanDeactivateService
+      ]
+    },
+    { path: 'not-found', component: PageNotFoundComponent },
+    { path: '**', redirectTo: '/not-found' }
+  ];
+
+  @NgModule({
+    imports: [
+      RouterModule.forRoot(appRoutes)
+    ],
+    exports: [RouterModule]
+  })
+
+  export class AppRoutingModule { }
+#+END_SRC
+
+can-deactivate.service.ts
+#+BEGIN_SRC  typescript
+  import { Injectable } from '@angular/core';
+  import { Observable } from "rxjs/Observable";
+  import { CanDeactivate, RouterStateSnapshot, ActivatedRouteSnapshot } from "@angular/router";
+
+  @Injectable()
+  export class CanDeactivateService implements CanDeactivate<CanComponentDeactivate> {
+
+    // this will run by angular once we try to leave a route
+    canDeactivate(
+      component: CanComponentDeactivate,
+      currentRoute: ActivatedRouteSnapshot,
+      currentState: RouterStateSnapshot,
+      nextState?: RouterStateSnapshot): boolean | Observable<boolean> | Promise<boolean> {
+
+      return component.canDeactivate();
+    }
+
+    constructor() { }
+  }
+
+  export interface CanComponentDeactivate { // we use this interface in our module (in this case farhad.component.ts)
+    canDeactivate: () => Observable<boolean> | Promise<boolean> | boolean
+  }
+
+#+END_SRC
+
+auth-guard.service.ts
+#+BEGIN_SRC typescript
+import { Injectable } from '@angular/core';
+import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router, CanActivateChild } from "@angular/router";
+import { Observable } from "rxjs/Observable";
+import { AuthService } from "app/auth.service";
+
+@Injectable()
+export class AuthGuardService implements CanActivate, CanActivateChild {
+
+  constructor(private authService: AuthService, private router: Router) { }
+
+  canActivate(route: ActivatedRouteSnapshot,
+    state: RouterStateSnapshot): boolean | Observable<boolean> | Promise<boolean> {
+
+    return this.authService.isAuthenticated()
+      .then((authenticated: boolean) => {
+        if (authenticated) {
+          return true;
+        }
+        this.router.navigate(['/'])
+      })
+  }
+
+
+  canActivateChild(childRoute: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean | Observable<boolean> | Promise<boolean> {
+    return this.canActivate(childRoute, state);
+  }
+}
+#+END_SRC
+
+farhad.component.html
+#+BEGIN_SRC html
+<p>
+  farhad works!
+</p>
+
+<button (click)="onHappy()">I'm happy</button>
+<button (click)="onBlue()">I'm blue</button>
+<button (click)="goAway()">GoAway</button>
+#+END_SRC
+
+farhad.component.ts
+#+BEGIN_SRC typescript
+  import { Component, OnInit } from '@angular/core';
+  import { Router, ActivatedRoute } from "@angular/router";
+  import { CanComponentDeactivate } from "app/can-deactivate.service";
+  import { Observable } from "rxjs/Observable";
+
+  @Component({
+    selector: 'app-farhad',
+    templateUrl: './farhad.component.html',
+    styleUrls: ['./farhad.component.css']
+  })
+  export class FarhadComponent implements OnInit, CanComponentDeactivate {
+    happy = false;
+
+    constructor(private router: Router, private route: ActivatedRoute) { }
+    ngOnInit() { }
+    onHappy() {
+      this.happy = true;
+      console.log(`happy is ${this.happy}`);
+    }
+    onBlue() {
+      this.happy = false;
+      console.log(`happy is ${this.happy}`);
+    }
+
+    goAway() {
+      this.router.navigate(['../'], { relativeTo: this.route });
+    }
+
+    canDeactivate(): boolean | Observable<boolean> | Promise<boolean> { // our component must have canDeactivate
+      console.log(`happy is ${this.happy}`);
+      if (this.happy) {
+        return true;
+      }
+      return false;
+    }
+  }
+#+END_SRC
+
+*** Passing Static Data to a Route
+
+app-routing.module.ts
+#+BEGIN_SRC typescript
+  import { NgModule } from '@angular/core';
+  import { Routes, RouterModule } from '@angular/router'
+  import { AppComponent } from "app/app.component";
+  import { HomeComponent } from './home/home.component';
+  import { UserComponent } from './user/user.component';
+  import { FarhadComponent } from './farhad/farhad.component';
+  import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+  import { AuthGuardService } from "app/auth-guard.service";
+  import { CanDeactivateService } from "app/can-deactivate.service";
+  import { ErrorPageComponent } from "app/error-page/error-page.component";
+
+  const appRoutes: Routes = [
+    { path: '', component: HomeComponent },
+    {
+      path: 'user', canActivateChild: [AuthGuardService], component: UserComponent, children: [
+        { path: 'farhad', component: FarhadComponent, canDeactivate: [CanDeactivateService] },
+      ]
+    },
+    { path: 'not-found', component: ErrorPageComponent, data: { message: 'Page not found bitch' } }, // ErrorPageComponent receives message
+    { path: '**', redirectTo: '/not-found' }
+  ];
+
+  @NgModule({
+    imports: [
+      RouterModule.forRoot(appRoutes)
+    ],
+    exports: [RouterModule]
+  })
+
+  export class AppRoutingModule { }
+#+END_SRC
+
+error-page.component.ts
+#+BEGIN_SRC typescript
+  import { Component, OnInit } from '@angular/core';
+  import { ActivatedRoute, Data } from "@angular/router";
+
+  @Component({
+    selector: 'app-error-page',
+    templateUrl: './error-page.component.html',
+    styleUrls: ['./error-page.component.css']
+  })
+  export class ErrorPageComponent implements OnInit {
+    errorMessage: string;
+
+    constructor(private route: ActivatedRoute) { }
+
+    ngOnInit() {
+      this.errorMessage = this.route.snapshot.data['message']; // here we get the message
+      this.route.data.subscribe((data: Data) => {
+        this.errorMessage = data['message'];
+      })
+    }
+  }
+#+END_SRC
+*** Resolving Dynamic Data with the resolve Guard
+**** Resolver:
+This is also a service like CanActivate or CanDeactivateService,
+unlike them =Resolve= doesn't decide weather a route should loaded or
+not, but allows to run some code (like fetching some data) before a route is rendered.
+
+server-resolve.service.ts
+#+BEGIN_SRC typescript
+import { Injectable } from '@angular/core';
+import { Resolve, ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
+import { Observable } from "rxjs/Observable";
+
+@Injectable()
+export class ServerResolveService implements Resolve<III> {
+
+  resolve(
+    route: ActivatedRouteSnapshot,
+    state: RouterStateSnapshot): III | Observable<III> | Promise<III> {
+    return {                    // or do something important like fetching data from server
+      id: route.params['id'],
+    }
+  }
+
+  constructor() { }
+}
+
+interface III {
+  id: number
+}
+#+END_SRC
+
+user.component.ts
+#+BEGIN_SRC typescript
+import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute, Data } from "@angular/router";
+
+@Component({
+  selector: 'app-user',
+  templateUrl: './user.component.html',
+})
+
+export class UserComponent implements OnInit {
+  constructor(private route: ActivatedRoute) { }
+
+  ngOnInit() {
+    this.route.data.subscribe((data: Data) => {
+      if (data.foobar) {      // to prevent undefined error
+        console.dir(data.foobar.id)
+      }
+    })
+  }
+}
+#+END_SRC
+
+app-routing.module.ts
+#+BEGIN_SRC typescript
+import { NgModule } from '@angular/core';
+import { Routes, RouterModule } from '@angular/router'
+import { AppComponent } from "app/app.component";
+import { HomeComponent } from './home/home.component';
+import { UserComponent } from './user/user.component';
+import { FarhadComponent } from './farhad/farhad.component';
+import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
+import { AuthGuardService } from "app/auth-guard.service";
+import { CanDeactivateService } from "app/can-deactivate.service";
+import { ErrorPageComponent } from "app/error-page/error-page.component";
+import { ServerResolveService } from "app/server-resolve.service";
+
+const appRoutes: Routes = [
+  { path: '', component: HomeComponent },
+  {
+    path: 'user', canActivateChild: [AuthGuardService], component: UserComponent, children: [
+      { path: 'farhad', component: FarhadComponent, canDeactivate: [CanDeactivateService] },
+      {
+        path: ':id',
+        component: UserComponent,
+        resolve: { foobar: ServerResolveService }
+      }, // Adding our resolver. Whatever is returned by =resolve=
+      // method of =ServerResolveService= is mapped to =foobar=
+    ]
+  },
+  // { path: 'not-found', component: PageNotFoundComponent },
+  { path: 'not-found', component: ErrorPageComponent, data: { message: 'Page not found bitch' } },
+  { path: '**', redirectTo: '/not-found' }
+];
+
+@NgModule({
+  imports: [
+    RouterModule.forRoot(appRoutes)
+  ],
+  exports: [RouterModule]
+})
+
+export class AppRoutingModule { }
+#+END_SRC
+
+
 ** Observables
 ** Forms
-
 ** Pipes
 
 ** Http
