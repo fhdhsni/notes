@@ -1220,11 +1220,476 @@ const appRoutes: Routes = [
 export class AppRoutingModule { }
 #+END_SRC
 
-
 ** Observables
-** Forms
-** Pipes
+#+BEGIN_SRC typescript
+const myObservable = Observable.create((observer: Observer<string>) => {
+      setTimeout(() => {
+        observer.next('First package');
+      }, 2000);
+      setTimeout(() => {
+        observer.next('Second package');
+      }, 4000);
+      // setTimeout(() => {
+      //   observer.error('This does not work');
+      // }, 5000);
+      setTimeout(() => {
+        observer.complete();
+      }, 5000);
+    })
 
+    myObservable.subscribe(
+      (val: string) => console.log(val),
+      (error: string) => console.error(error),
+      () => console.log('completed'));
+#+END_SRC   
+
+*Remember to unsubscribe from the observables when you're done. Usually in ngOnDestroy hook*
+
+*** Subjects
+The =Subject= class inherits both =Observable= and =Observer=, in the
+sense that it is both an observer and an observable. It's kinda
+comparable to EventEmitter that is shipped with Angular
+
+** Forms
+*** Template-Driven Approach
+In this approach Angular infers the form object from the
+DOM. Template-Driven approach mostly happens in template (rather than
+our .ts file)
+
+- In app.module.ts add =FormsModule= to imports 
+- By doing so Angular automatically creates a form object for us when it sees
+  =<form></form>=. We can think of =<form>= as a selector for an Angular directive.
+- We need to register controls manually. Angular doesn't so
+  automatically. We do this by adding =ngModel= to our inputs in the
+  form.
+- Remember inputs must have a html =name= attribute. Angular uses that.
+- Submitting and Using the Form: 
+
+Example:
+
+app.component.html
+#+BEGIN_SRC html
+  <form (ngSubmit)="onSubmit(f)" #f="ngForm">
+          <!--  -->
+          <div id="user-data">
+            <div class="form-group">
+              <label for="username">Username</label>
+              <input
+                ngModel <!-- here -->
+                type="text"
+                id="username"
+                name="username" <!-- here -->
+                class="form-control">
+            </div>
+            <button class="btn btn-default" type="button">Suggest an Username</button>
+            <div class="form-group">
+              <label for="email">Mail</label>
+              <input ngModel <!-- here -->
+                     name="email" <!-- here -->
+                     type="email"
+                     id="email"
+                     class="form-control">
+            </div>
+          </div>
+          <!--  -->
+          <div class="form-group">
+            <label for="secret">Secret Questions</label>
+            <select
+              ngModel <!-- here -->
+              name="secret" <!-- here -->
+              id="secret"
+              class="form-control">
+              <option value="pet">Your first Pet?</option>
+              <option value="teacher">Your first teacher?</option>
+            </select>
+          </div>
+          <!--  -->
+          <button class="btn btn-primary" type="submit">Submit</button>
+          <!--  -->
+        </form>
+#+END_SRC
+
+app.component.ts
+#+BEGIN_SRC typescript
+import { Component } from '@angular/core';
+import { NgForm } from "@angular/forms";
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+})
+export class AppComponent {
+  onSubmit(form: NgForm) {
+    console.log(form.value.username);
+    console.log(form.value.email);
+    console.log(form.value.secret);
+  }
+}
+#+END_SRC
+
+Alternatively: We can use @ViewChild. This approach is also useful
+when we want to access the form before user submitting it.
+
+app.component.ts
+#+BEGIN_SRC typescript
+  import { Component, ViewChild } from '@angular/core';
+  import { NgForm } from "@angular/forms";
+
+  @Component({
+    selector: 'app-root',
+    templateUrl: './app.component.html',
+    styleUrls: ['./app.component.css']
+  })
+  export class AppComponent {
+    @ViewChild('f') signupForm: NgForm; // here
+
+    onSubmit() {
+      console.log(this.signupForm);
+    }
+  }
+#+END_SRC
+
+**** Validity of inputs
+By adding directives such as =required= and =email= we can check the
+validity of our form and individual inputs. Angular adds appropriate
+classes to the forms and inputs, like =ng-valid=, =ng-invalid=
+
+app.component.html
+#+BEGIN_SRC html
+  <div class="container">
+    <div class="row">
+      <div class="col-xs-12 col-sm-10 col-md-8 col-sm-offset-1 col-md-offset-2">
+
+        <form (ngSubmit)="onSubmit(f)" #f="ngForm">
+          <!--  -->
+          <div id="user-data">
+            <div class="form-group">
+              <label for="username">Username</label>
+              <input
+                required <!-- here -->
+                ngModel
+                type="text"
+                id="username"
+                name="username"
+                class="form-control">
+            </div>
+            <button class="btn btn-default" type="button">Suggest an Username</button>
+            <div class="form-group">
+              <label for="email">Mail</label>
+              <input ngModel
+                     required <!-- here -->
+                     email    <!-- here -->
+                     #email="ngModel" <!-- here -->
+                     name="email"
+                     type="email"
+                     id="email"
+                     class="form-control">
+              <span *ngIf="email.invalid && email.touched" class="help-block">Please Enter a Valid Email!</span> <!-- here -->
+            </div>
+          </div>
+          <!--  -->
+          <div class="form-group">
+            <label for="secret">Secret Questions</label>
+            <select
+              ngModel
+              name="secret"
+              id="secret"
+              class="form-control">
+              <option value="pet">Your first Pet?</option>
+              <option value="teacher">Your first teacher?</option>
+            </select>
+          </div>
+          <!--  -->
+          <button
+            [disabled]="f.invalid"
+            class="btn btn-primary"
+            type="submit">Submit</button>
+          <!--  -->
+        </form>
+
+      </div>
+    </div>
+  </div>
+#+END_SRC
+
+***** Pattern
+#+BEGIN_SRC html
+  <input
+    pattern="^[1-9]+[0-9]*$" <!-- adding a Regex -->
+    required
+    ngModel
+    name="amount"
+    type="number"
+    id="amount"
+    class="form-control" />
+#+END_SRC
+
+**** Providing default value
+#+BEGIN_SRC html
+          <select
+            [ngModel]="defaultQuestion"<!-- Providing Default Value. defaultQuestion is defined in our component.ts file -->
+            name="secret"
+            id="secret"
+            class="form-control">
+            <option value="pet">Your first Pet?</option>
+            <option value="teacher">Your first teacher?</option>
+          </select>
+#+END_SRC
+
+**** Two-way binding
+#+BEGIN_SRC html
+  <textarea [(ngModel)]="answer" name="questionAnswer" >
+  </textarea>
+  <p>Your reply: {{ answer }}</p>
+#+END_SRC
+
+**** Grouping Form Controls
+We use =ngModelGroup= directive to group some =ngModel=
+
+#+BEGIN_SRC html
+  <div id="user-data" ngModelGroup="userData" #userData="ngModelGroup"><!-- here we added ngModelGroup to group username and email-->
+            <div class="form-group">
+              <label for="username">Username</label>
+              <input
+                required
+                ngModel
+                type="text"
+                id="username"
+                name="username"
+                class="form-control">
+            </div>
+            <button class="btn btn-default" type="button">Suggest an Username</button>
+            <div class="form-group">
+              <label for="email">Mail</label>
+              <input ngModel
+                     required
+                     email
+                     #email="ngModel"
+                     name="email"
+                     type="email"
+                     id="email"
+                     class="form-control">
+              <span *ngIf="email.invalid && email.touched" class="help-block">Please Enter a Valid Email!</span>
+            </div>
+          </div>
+          <p *ngIf="userData.invalid && userData.touched">User data is invalid</p><!-- here we check the validity of our ngModelGroup -->
+#+END_SRC
+
+**** Setting values
+We can use =this.signupForm.setValue= to set the whole form.
+#+BEGIN_SRC typescript
+  fillTheFromForMe() {
+    this.signupForm.setValue({
+      userData: {
+        username: 'farhad',
+        email: 'farhad.hsni@gmail.com',
+      },
+      secret: 'pet',
+      questionAnswer: 'nana yo buzines',
+      gender: 'male',
+    })
+  }
+#+END_SRC
+
+Or fill just one ngModel with =this.signupForm.form.patchValue=
+#+BEGIN_SRC typescript
+  fillTheFromForMe() {
+    this.signupForm.form.patchValue({
+      userData: {
+        username: 'foobar'
+      }
+    })
+  }
+#+END_SRC
+
+**** Reset a From
+=this.signupForm.reset()=
+
+*** Reactive Approach
+Form is created programmatically and synchronized with the DOM
+
+We start by creating a property which is of =FormGroup= type.
+
+app.component.html
+#+BEGIN_SRC html
+<div class="container">
+  <div class="row">
+    <div class="col-xs-12 col-sm-10 col-md-8 col-sm-offset-1 col-md-offset-2">
+      <form [formGroup]="signupForm" (ngSubmit)="onSubmit()">
+        <!-- userData -->
+        <div formGroupName="userData">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <!-- username is what we used in signupForm -->
+            <input formControlName="username" type="text" id="username" class="form-control"/>
+
+            <span
+              *ngIf="!signupForm.get('userData.username').valid && signupForm.get('userData.username').touched"
+              class="help-block">
+
+              <span *ngIf="signupForm.get('userData.username').errors['nameIsForbidden']">
+                This name is invalid.
+              </span>
+
+              <span *ngIf="signupForm.get('userData.username').errors['required']">
+                This field is required.
+              </span>
+            </span>
+
+          </div>
+          <div class="form-group">
+            <label for="email">email</label>
+            <!-- email is what we used in signupForm -->
+            <input formControlName="email" type="text" id="email" class="form-control"/>
+            <span
+              *ngIf="!signupForm.get('userData.email').valid && signupForm.get('userData.email').touched"
+              class="help-block">Please Enter a Valid Email Address</span>
+          </div>          
+        </div>
+        <!-- /userData ends here -->
+        <div class="radio" *ngFor="let gender of genders">
+          <label>
+            <!-- gender is what we used in signupForm -->
+            <input formControlName="gender" type="radio" [value]="gender"/>
+            {{ gender }}
+          </label>
+        </div>
+        <div formArrayName="hobbies">
+          <h4>Your Hobbies</h4>
+          <button class="btn btn-default"
+                  type="submit"
+                  (click)="onAddHobby()">Add Hobby</button>
+          <div
+            *ngFor="let hobby of signupForm.get('hobbies').controls; let i = index"
+            class="form-group">
+            <input type="text" class="form-control" [formControlName]="i"/>
+          </div>
+        </div>
+        <span
+          *ngIf="!signupForm.valid && signupForm.touched"
+          class="help-block">Something is wrong</span>
+        <button class="btn btn-primary" type="submit">Submit</button>
+      </form>
+    </div>
+  </div>
+</div>
+#+END_SRC
+
+app.component.ts
+#+BEGIN_SRC typescript
+import { Component, OnInit } from '@angular/core';
+import { FormGroup, FormControl, Validators, FormArray } from "@angular/forms";
+import { Observable } from "rxjs/Observable";
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent implements OnInit {
+  genders = ['male', 'female'];
+  signupForm: FormGroup;
+  forbiddenUsernames = ['me', 'you'];
+
+  ngOnInit(): void {
+    this.signupForm = new FormGroup({
+      'userData': new FormGroup({                               // nested FormGroup
+        'username': new FormControl(null, [Validators.required, this.forbiddenNames.bind(this)]), // null as default value
+        'email': new FormControl(null, [Validators.required, Validators.email], this.forbiddenEmails.bind(this)), // more than one validator. Third parameter is for asynchronous validator
+      }),
+      'gender': new FormControl('female'),
+      'hobbies': new FormArray([])
+    });
+
+    this.signupForm.valueChanges.subscribe(
+      (value) => {
+        // react to value changes
+        console.log(value);
+      })
+
+    this.signupForm.statusChanges.subscribe(
+      (status) => {
+        // react to status changes
+        console.log(status);
+      })
+
+    this.signupForm.setValue({
+      'userData': {
+        'username': 'someone',
+        'email': 'something@someone.com'
+      },
+      'gender': 'male',
+      'hobbies': [],
+    })
+
+    this.signupForm.patchValue({
+      'userData': {
+        'username': 'Anna'
+      }
+    })
+
+  }
+
+  onSubmit() {
+    console.log(this.signupForm);
+    this.signupForm.reset();
+  }
+
+  onAddHobby() {
+    const control = new FormControl(null, Validators.required);
+
+    (<FormArray>this.signupForm.get('hobbies')).push(control);
+  }
+
+  forbiddenNames(control: FormControl): { [s: string]: boolean } {
+    if (this.forbiddenUsernames.indexOf(control.value) !== -1) {
+      return { 'nameIsForbidden': true }
+    }
+    return null;                // validation was successful
+  }
+
+  forbiddenEmails(control: FormControl): Promise<any> | Observable<any> {
+    return new Promise<any>((resolve, reject) => {
+      setTimeout(() => {
+        if (control.value === 'test@test.com') {
+          resolve({ 'emailIsForbidden': true });
+        }
+        resolve(null);
+      }, 1000)
+    });
+  }
+}
+#+END_SRC
+
+app.module.ts
+#+BEGIN_SRC typescript
+import { BrowserModule } from '@angular/platform-browser';
+import { NgModule } from '@angular/core';
+import { HttpModule } from '@angular/http';
+
+import { AppComponent } from './app.component';
+import { ReactiveFormsModule } from "@angular/forms";
+
+@NgModule({
+  declarations: [
+    AppComponent
+  ],
+  imports: [
+    BrowserModule,
+    HttpModule,
+    ReactiveFormsModule,
+  ],
+  providers: [],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+#+END_SRC
+
+*** Notes
+Since it's Angular job to handle the forms we don't add =action= or
+=method= to =<form></form>=
+
+** Pipes
 ** Http
 
 ** Authentication
