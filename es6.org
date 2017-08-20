@@ -1112,7 +1112,7 @@ Yet another way of dealing with asynchronous stuff
   function findMovie(movie) {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
-        reject(`${movie} is awesome.`);
+        resolve(`${movie} is awesome.`);
       });    
     })
 
@@ -1126,4 +1126,8 @@ Yet another way of dealing with asynchronous stuff
   loadInitialData()
 #+END_SRC
 
-If you use the =async= keyword before a function definition, you can then use =await= within the function. When you =await= a promise, the function is paused in a non-blocking way until the promise settles. If the promise fulfills, you get the value back. If the promise rejects, the rejected value is thrown.
+If you use the =async= keyword before a function definition, you can
+then use =await= within the function. When you =await= a promise, the
+function is paused in a non-blocking way until the promise settles. If
+the promise fulfills, you get the value back. If the promise rejects,
+the rejected value is thrown.

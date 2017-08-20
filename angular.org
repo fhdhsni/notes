@@ -2,7 +2,7 @@
 
 ** Tips
 - Speaking of =src/app/app.module.ts=
-  + Componentes goes into =declarations=.
+  + Componentes, directives and pipes goes into =declarations=.
   + In general, the declarations array contains a list of application
     components, pipes, and directives that belong to the module.
   + Modules (e.g forms, http,...) goes into =imports=
@@ -27,6 +27,8 @@
 
 - =encapsulation: ViewEncapsulation.Emulated= // other options None,
   Native (native means using Shadow DOM)
+
+- We can bind to DOM element properties like this <img [src]="foo.bar"/>
 
 ** The Component Lifecycle
 
@@ -140,6 +142,14 @@ element.
 <ng-template #noServer>
   <p>There's No Server</p>
 </ng-template>
+#+END_SRC
+
+Another example:
+#+BEGIN_SRC html
+  <ng-template [ngIf]="!authService.isAuthenticated()">
+    <li><a routerLink="/signup">Register</a></li>
+    <li><a routerLink="/signin">Log In</a></li>
+  </ng-template>
 #+END_SRC
 
 **** ngFor
@@ -291,6 +301,13 @@ export class UnlessDirective {
   metadata atached to it. That's why we have to add =@Injectable()=
   decorator to services when we want to inject something into them.
 
+- Adding a Service to a component gives us a new instance of that
+  service, but this is not necessarily the case if you provide to
+  service on a feature module. If parent of a feature module have that
+  service provided our feature module gonna use its parent instance.
+
+- Don't provide services on a shared modules.
+
 ** Routing
 *** Defining the Routes
 
@@ -368,7 +385,7 @@ becuase it kinda matches all the paths.
     constructor(private router: Router) { }
 
     onClick() {
-      this.router.navigate(['/servers']); // <= This is how we navigate programmatically
+    this.router.navigate(['/servers']); // <= This is how we navigate programmatically
     }
   }
 #+END_SRC
@@ -696,6 +713,23 @@ Functionality, logic, code which is excuted before a route is loaded
 or once you want to leave a route.
 
 **** canActivate
+An interface for defining a class that the router should call first to
+determine if it should activate this component. Should return a
+boolean or an Observable/Promise that resolves to a boolean.
+
+#+BEGIN_SRC typescript
+  class CanActivateGuard implements CanActivate {
+  canActivate(
+  route: ActivatedRouteSnapshot,
+  state: RouterStateSnapshot
+  ): Observable<boolean>|Promise<boolean>|boolean { ... }
+  }
+
+  // in our route
+  { path: ..., canActivate: [CanActivateGuard] }
+#+END_SRC
+
+
 There's so much non-relative thing in this example. Ignore them.
 
 app.module.ts
@@ -1219,6 +1253,10 @@ const appRoutes: Routes = [
 
 export class AppRoutingModule { }
 #+END_SRC
+*** Tips
+We are only allowed to use =RouterModule.forRoot= in our root module
+(e.g app.module) for routing in feature module we only use
+=RouterModule.forChild=
 
 ** Observables
 #+BEGIN_SRC typescript
@@ -1690,12 +1728,324 @@ Since it's Angular job to handle the forms we don't add =action= or
 =method= to =<form></form>=
 
 ** Pipes
+app.module.ts
+#+BEGIN_SRC typescript
+  import { BrowserModule } from '@angular/platform-browser';
+  import { NgModule } from '@angular/core';
+  import { FormsModule } from '@angular/forms';
+  import { HttpModule } from '@angular/http';
+
+  import { AppComponent } from './app.component';
+  import { ShortenPipe } from "app/shorten.pipe";
+  import { FilterPipe } from './filter.pipe';
+
+  @NgModule({
+    declarations: [
+      AppComponent,
+      ShortenPipe,                // we add pipes here
+      FilterPipe                  // we add pipes here
+    ],
+    imports: [
+      BrowserModule,
+      FormsModule,
+      HttpModule
+    ],
+    providers: [],
+    bootstrap: [AppComponent]
+  })
+  export class AppModule { }
+#+END_SRC
+
+app.component.ts
+#+BEGIN_SRC typescript
+  import { Component } from '@angular/core';
+
+  @Component({
+    selector: 'app-root',
+    templateUrl: './app.component.html',
+    styleUrls: ['./app.component.css']
+  })
+  export class AppComponent {
+    appStatus = new Promise((resolve, reject) => { // to use with async pipe
+      setTimeout(() => resolve('aweseom'), 2000)
+    });
+  
+    filteredStatus = '';
+
+    servers = [
+      {
+        instanceType: 'medium',
+        name: 'Production',
+        status: 'stable',
+        started: new Date(15, 1, 2017)
+      },
+      {
+        instanceType: 'large',
+        name: 'User Database',
+        status: 'stable',
+        started: new Date(15, 1, 2017)
+      },
+      {
+        instanceType: 'small',
+        name: 'Development Server',
+        status: 'offline',
+        started: new Date(15, 1, 2017)
+      },
+      {
+        instanceType: 'small',
+        name: 'Testing Environment Server',
+        status: 'stable',
+        started: new Date(15, 1, 2017)
+      }
+    ];
+    getStatusClasses(server: { instanceType: string, name: string, status: string, started: Date }) {
+      return {
+        'list-group-item-success': server.status === 'stable',
+        'list-group-item-warning': server.status === 'offline',
+        'list-group-item-danger': server.status === 'critical'
+      };
+    }
+  }
+#+END_SRC
+
+app.component.html
+#+BEGIN_SRC html
+<ul>
+  <input type="text" [(ngModel)]="filteredStatus"/>
+  <li
+    *ngFor="let server of servers | filter:filteredStatus:'status'"
+    [ngClass]="getStatusClasses(server)">
+    <span>
+      {{ server.status }}
+    </span>
+    <strong>
+      {{ server.name | shorten:5:'blah' }}
+    </strong> |
+    {{ server.instanceType | uppercase }} |
+    {{ server.started | date:'shortTime' }}
+  </li>
+</ul>
+
+<h3>appStatus: {{ appStatus | async }}</h3>
+#+END_SRC
+
+filter.pipe.ts
+#+BEGIN_SRC typescript
+import { Pipe, PipeTransform } from '@angular/core';
+
+@Pipe({
+  name: 'filter'
+})
+export class FilterPipe implements PipeTransform {
+
+  transform(value: any, filterString: string, propName: string): any {
+
+    if (value.length === 0 || filterString === '') {
+      return value;
+    }
+
+    const resultArray = [];
+
+    for (let item of value) {
+      if (item[propName] === filterString) {
+        resultArray.push(item);
+      }
+    }
+
+    return resultArray;
+  }
+}
+#+END_SRC
+
+shorten.pipe.ts
+#+BEGIN_SRC typescript
+import { PipeTransform, Pipe } from '@angular/core';
+
+@Pipe({
+  name: 'shorten'
+})
+export class ShortenPipe implements PipeTransform {
+  transform(value: string, limit: number, foobar, string) {
+    if (value.length > limit) {
+      return value.substr(0, limit) + ' ...';
+    }
+
+    return value;
+  }
+}
+#+END_SRC
+
 ** Http
 
+app.component.ts
+#+BEGIN_SRC typescript
+import { Component } from '@angular/core';
+import { ServerService } from "app/server.service";
+import { Response } from '@angular/http';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent {
+  appName = this.serverService.getAppName();
+
+  servers = [
+    {
+      name: 'Testserver',
+      capacity: 10,
+      id: this.generateId()
+    },
+    {
+      name: 'Liveserver',
+      capacity: 100,
+      id: this.generateId()
+    }
+  ];
+
+  constructor(private serverService: ServerService) { }
+
+  onSave() {
+    this.serverService.storeServers(this.servers)
+      .subscribe(
+      (response) => { console.log(response); },
+      (error) => console.error(error))
+  }
+
+  onGet() {
+    this.serverService.getServers().subscribe(
+      (responseAfterMapped: any[]) => this.servers = responseAfterMapped,
+      (error) => console.error(error),
+    )
+  }
+
+  onAddServer(name: string) {
+    this.servers.push({
+      name: name,
+      capacity: 50,
+      id: this.generateId()
+    });
+  }
+
+  private generateId() {
+    return Math.round(Math.random() * 10000);
+  }
+}
+
+#+END_SRC
+
+app.module.ts
+#+BEGIN_SRC typescript
+import { BrowserModule } from '@angular/platform-browser';
+import { NgModule } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { HttpModule } from '@angular/http';
+
+import { AppComponent } from './app.component';
+import { ServerService } from "app/server.service";
+
+@NgModule({
+  declarations: [
+    AppComponent
+  ],
+  imports: [
+    BrowserModule,
+    FormsModule,
+    HttpModule
+  ],
+  providers: [ServerService],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+
+#+END_SRC
+
+server.service.ts
+#+BEGIN_SRC typescript
+import { Injectable } from '@angular/core';
+import { Http, Headers, Response } from "@angular/http";
+import 'rxjs/Rx'
+import { Observable } from "rxjs/Observable";
+
+@Injectable()
+export class ServerService {
+  headers = new Headers({ 'Content-Type': 'application/json' });
+
+  constructor(private http: Http) { }
+
+  storeServers(servers: any[]) {
+
+    // return this.http.post('https://ng-http-3015e.firebaseio.com/data.json', servers, { headers: this.headers });
+    return this.http.put('https://ng-http-3015e.firebaseio.com/data.json', servers, { headers: this.headers });
+  }
+
+  getServers() {
+    return this.http
+      .get('https://ng-http-3015e.firebaseio.com/data.json')
+      .map((response: Response) => {
+        const data = response.json()
+
+        return data;
+      }).catch((error: Response) => {
+        console.error(error);
+        return Observable.throw('something went wrong');
+      });
+  }
+
+  getAppName() {
+    return this.http.get('https://ng-http-3015e.firebaseio.com/appName.json')
+      .map((response: Response) => {
+        return response.json();
+      });
+  }
+}
+#+END_SRC
+
+app.component.html
+#+BEGIN_SRC html
+<div class="container">
+  <div class="row">
+    <div class="col-xs-12 col-sm-10 col-md-8 col-sm-offset-1 col-md-offset-2">
+      <h1>{{ appName | async }}</h1>
+      <input type="text" #serverName>
+      <button class="btn btn-primary" (click)="onAddServer(serverName.value)">Add Server</button>
+      <br/><br/>
+      <button (click)="onSave()">Save Servers</button>
+      <button (click)="onGet()">Get Servers</button>
+      <hr>
+      <ul class="list-group" *ngFor="let server of servers">
+        <li class="list-group-item">{{ server.name }} (ID: {{ server.id }})</li>
+      </ul>
+    </div>
+  </div>
+</div>
+#+END_SRC
+
 ** Authentication
-
 ** Optimization & ngModules
+We can't declare components, pipes and directives in more than one
+module.
+*** Shared modules
+If you export something in a shared module and you wanna use those
+exported things in other modules, you have to import the shared module
+in all those modules.
 
+By importing a module, say =FormsModule=, directives provided by that
+module is only available in that module and only that module.
+
+*** Lazy loading
+Remember services provided on lazy loaded module will have their own
+DI which means if you provide a service on both a root module and a
+child module (the child module lazyily load), the child module will
+have a seperate intance of that service.
+**** Preloading Lazy Loaded Routes
+#+BEGIN_SRC typescript
+imports: [RouterModule.forRoot(routes, { preloadingStrategy: PreloadAllModules })],
+#+END_SRC
+
+*** JiT
+*** AoT
 ** Deployment
 
 ** Animation & Testing

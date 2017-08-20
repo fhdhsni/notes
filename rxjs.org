@@ -1,0 +1,125 @@
+ Producers
+ Consumers
+ Data pipeline
+ Time
+
+- The observer pattern defines producers as the subject; in RxJS, we
+  call them observables, as in something that’s able to be observed.
+- Observables are in charge of pushing notifications, so we refer to
+  this behavior as fire-and-forget, which means that we’ll never
+  expect the producer to be involved in the processing of events, only
+  the emission of them.
+- In a simple sense, functors are containers that can wrap data and
+  expose a mapping method that allows you to immutably apply
+  transformations on this data, as shown by the Array.map() method.
+- One of the key principles of a reactive system is the ability to
+  stay afloat under varying workloads—known as elasticity. Obviously,
+  this has many architectural and infrastruc- tural implications that
+  extend beyond the scope of this book, but a corollary to this is
+  that the paradigm you use shouldn’t change whether you’re dealing
+  with one, one hundred, or thousands of events. RxJS offers a single
+  computing model to handle finite as well as infinite streams.
+- A key design principle behind RxJS streams is to give you a familiar
+  traversal mecha- nism, just as you have with arrays. Iterators are
+  used to traverse containers of data in a structure-agnostic way or
+  independent of the underlying data structure used to har- ness these
+  elements, whether it’s an array, a tree, a map, or even a stream. In
+  addition, this pattern is effective at decoupling the business logic
+  applied at each element from the itera- tion itself. The goal is to
+  provide a single protocol for accessing each element and mov- ing on
+  to the next
+
+-
+#+BEGIN_SRC javascript
+function BufferIterator(arr, bufferSize = 2) {
+  this[Symbol.iterator] = function () {
+    let nextIndex = 0;
+
+    return {
+      next: () => {
+        if(nextIndex >= arr.length) {
+          return { done: true}
+        } else {
+          let buffer = new Array(bufferSize);
+          for(let i = 0; i < bufferSize; i++) {
+            buffer[i] = (arr[nextIndex++]);
+          }
+          return {value: buffer, done: false}
+        }
+      },
+    }
+  }
+
+}
+
+const foo = new BufferIterator([1, 2, 3, 4, 7, 8 , 9 , 10])
+
+for (let x of foo) {
+  console.log(x);
+}
+
+#+END_SRC
+
+- The RxJS from() operator is probably one of the most commonly
+  used. And to make it a bit more idiomatic, RxJS has overloaded the
+  *forEach* observable method as well, with the exact same semantics as
+  subscribe:
+
+-
+#+BEGIN_SRC js2
+  const observable = events => {
+    const INTERVAL = 1 * 1000;
+    let schedulerId;
+
+    return {
+      subscribe: observer => {
+        schedulerId = setInterval(() => {
+          if(events.length === 0) {
+            observer.complete();
+            clearInterval(schedulerId);
+            schedulerId = undefined;
+          }
+          else {
+            observer.next(events.shift());
+          }
+        }, INTERVAL);
+        return {
+          unsubscribe: () => {
+            if(schedulerId) {
+              clearInterval(schedulerId);
+            }
+          }
+        };
+      }
+    };
+  }
+
+  let sub = observable([1, 2, 3]).subscribe({
+    next: console.log,
+    complete: () => console.log('Done!')
+  });
+#+END_SRC
+
+
+- Operators are pure functions that create a new observable based on
+  the current one—the original is unchanged.
+
+- In RxJS, every operator will return an observable instance so that
+  it can support further chaining. This property means that a
+  virtually unlimited variety of combinations can be
+  assembled. Whereas observables are abstrac- tions over various data
+  sources, their operators are just abstractions of those abstrac-
+  tions. That is, just like the adapter methods used to create
+  observables from other library types, an operator is simply an
+  adapter to convert an existing observable into a new one with
+  more-specific functionality.
+
+ Each operator will affect only the propagation of an event, not its creation.
+ Time operators act sequentially.
+ remember that you can think of each operator as a workstation on an assembly line
+
+
+- =delay=: You can relate this to a downstream river with control dams
+  along the way that temporarily delay the flow of water. When the
+  water reaches its destination, however, all of the water would be
+  there at once.

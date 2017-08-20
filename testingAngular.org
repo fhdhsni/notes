@@ -1,0 +1,62 @@
++ You should write isolated unit tests for pipes and services.
+  - Isolated unit tests examine an instance of a class all by itself
+    without any dependence on Angular or any injected values. The
+    tester creates a test instance of the class with new, supplying
+    test doubles for the constructor parameters as needed, and then
+    probes the test instance API surface.
++ The Angular testing utilities include the =TestBed= class and several
+  helper functions from =@angular/core/testing=
+
++ The Angular testing environment does not know that the test changed
+  the component's title. The =ComponentFixtureAutoDetect= service
+  responds to asynchronous activities such as promise resolution,
+  timers, and DOM events. But a direct, synchronous update of the
+  component property is invisible. The test must call
+  fixture.detectChanges() manually to trigger another cycle of change
+  detection.
+
++ The =TestBed.createComponent= method is synchronous. But the Angular
+  template compiler must read the external files from the file system
+  before it can create a component instance. That's an asynchronous
+  activity. The previous setup for testing the inline component won't
+  work for a component with an external template.
+
++ The test setup for =BannerComponent= must give the Angular template
+  compiler time to read the files. The logic in the =beforeEach= of the
+  previous spec is split into two =beforeEach= calls. The first
+  =beforeEach= handles asynchronous compilation.
+
+#+BEGIN_SRC typescript
+  beforeEach(async(() => {
+    TestBed.configureTestingModule({
+      declarations: [BannerInlineComponent],
+      providers: [
+        { provide: ComponentFixtureAutoDetect, useValue: true }
+      ]
+    }).compileComponents();
+  }));
+#+END_SRC
+
++ Test a component with a dependency
+
+NO! Don't provide the real service! Provide a test-double instead
+
+#+BEGIN_SRC typescript
+TestBed.configureTestingModule({
+   declarations: [ WelcomeComponent ],
+// providers:    [ UserService ]  // NO! Don't provide the real service!
+                                  // Provide a test-double instead
+   providers:    [ {provide: UserService, useValue: userServiceStub } ]
+});
+#+END_SRC
+
+* Tips
+
+#+BEGIN_SRC typescript
+abstract class ComponentFixture {
+  debugElement;       // test helper 
+  componentInstance;  // to access properties and methods
+  nativeElement;      // to access DOM element
+  detectChanges();    // trigger component change detection
+}
+#+END_SRC
