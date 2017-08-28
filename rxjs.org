@@ -123,3 +123,46 @@ for (let x of foo) {
   along the way that temporarily delay the flow of water. When the
   water reaches its destination, however, all of the water would be
   there at once.
+- =debounceTime=: execute a function or some action only if a certain period has passed without it being called.
+
+- =throttleTime=: Throttling ignores values from an observable sequence that are
+  followed by another value before a certain time. “execute a function at most once every period”
+
+- =merge= and =concatn= It’s important to note that a merge differs
+  from a concatenation on one key behavior: whereas the merge()
+  operator will allow you to immediately subscribe to all of the
+  source observables, concat() will subscribe to only one observable
+  at a time.  Although it continues to manage the subscriptions to
+  each of the underlying streams, it will hold only a single
+  subscription at a time and process that before the next one in
+  order. You can see this behavior clearly with this simple example:
+
+- Being *cold* means that each new subscription is creating a new
+  independent stream with a new starting point for that stream. This
+  means that subscribers will independently receive the exact same set
+  of events always, from the beginning. Here’s another way to
+  conceptualize it: when creating a cold observable, you’re actually
+  creating a plan or recipe to be executed later—repeatedly, top to
+  bottom.
+
+- *Hot* observables are those that produce events regardless of the
+  presence of sub- scribers—they are active. In the real world, hot
+  observables are used to model events like clicks, mouse movement,
+  touch, or any other events exposed via event emitters.  This means
+  that, unlike the cold counterpart where each subscription triggers a
+  new stream, subscribers to hot observables tend to receive only the
+  events that are emitted after the subscription is created, Because
+  of the unpredictable and unrepeatable nature of the data that hot
+  observables emit, you can reason that they’re not completely pure,
+  from a theoretical perspective.
+
+
+- A *replay* is about reemitting the same sequence of events to each
+  subscriber—in effect, replaying the entire sequence.
+
+- A resubscribe re-creates the same pipeline and reexecutes the code
+  that produces events. Although the results emitted by the producer
+  will be implementation dependent, if your observable pipeline
+  remains pure, then you can guarantee that all subscribers will
+  receive the same events for the same input produced.
+  

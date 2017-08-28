@@ -1,0 +1,66 @@
+** types
+- Type names start with capital letter. e.g. Int
+- Generic param names start with lowercase (e.g. List a)
+- You can only declare types at the top-level. 
+#+BEGIN_SRC elm
+  square : Int -> Int
+  square n = n^2
+  apply_twice : (Int -> Int) -> Int -> Int
+  apply_twice f n = f n |> f
+
+  --
+  type alias Ducks = Int
+  x : Int
+  x = 3
+
+  --
+  type alias Person =
+      { name: String
+      , age: Int
+      , scores: List Int
+      }
+
+      twice_age : Person -> Int
+  --
+
+  bad_commit : { foobar | lines : Int } -> Bool
+  bad_commit c = c.lines > 100
+
+  bad_commit { files=["a.cpp", "b.elm"], lines=59 } -- False
+
+  --
+
+  repeats : List a -> List a
+  repeats xs =
+      case xs of
+          h :: t
+              -> h :: h :: (repeats t)
+          []
+              ->
+                []
+
+
+  --
+
+         type Status = Available | Busy String | Away Int --should be on top-level
+
+         a = Available
+         b = Busy "in a meeting"
+         w = Away 13
+
+         report : Status -> String
+         report status = case status of
+                             Available -> "is available now"
+                             Busy msg -> msg
+                             Away m -> "back in" ++ (toString m)
+#+END_SRC
+
+
+** functions
+
+- Anonymous functions 
+#+BEGIN_SRC elm
+List.map (\n -> n * 2) [1, 2, 3]
+#+END_SRC
+
+

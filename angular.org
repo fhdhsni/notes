@@ -2049,3 +2049,39 @@ imports: [RouterModule.forRoot(routes, { preloadingStrategy: PreloadAllModules }
 ** Deployment
 
 ** Animation & Testing
+
+** Routing Course
+
+- Directives that RouterModule provides
+  + =RouterLink=, =RouterLinkActive=, =RouterOutlet=
+
+- =RouterModule.forRoot=:
+  + is used only once throughout our application.
+  + Declares the router directives
+  + Manages our route configuration
+  + Register the route service
+
+- =RouterModule.forChild=
+  + Declares the router directives
+  + Manages our route configuration
+  + *DOES NOT* register the route service
+  + Used in feature modules
+
+- NO fucking leading slashes in the route config
+
+- For using hash based URLs use =RouterModule.forRoot([...], {useHash:
+  true})=, servers ignore everything after the hash. e.g of hash based
+  url =example.com/#/welcome=
+
+- Complete URL PATH to clear any secondary route =this.router.navigateByUrl('/welcome')=
+
+- Child routes are processed first.
+
+- Why define a separate routing module? just better organization.
+
+- Placeholders in routes should be unique, we can't have two placeholder with the same name
+   ={ path: 'user/:id', component: UserComponent }= :id should be unique.
+
+- <a [routerLink]="['/foo', 0, 'bar']">edit</a> is equivalent to the <a routerLink="product/0/bar">edit</a>
+
+- 
