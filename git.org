@@ -3,15 +3,27 @@ NOTE: =HEAD= refers to the last commit in the current branch.
 
 * SIMPLE STUFF
 
-** RESET 
-*NOTE: Don't do these after you push*
+** RESET
+*NOTE: Don't do these after you pushed to remote*
+*NOTE: =--mixed= is the default option, so if you don't specify anything it will be =--mixed=*
+*NOTE: HEAD^ is just an example, use whatever ever SHA you want*
+*NOTE: goto stackoverflow answer related to reset https://stackoverflow.com/a/3528483/2576218*
 
-- To blow away all the changes since last commit =git checkout -- <file>=
-- To reset into staging =git reset --soft HEAD^=. 
-    That is to say: move the commit one before current HEAD.
-- To undo the last commit and all the changes =git reset --hard HEAD^=
-- To undo the last 2 commit and all the changes =git reset --hard HEAD^^=
+- To blow away all the changes since last commit for a give file =git checkout -- <file>=
+- To reset into staging =git reset --soft HEAD^=.
+    + That is to say: move the commit one before current HEAD, but
+      don't touch the =index=, in other word =git status= will show them as unstaged.
+- To rest into unstaging, =git reset --mixed HEAD^= or just =git reset HEAD^=, it keeps the changes but it will put them into unstaging area
+- To undo the last commit and all the changes =git reset --hard
+  HEAD^=, *this modifies your working directory, note any
+  uncommitted changes you have, will be removed too*
+- To undo the last 2 commit and all the changes =git reset --hard HEAD^^=, *this modifies your working directory*
 - To unstage a file =git reset HEAD <file>= to unstage.
+
+     #+CAPTION: git tree movements visualized
+     #+NAME:   fig:SED-HR4049
+     [[./reset.jpg]]
+
 
 ** REMOTE
 - To add a remote: =git remote add <NORUO> remote-address= 
@@ -111,4 +123,5 @@ WHO DID THAT?
   1. =git reset HEAD^= 
   2. stage and commit as you like
   3. =git rebase --continue=
+- To merge two or more commits into one commit we use =squash=
 
