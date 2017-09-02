@@ -2084,4 +2084,16 @@ imports: [RouterModule.forRoot(routes, { preloadingStrategy: PreloadAllModules }
 
 - <a [routerLink]="['/foo', 0, 'bar']">edit</a> is equivalent to the <a routerLink="product/0/bar">edit</a>
 
-- 
+- =ActivatedRoute= service provides access to URL segments, Route
+  parameters, Query parameters, Resolver data and more. 
+  + It also provides an observable. =this.route.params.subscribe(...)=
+
+- In Angular 4+ we can use =this.route.snapshot.paramMap.get('id')= or =this.route.paramMap.subscribe(...)=
+
+- Optional parameters can be sent like [routerLink]='['/products',
+  {name: productName, code: productCode}]' this gets us a URL like
+  localhost:8000/products;name=foo;code=bar. These can be read same as
+  before
+
+
+** Angular Essentials
