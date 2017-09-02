@@ -1,0 +1,19 @@
+- =justify-content= used to distribute space on the main axis
+- =align-items= used to align items on the cross axis, the defualt
+  value is =stretch=. =align-items= doesn't control wrapped
+  items. checkout =align-content= for controlling wrapped flex items
+- =flex-grow= Used to specify the ratio of the space an item should
+  fill in the main axis. It accepts numbers and the default is 0. 0
+  means don't grow. The available space is all of the space of the
+  container minus the space necessary for other flex items. NOTE:
+  content with different widths will affect the ratio size
+- =flex-shrink= Used to specify the "shrink factor" of a flex item. It
+  accepts number and the *default is 1* which means do shrink.
+- =flex-basis= used to specify the initial size of a flex item. It
+  default to auto.
+- =align-self= Used to align individual flex items by overriding the
+  =align-items= value. The default value is =stretch=.
+
+- =align-content= Defines how each line is aligned within a flexbox
+  container. It only applies if flex-wrap: wrap is present, and if
+  there are multiple lines of flexbox items.
