@@ -1,12 +1,16 @@
 <name-of-remote-usually-origin> => NORUO
+
 NOTE: =HEAD= refers to the last commit in the current branch.
 
 * SIMPLE STUFF
 
 ** RESET
 *NOTE: Don't do these after you pushed to remote*
+
 *NOTE: =--mixed= is the default option, so if you don't specify anything it will be =--mixed=*
+
 *NOTE: HEAD^ is just an example, use whatever ever SHA you want*
+
 *NOTE: goto stackoverflow answer related to reset https://stackoverflow.com/a/3528483/2576218*
 
 - To blow away all the changes since last commit for a give file =git checkout -- <file>=
