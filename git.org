@@ -1,0 +1,71 @@
+<name-of-remote-usually-origin> => NORUO
+
+** General
+- To view staged differences =git diff --staged=.
+- To unstage a file =git reset HEAD <file>= to unstage.
+
+NOTE: =HEAD= refers to the last commit in the current branch.
+
+** RESET 
+*NOTE: Don't do these after you push*
+
+- To blow away all the changes since last commit =git checkout -- <file>=
+- To reset into staging =git reset --soft HEAD^=. That is to say: move the
+  commit one before current HEAD.
+- To undo the last commit and all the changes =git reset --hard HEAD^=
+- To undo the last 2 commit and all the changes =git reset --hard HEAD^^=
+** REMOTE
+- To add a remote: =git remote add <NORUO> remote-address= 
+- To get list of remotes =git remote -v=
+- To push to remote =git push -u <NORUO> local-branch-name=,
+  =-u= sets the upstream
+- To pull from a remote =git pull=
+- To remove a remotes =git remote rm <name>=
+- To show remote branches and their status(tracked or not) =git remote show <NORUO>=
+- To remove a remote branch =git push <NORUO>
+  :name-of-branch=.  It doesn't delete the local branch. You should
+  delete it with =git branch -d <name-of-branch>=
+- To clean up deleted remote branches =git remote prune <NORUO>=
+
+** Branch
+- To create a branch =git branch <name>=
+- To switch to a branch =git checkout <name-of-branch>=
+- To merge =git merge <name-of-the-branch-to-be-merged-with-the-current-branch>=
+- To delete a branch =git branch -d <name>=
+- To list all remote branches =git branch -r=
+
+** PULL
+What does =git pull= do? 
+  1. fetches (or Syncs) our local repository with the remote one, but
+     it doesn't merge them (same as =git fetch=)
+  2. merges =origin/master= with master (same as git merge =origin/master=)
+
+** Push
+- To link a local branch to a remote =git push <NORUO> <name-of-local-branch>=
+- 
+
+** Tag
+A tag is a reference to a commit
+- To list all the tags =git tag=
+- To go to a tag =git checkout <tag-here>=
+- To add a new tag =git tag -a <tag-name> =m "sample-message"= e.g
+  =git tag -a 0.1 -m "version 0.1"=
+- To push new tags =git push --tags=
+
+** Rebase
+- What doesn't =git rebase= do?
+  1. Move all the commits in =master= that are not in =origin/master= to a temporary area.
+  2. Run all =origin/master= commits
+  3. Run all commits in the temporary area one at a time
+- In case of merge conflict, after resolving, we can use =git rebase --continue=
+- To abort a rebase =git rebase --abort=
+
+
+*** rebase local branch
+1. =git checkout <branch-name>=
+2. =git rebase master=. This gonna commit the =master= commits then it
+   it runs =<branch-name>= commits on top of it.
+3. =git checkout master=
+4. =git merge <branch-name>= it will be a fast-forward merge.
+
+
