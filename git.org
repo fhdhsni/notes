@@ -7,7 +7,7 @@ NOTE: =HEAD= refers to the last commit in the current branch.
 ** RESET
 *NOTE: Don't do these after you pushed to remote*
 
-*NOTE: =--mixed= is the default option, so if you don't specify anything it will be =--mixed=*
+*NOTE: --mixed is the default option, so if you don't specify anything it will be --mixed*
 
 *NOTE: HEAD^ is just an example, use whatever SHA you want*
 
@@ -21,7 +21,8 @@ NOTE: =HEAD= refers to the last commit in the current branch.
 - To undo the last commit and all the changes =git reset --hard
   HEAD^=, *this modifies your working directory, note any
   uncommitted changes you have, will be removed too*
-- To undo the last 2 commit and all the changes =git reset --hard HEAD^^=, *this modifies your working directory*
+- To undo the last 2 commit and all the changes =git reset --hard HEAD^^=, *this modifies your working directory, note any uncommitted
+  changes you have, will be removed too*
 - To unstage a file =git reset HEAD <file>= to unstage.
 
      #+CAPTION: git tree movements visualized
@@ -56,7 +57,6 @@ What does =git pull= do?
 
 ** PUSH
 - To link a local branch to a remote =git push <NORUO> <name-of-local-branch>=
-- 
 
 ** TAG
 A tag is a reference to a commit
@@ -67,7 +67,7 @@ A tag is a reference to a commit
 - To push new tags =git push --tags=
 
 ** REBASE
-- What doesn't =git rebase= do? 
+- What does =git rebase= do? 
 Lets say we want to get our local master branch up-to-date with remote =origin/master=. So we do =git checkout master= then =git rebase origin/master=
   1. Move all the commits in =master= that are not in =origin/master= to a temporary area.
   2. Run all =origin/master= commits
@@ -105,7 +105,7 @@ Lets say we want to get our local master branch up-to-date with remote =origin/m
 
 ** BLAME
 WHO DID THAT?
-- =git blame index.html --date --short=
+- =git blame <file> --date --short=
 
 ** RM
 - To remove a file, =git rm <file>=, it deletes the file from file system.
