@@ -9,7 +9,7 @@ NOTE: =HEAD= refers to the last commit in the current branch.
 
 *NOTE: =--mixed= is the default option, so if you don't specify anything it will be =--mixed=*
 
-*NOTE: HEAD^ is just an example, use whatever ever SHA you want*
+*NOTE: HEAD^ is just an example, use whatever SHA you want*
 
 *NOTE: goto stackoverflow answer related to reset https://stackoverflow.com/a/3528483/2576218*
 
@@ -62,7 +62,7 @@ What does =git pull= do?
 A tag is a reference to a commit
 - To list all the tags =git tag=
 - To go to a tag =git checkout <tag-here>=
-- To add a new tag =git tag -a <tag-name> =m "sample-message"= e.g
+- To add a new tag =git tag -a <tag-name> -m "sample-message"= e.g
   =git tag -a 0.1 -m "version 0.1"=
 - To push new tags =git push --tags=
 
@@ -116,7 +116,7 @@ WHO DID THAT?
 
 
 
-* ADVANCED STUFF
+* A BIT MORE ADVANCE
 
 ** REBASE
 - To play with commits, interactivaly, =git rebase -i HEAD~3=, that is 3 commits before current HEAD
@@ -129,3 +129,23 @@ WHO DID THAT?
   3. =git rebase --continue=
 - To merge two or more commits into one commit we use =squash=
 
+** STASH
+So we're not ready to make a commit but we need the changes that we
+made. To store the changes in a temporary area we use =stash=
+
+NOTE: =git stash= saves the changes in both /staging/ and /unstaging/ area. To prevent the staging area from getting stashed use =--keep-index=.
+
+NOTE: Untracked files are not effected by =stash= by default, to change this we can use =--include-untracked=
+
+- =git stash save=, or just =git stash=, saves our changes in a temp area and restore last commit
+- =git stash apply stash@{0}=, bring the stashed changes
+  back. =stash@{0}= is default so you don't need to specify it. Note: It doesn't delete =stash@{0}= from stack.
+- =git stash list=, to list stash *stack*. =WIP= stands for /work in progress/
+- =git stash drop stash@{0}=, to delete from stack, =stash@{0}= is default.
+- =git stash pop= is a shortcut for =git stash apply && git stash drop=
+- =git stash list --stat= to get a more verbose version of =git stash list=
+- =git stash show stash@{0}= to get a more verbose version for specified stash
+- =git stash show --patch= to see the changes for =stash@{0}=
+- =git stash save "sample-msg"=, to add a msg
+- =git stash branch <new-branch-name> stash@{0}= checkout a new branch and restore the stashed stuff.
+- =git stash clear=, clear the stack altogether at once.
