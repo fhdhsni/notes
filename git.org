@@ -48,6 +48,7 @@ NOTE: =HEAD= refers to the last commit in the current branch.
 - To merge =git merge <name-of-the-branch-to-be-merged-with-the-current-branch>=
 - To delete a branch =git branch -d <name>=
 - To list all remote branches =git branch -r=
+- To create a new branch but make it so its HEAD point to an specific commit =git branch <branch-name> <commit-SHA>=
 
 *** Pull
 What does =git pull= do? 
@@ -200,4 +201,21 @@ A Git repo inside a Git repo
   pushes submodules on demand. A good case for making an alias =git config alias.pushall "push --recurse-submodules=on-demand"=
 
 *** Reflog
+NOTE: reflog is local and only local.
+
+- Git never deletes a commit. phew. Even if we delete a branch it doesn't delete its commits.
+- Git updates reflog anytime head moves (like when changing a branch, or in case new commit or reset)
+- To go back to a SHA in reflog, =git reset --hard <SHA>=
+- To make reflog more informative we use =git log --walk-reflogs=
+- To create a new branch but pointing its HEAD to a commit that we found in reflog =git branch <branch-name> <commit-SHA>=
+
+
+*** Helpful
+http://gitimmersion.com/
+
+http://gitready.com/
+
+https://ndpsoftware.com/git-cheatsheet.html
+
+
 
