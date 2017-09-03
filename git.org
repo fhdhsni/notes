@@ -2,9 +2,9 @@
 
 NOTE: =HEAD= refers to the last commit in the current branch.
 
-* SIMPLE STUFF
+** SIMPLE STUFF
 
-** RESET
+*** Reset
 *NOTE: Don't do these after you pushed to remote*
 
 *NOTE: --mixed is the default option, so if you don't specify anything it will be --mixed*
@@ -30,7 +30,7 @@ NOTE: =HEAD= refers to the last commit in the current branch.
      [[./reset.jpg]]
 
 
-** REMOTE
+*** Remote
 - To add a remote: =git remote add <NORUO> remote-address= 
 - To get list of remotes =git remote -v=
 - To push to remote =git push -u <NORUO> local-branch-name=,
@@ -42,23 +42,23 @@ NOTE: =HEAD= refers to the last commit in the current branch.
   It doesn't delete the local branch. You should delete it with =git branch -d <name-of-branch>=
 - To clean up deleted remote branches =git remote prune <NORUO>=
 
-** BRANCH
+*** Branch
 - To create a branch =git branch <name>=
 - To switch to a branch =git checkout <name-of-branch>=
 - To merge =git merge <name-of-the-branch-to-be-merged-with-the-current-branch>=
 - To delete a branch =git branch -d <name>=
 - To list all remote branches =git branch -r=
 
-** PULL
+*** Pull
 What does =git pull= do? 
   1. fetches (or Syncs) our local repository with the remote one, but
      it doesn't merge them (same as =git fetch=)
   2. merges =origin/master= with master (same as git merge =origin/master=)
 
-** PUSH
+*** Push
 - To link a local branch to a remote =git push <NORUO> <name-of-local-branch>=
 
-** TAG
+*** Tag
 A tag is a reference to a commit
 - To list all the tags =git tag=
 - To go to a tag =git checkout <tag-here>=
@@ -66,7 +66,7 @@ A tag is a reference to a commit
   =git tag -a 0.1 -m "version 0.1"=
 - To push new tags =git push --tags=
 
-** REBASE
+*** Rebase
 - What does =git rebase= do? 
 Lets say we want to get our local master branch up-to-date with remote =origin/master=. So we do =git checkout master= then =git rebase origin/master=
   1. Move all the commits in =master= that are not in =origin/master= to a temporary area.
@@ -75,14 +75,14 @@ Lets say we want to get our local master branch up-to-date with remote =origin/m
 - In case of merge conflict, after resolving, we can use =git rebase --continue=
 - To abort a rebase =git rebase --abort=
 
-*** rebase local branch
+**** rebase local branch
 1. =git checkout <branch-name>=
 2. =git rebase master=. This gonna commit the =master= commits then it
    it runs =<branch-name>= commits on top of it.
 3. =git checkout master=
 4. =git merge <branch-name>= it will be a fast-forward merge.
 
-** LOG
+*** Log
 - To get the insertions/deletions of each commit =git log --oneline -p=, =p= for patch
 - To get the number insertions/deletions in each commit =git log --oneline --stat=
 - To get a graph of what's going on  =git log --oneline --graph=
@@ -94,7 +94,7 @@ Lets say we want to get our local master branch up-to-date with remote =origin/m
   + git log --since=1.month.ago --until=2.weeks.ago
   + git log --since=2012-01-01 --until=2017-7-21
 
-** DIFF
+*** Diff
 - To get staged differences =git diff --staged=.
 - To get diff with HEAD =git diff HEAD= or just =git diff=
 - To get diff with parent of HEAD =git diff HEAD^=
@@ -103,22 +103,22 @@ Lets say we want to get our local master branch up-to-date with remote =origin/m
 - To get diff of two specific commit with SHAs =git diff <sha1> <sha2>=
 - To get diff between two branches =git diff <branch-1> <branch-2>=
 
-** BLAME
+*** Blame
 WHO DID THAT?
 - =git blame <file> --date --short=
 
-** RM
+*** Rm
 - To remove a file, =git rm <file>=, it deletes the file from file system.
 - To stop tracking a file, =git rm --cached <file>=, it doesn't delete the file from file system.
 
-** MISCELLANEOUS
+*** Miscellaneous
 - To exclude a directory, put the directory inside =.git/info/exclude=
 
 
 
-* A BIT MORE ADVANCE
+** A Bit More Advance
 
-** REBASE
+*** Rebase
 - To play with commits, interactivaly, =git rebase -i HEAD~3=, that is 3 commits before current HEAD
   + By =play= I mean, =pick=, =reword=, =edit=, =squash=,...
 - =interactive rebase= alters every commit after the one you specify, so if we say =git rebase -i HEAD= it does nothing
@@ -129,7 +129,7 @@ WHO DID THAT?
   3. =git rebase --continue=
 - To merge two or more commits into one commit we use =squash=
 
-** STASH
+*** Stash
 So we're not ready to make a commit but we need the changes that we
 made. To store the changes in a temporary area we use =stash=
 
@@ -149,3 +149,55 @@ NOTE: Untracked files are not effected by =stash= by default, to change this we 
 - =git stash save "sample-msg"=, to add a msg
 - =git stash branch <new-branch-name> stash@{0}= checkout a new branch and restore the stashed stuff.
 - =git stash clear=, clear the stack altogether at once.
+
+*** Change History
+
+- To remove a file from our repo, =git filter-brach --tree-filter
+  <command>=, where =<command>= is a shell command e.g =git filter-brach --tree-filter "rm -f stuff.txt"=
+- We can use =git filter-brach --tree-filter <command> -- --all= to go through all the branches
+- To make it faster, =git filter-brach --index-filter <command>=,
+  where <command> should be a =git= command.
+   e.g =git filter-brach --index-filter "git rm --cached --ignore-unmatch pass.txt"=
+
+*** Auto Currect Line Feed
+Fucking Windows uses =\r\n= as line seperator (instead of just =\n=
+which the case for UNIX), to address this issue:
+  - On UNIX:  =git config --global core.autocrlf input=, it changes any CRLF to just LF
+  - On Windows =git config --global core.autocrlf true=
+
+*** .gitattributes
+a .gitattribute example https://github.com/alexkaratarakis/gitattributes/blob/master/Web.gitattributes
+
+*** Cherry-Pick
+- To get a commit out of =<dev>= branch and put it in =<prod>= branch
+  1. =git checkout <prod>=
+  2. =git cherry-pick <SHA-of-a-commit-from-dev-branch>=
+- To cherry-pick and edit msg
+  1. =git cherry-pick --edit <SHA-of-a-commit-from-dev-branch>=
+- To cherry-pick multiple commit from =<dev>= branch and combine them into one commit in =<prod>= branch. 
+  1. =git cherry-pick --no-commit <SHA-of-a-commit-from-dev-branch> <SHA-of-another-commit-from-dev-branch>=
+     + This just apply changes to current HEAD but doesn't actually make a commit. So we have to commit them ourselves.
+- To keep track of where we cherry-picked a commit we can use =-x= flag.
+- WHO CHERRY-PICKED THAT COMMIT? =--signoff= adds current's username to commit msg.
+
+*** Submodules
+NOTE: If you go inside a submodule directory checkout a branch like
+=git checkout master=, but default you're not on any branch. If you
+didn't do this and made some commit, to solve orphan commits: =git checkout <branch-name>= and then =git merge <sha1-of-commit=
+
+A Git repo inside a Git repo
+
+- To add a submodule, =git submodule add <repo-address>=
+- When cloning a git repo that contains submodules we need to 
+  =git submodule init= then =git submoudle update= to also initialize those
+  submodules.
+- To get the changes in the submodules =git submodule update=, this checks outs submodules in a /headlesss/ state.
+- *Remember* when you edit submodule you must push twice, once for the
+  submodule itself and once for the parent of submodule. To help you
+  with this git offers `git push --recurse-submodules=check` which
+  make the push process fail if you haven't pushed submodules
+  first. There's also `git push --recurse-submodules=on-demand` which
+  pushes submodules on demand. A good case for making an alias =git config alias.pushall "push --recurse-submodules=on-demand"=
+
+*** Reflog
+
