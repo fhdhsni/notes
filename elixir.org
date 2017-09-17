@@ -1,18 +1,53 @@
 * Elixir
 Most of these nots are from official elixir guide and learnelixir.tv
-:NOTE:
-- *.ex files will be compiled.
+** Tips
+1) *.ex files will be compiled.
+2) *.exs are script files (won't get compiled)
+3) snake_case naming convention
+4) # starts a comment line
+5) ~/.iex.exs is iex configuration file (more info =iex> h IEx.configure=)
+6) === (triple equal) is used for comparing floats to integers (2 === 2.0 returns false)
+7) Use =i= in iex for getting information about a thing like =i 'foo'= 
+8) When counting the elements in a data structure, Elixir also abides
+   by a simple rule: the function is named size if the operation is in
+   constant time (i.e. the value is pre-calculated) or length if the
+   operation is linear (i.e. calculating the length gets slower as the
+   input grows). As a mnemonic, both “length” and “linear” start with
+   “l”.
+9) Elixir provides three boolean operators: =or=, =and= and =not=. These
+   operators are strict in the sense that they expect a boolean (true
+   or false) as their first argument:
+10) =or= and =and= are short-circuit operators. They only execute the
+    right side if the left side is not enough to determine the result:
+    #+BEGIN_SRC sh
+    iex> false and raise("This error will never be raised")
+    false
+    #+END_SRC
+    Besides these boolean operators, Elixir also provides =||=, =&&= and =!=
+    which accept arguments of any type. For these operators, all
+    values except =false= and =nil= will evaluate to true
+    #+BEGIN_SRC sh
+     # or
+     iex> 1 || true
+     1iex> false || 11
+     11
+     # and
+     iex> nil && 13
+     nil
+     iex> true && 17
+     17
+     #!
+     iex> !true
+     false
+     iex> !1
+     false
+     iex> !nil
+     true
+    #+END_SRC
+- In Elixir when can compare two different types. the order is 
+  =number < atom < reference < function < port < pid < tuple < map < list < bitstring=
 
-- *.exs are script files (won't get compiled)
 
-- snake_case naming convention
-
-- # starts a comment line
-
-- ~/.iex.exs is iex configuration file (more info =iex> h IEx.configure=)
-
-- === (triple equal) is used for comparing floats to integers (2 === 2.0 returns false)
-:END:
 ** Types
 *** Numbers
 - Integers (large numbers can be used with _ e.g 1_000_000_000)
@@ -51,6 +86,19 @@ In fact they are atoms
 is true
 
 *** Strings
+Strings in Elixir are represented internally by binaries which are
+sequences of bytes:
+
+#+BEGIN_SRC 
+iex> is_binary("hellö")
+true
+
+# We can also get the number of bytes in a string: 
+
+iex> byte_size("hellö")
+6
+#+END_SRC
+
 Strings are just binaries in Elixir. They are inserted between *double
 quotes*, and they are encoded in UTF-8: for interpolation
 
@@ -84,6 +132,9 @@ Binaries can be tagged with a size atribute
 
 
 *** Anonymous functions
+Anonymous functions are closures and as such they can access variables
+that are in scope when the function is defined.
+
 #+BEGIN_SRC elixir
 iex> add = fn a, b -> a + b end # same as &(&1 + &2)
 #Function<12.71889879/2 in :erl_eval.expr/5>
@@ -91,6 +142,25 @@ iex> add.(1, 2)
 3
 #+END_SRC
 To call an anonymous function we use . notation like =add.(1, 2)=
+
+**** Pattern Matching in anonymous function and multi lining them
+#+BEGIN_SRC elixir
+account_transaction = fn
+    (balance, amount, :deposit) -> balance + amount
+    (balance, amount, :withdraw) -> balance - amount
+end
+#+END_SRC
+**** Shorthand syntax
+#+BEGIN_SRC elixir
+  deposit = fn(balance, amount) -> amount + balance 
+  # becomes 
+  deposit = &(&1 + &2)
+#+END_SRC
+
+To define a call immediately
+#+BEGIN_SRC elixir
+  (fn x, y -> x - y end).(9, 3)   # 6
+#+END_SRC
 
 *** (/Linked/) Lists
 Elixir lists are immutable head/tail pairs.
@@ -114,10 +184,13 @@ tl(list) # [2, 3]
 #+END_SRC
 
 *** Tuples
-Elixir uses curly brackets to define
-tuples. Like lists, tuples can hold any value: Tuples store elements
-contiguously in memory. This means accessing a tuple element by index
-or getting the tuple size is a fast operation. Indexes start from zero.
+Elixir uses curly brackets to define tuples. Like lists, tuples can
+hold any value: Tuples store elements contiguously in memory. This
+means accessing a tuple element by index or getting the tuple size is
+a fast operation. Indexes start from zero. However, updating or adding
+elements to tuples is expensive because it requires copying the whole
+tuple in memory.
+
 #+BEGIN_SRC elixir
   t = {:ok, "Hi", 5}
   elem(t, 1) # :Hi
@@ -226,7 +299,7 @@ Using capture operator to capture functions from other modules
 Enum.map ["fhd", "hsni"], &String.upcase/1
 #+END_SRC
 ** Pattern Matching
-=a = 8= bind variable a to number 8 =8 = a= is a valid expression
+=a = 8= bind variable /a/ to number /8/, =8 = a= is a valid expression
 since 8 matches a.
 
 If on the left hand side of = operator is variable it'll be bind to the
@@ -284,6 +357,26 @@ of the tuple (i.e. the key) is an atom, we call it a keyword list:
 cook = fn(heat, foods) -> Keyword.values(foods) |> Enum.map(&(heat <> &1)) end
 cook.("Fried ", [meat: "sausage", veg: "beans"]) # ["Fried sausage", "Fried beans"]
 #+END_SRC
+
+To use it in a function
+
+#+BEGIN_SRC elixir
+  defmodule Account do
+    def balance(transactions, options \\ []) do  
+      currency = options[:currency] || "dollar"
+      symbol = options[:symbol] || "$"
+      # ... rest of function
+    end
+    # ... rest of module
+  end
+
+
+  Account.balance(..., currency: "dollar", symbol: "$") # short syntax
+  # is equal to
+  Account.balance(..., [{:currency, "dollar"}, {:symbol, "$"}])
+#+END_SRC
+
+
 
 ** Maps
 Whenever you need a key-value store, maps are the “go to” data
@@ -372,9 +465,11 @@ Range struct
 is_map ~r/hello/ # true
 #+END_SRC
 ** Functions, Guard clauses and Modules
-Function declarations support guards and multiple clauses. If a
-function has several clauses, Elixir will try each clause until it
-finds one that matches.  Using guard clauses:
+Functions in Elixir are identified by both their name and their
+arity. The arity of a function describes the number of arguments which
+the function takes.  Function declarations support guards and multiple
+clauses. If a function has several clauses, Elixir will try each
+clause until it finds one that matches.  Using guard clauses:
 #+BEGIN_SRC elixir
   defmodule Example do
     def hello(name) when name === "Farhad" do

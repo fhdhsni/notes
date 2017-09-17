@@ -28,7 +28,9 @@
 - =encapsulation: ViewEncapsulation.Emulated= // other options None,
   Native (native means using Shadow DOM)
 
-- We can bind to DOM element properties like this <img [src]="foo.bar"/>
+- We can bind to DOM element properties like this <img [src]="foo.bar"/> which is equivalent to <img src="{{foo.bar}}" /> or <img bind-src="foo.bar"/>
+
+- We can use hidden to hide an element(without removing from DOM) <img [hidden]="true" bind-src="url"/>
 
 ** The Component Lifecycle
 
@@ -55,7 +57,7 @@ The comunication between "Business Logic" and Template (HTML file)
    2. Property Binding *[property]="data"*. BTW these two are
       equal. <img src="{{item.imagePath}}"/> and <img [src]="item.imagePath"/>
 2. React to user event
-   1. *(event)="expression"*
+   1. *(event)="expression"*, events like (dblclick), (click), (drag), (keyup), (focus), (blur), (cut), (copy), (paste)
 3. two-way databinding *[(ngModel)]="data"*
 4. Custom property binding:
    + By default all properies of a given component are accessible only
@@ -168,7 +170,22 @@ Another example:
 <p [ngStyle]="{backgroundColor: isServerOnline ? 'lightgreen' : 'lightpink'}">{{ isServerOnline }}</p>
 #+END_SRC
 
+<div [style.width.px]="mySize">	
+Binds style property width to the result of expression mySize in
+pixels. Units are optional.
+
 **** ngClass
+`<div [ngClass]="{'active': isActive, 'disabled': isDisabled}">`
+
+Binds the presence of CSS classes on the element to the truthiness of the
+associated map values. The right-hand expression should return
+{class-name: true/false} map.
+There's also another syntax: 
+#+BEGIN_SRC 
+<style>.pink {background-color: lightpink}</style>
+<p [class.pink]="isPink">bar</p>
+#+END_SRC
+
 
 *** Build Your Own Directive
 **** Basic approach 
@@ -291,15 +308,105 @@ export class UnlessDirective {
 #+END_SRC
 
 ** Services and DI
+- It's a coding pattern in which a class receives its dependencies from
+  external sources rather than creating them itself.
+
+- A provider is something that can create or deliver a service. Angular
+  creates a service instance from a class provider by using new.
+
+- You don't have to create an Angular injector. Angular creates an
+  application-wide injector for you during the bootstrap process.
+
 - Note that Angular dependency injecor is a hierarchical injector. That
   is to say if we provide our service in a given component, the same
   instance of our service is available for that component and all its
   child. For e.g. if we add our service to =providers= of
   =app.module.ts= the same instance of that service will be available
   application-wide.
-- If you inject a service to something, that something should have a
-  metadata atached to it. That's why we have to add =@Injectable()=
-  decorator to services when we want to inject something into them.
+
+- @Injectable() marks a class as available to an injector for
+  instantiation. Generally speaking, an injector reports an error when
+  trying to instantiate a class that is not marked as @Injectable().
+  *SUGGESTION*: ADD @INJECTABLE() TO EVERY SERVICE CLASS Consider adding
+  @Injectable() to every service class, even those that don't have
+  dependencies and, therefore, do not technically require it.
+
+- At runtime, injectors can read class metadata in the transpiled
+  JavaScript code and use the constructor parameter type information
+  to determine what things to inject.
+  Not every JavaScript class has metadata. The TypeScript compiler
+  discards metadata by default. If the emitDecoratorMetadata compiler
+  option is true (as it should be in the tsconfig.json), the compiler
+  adds the metadata to the generated JavaScript for every class with at
+  least one decorator.
+  While any decorator will trigger this effect, mark the service class
+  with the @Injectable() decorator to make the intent clear.
+
+- =providers: [Logger]= is shorthand version of =[{ provide: Logger, useClass: Logger }]=
+
+- Aliased class providers
+  #+BEGIN_SRC typescript
+  [ NewLogger,
+    // Not aliased! Creates two instances of `NewLogger`
+    { provide: OldLogger, useClass: NewLogger}]
+  #+END_SRC
+  The solution: alias with the useExisting option.
+  
+  #+BEGIN_SRC typescript
+  [ NewLogger,
+    // Alias OldLogger w/ reference to NewLogger
+    { provide: OldLogger, useExisting: NewLogger}]
+  #+END_SRC
+
+- Value providers
+  Sometimes it's easier to provide a ready-made object rather than ask
+  the injector to create it from a class.
+
+- Factory providers
+  
+  hero.service.ts (excerpt)
+  #+BEGIN_SRC typescript
+  constructor(
+    private logger: Logger,
+    private isAuthorized: boolean) { }
+  
+  getHeroes() {
+    let auth = this.isAuthorized ? 'authorized ' : 'unauthorized';
+    this.logger.log(`Getting heroes for ${auth} user.`);
+    return HEROES.filter(hero => this.isAuthorized || !hero.isSecret);
+  }
+  #+END_SRC
+  
+  hero.service.provider.ts (excerpt)
+  #+BEGIN_SRC typescript
+  let heroServiceFactory = (logger: Logger, userService: UserService) => {
+    return new HeroService(logger, userService.user.isAuthorized);
+  };
+  #+END_SRC
+  
+  hero.service.provider.ts (excerpt)
+  #+BEGIN_SRC typescript
+    export let heroServiceProvider =
+      { provide: HeroService,
+        useFactory: heroServiceFactory, // where to get a HeroService
+        deps: [Logger, UserService]     // heroServiceFactory needs these
+      };
+  #+END_SRC
+  
+  The useFactory field tells Angular that the provider is a factory
+  function whose implementation is the heroServiceFactory.
+  
+  The deps property is an array of provider tokens. The Logger and
+  UserService classes serve as tokens for their own class providers. The
+  injector resolves these tokens and injects the corresponding services
+  into the matching factory function parameters.
+
+- There is no such thing as the injector. An application may
+  have multiple injectors. An Angular application is a tree of
+  components. Each component instance has its own injector. The tree
+  of components parallels the tree of injectors.
+
+- 
 
 - Adding a Service to a component gives us a new instance of that
   service, but this is not necessarily the case if you provide to
@@ -307,6 +414,8 @@ export class UnlessDirective {
   service provided our feature module gonna use its parent instance.
 
 - Don't provide services on a shared modules.
+
+- Dependencies are singletons within the scope of an injector.
 
 ** Routing
 *** Defining the Routes
@@ -1291,13 +1400,12 @@ comparable to EventEmitter that is shipped with Angular
 ** Forms
 *** Template-Driven Approach
 In this approach Angular infers the form object from the
-DOM. Template-Driven approach mostly happens in template (rather than
-our .ts file)
+DOM. Template-Driven approach mostly happens in template (rather than in our .ts file)
 
 - In app.module.ts add =FormsModule= to imports 
 - By doing so Angular automatically creates a form object for us when it sees
   =<form></form>=. We can think of =<form>= as a selector for an Angular directive.
-- We need to register controls manually. Angular doesn't so
+- We need to register controls manually. Angular doesn't do so
   automatically. We do this by adding =ngModel= to our inputs in the
   form.
 - Remember inputs must have a html =name= attribute. Angular uses that.
@@ -1475,8 +1583,11 @@ app.component.html
 #+END_SRC
 
 **** Two-way binding
+We need to =import { FormsModule } from '@angular/forms';=
+NOTE: Presence of `name` attribute is mandatory.
+
 #+BEGIN_SRC html
-  <textarea [(ngModel)]="answer" name="questionAnswer" >
+  <textarea [(ngModel)]="answer" name="questionAnswer" > <!-- `answer` is a vairable but `questionAnswer` is a text description-->
   </textarea>
   <p>Your reply: {{ answer }}</p>
 #+END_SRC
@@ -2049,8 +2160,9 @@ imports: [RouterModule.forRoot(routes, { preloadingStrategy: PreloadAllModules }
 ** Deployment
 
 ** Animation & Testing
-
 ** Routing Course
+
+*** Miscellaneous
 
 - Directives that RouterModule provides
   + =RouterLink=, =RouterLinkActive=, =RouterOutlet=
@@ -2090,10 +2202,421 @@ imports: [RouterModule.forRoot(routes, { preloadingStrategy: PreloadAllModules }
 
 - In Angular 4+ we can use =this.route.snapshot.paramMap.get('id')= or =this.route.paramMap.subscribe(...)=
 
-- Optional parameters can be sent like [routerLink]='['/products',
-  {name: productName, code: productCode}]' this gets us a URL like
+- Optional parameters can be sent like `[routerLink]='['/products',{name: productName, code: productCode}]'`, this gets us a URL like
   localhost:8000/products;name=foo;code=bar. These can be read same as
-  before
+  before.
+
+- To retain Query Parameters `<a [routerLink]="['/products']" queryParamsHandling="preserve">foobar</a>` or =this.router.navigate(['/products'], {queryParamsHandling: 'preserve'})=
+    Other option is "merge", to merge query parameters to merge with any existing query parameter.
+- Required Parameters:
+  + To configure: ={ path: 'product/:id', component: ProductComponent }=
+
+  + To populate: <a [routerLink]="['/products', product.id]">...</a>
+
+  + To populate: =this.router.navigate(['/products', this.product.id])=
+
+  + To read: =this.route.snapshot.params['id']= or Observable
+- Optional Parameters:
+  + To populate: <a [routerLink]="['/products', {start: startDate, end: endDate}]"></a>
+
+  + To populate: =this.router.navigate(['/products', {start: startDate, end: endDate}])=
+
+  + To read: =this.route.snapshot.params['start']=
+- Query Parameters:
+  + To populate: <a [routerLink]="['/products']" [queryParams]="{filterBy: 'x', showImage: true}"></a>
+
+  + To populate: =this.router.navigate(['/products', {queryParams: {filterBy: 'x', showImage: true}}])=
+
+  + To read: =this.route.snapshot.queryParams['filterby']= or observable
+
+*** Route's Data Property
+By defintion data property is static and won't change.
+
+- To populate: `const ROUTE = { path: '...', component: '...', data: { foo: 'bar'}}`
+- To read: =this.route.snapshot.data['foo']=
+
+*** Route Resolver
+1. Build and register a route resolver service
+   - To make a service resolver, it has to implement =Resolve<T>= interface.
+2. Add resolve to the route configuration
+   - ={path: '...', component: ProductDetailComponent, resolve: { product: ProductResolver }}=
+   - =product= is a logical name for the data and =ProductResolver= is a reference to the resolver that returns that data.
+   - We can add any number of resolvers.
+3. Read the data from ActivatedRoute
+   - =this.route.snapshot.data['product]=
+   - =this.route.data.subscribe(...)=
+
+*** Child Routes
+1. Add a =children= array to the parent route, define the child routes
+   within that array. Child path extends the parent route.
+   #+BEGIN_SRC typescript
+   {
+     path: 'products/:id/edit',
+     component: ProductEditComponent,
+     resolve: { Product: ProductResolver },
+     children: [
+           {path: 'info', component: ProductEditInfoComponent },
+           {path: 'tags', component: ProductEditTagsComponent },
+       ]
+   }
+   #+END_SRC
+
+2. Place the child view by defining a RouterOutlet directive in the
+   partent component's template.
+   #+BEGIN_SRC html
+   <a [routerLink]="['info']">Info</a>
+   <a [routerLink]="['tags']">Tags</a>
+   <router-outlet></router-outlet>
+   #+END_SRC
+
+3. Activating Child Routes
+   + Absolute path (note the slash): <a [routerLink]="['/product', product.id, 'edit', 'info']">info<a/> 
+   + Relative path: <a [routerLink]="['info']">info</a>
+   + Absolute path: =this.router.navigate(['/product', this.product, 'edit', 'info'])=
+   + Relative path: =this.router.navigate(['info'], {relativeTo: this.route})=
+**** Obtaining data for a child route
+Beside regular possibilities we can use =this.route.parent.snapshot.data['foo']=
+
+*** Grouping and Component-less Parent Routes
+NOTE: The root route doesn't have any component
+*** Style, animating and watching routes
+- We style the active route with =routerLinkActive=, this can also be added to ancestor of routerLink element
+- There's also =routerLinkActiveOptions=. 
+    + <a [routerLink]="['/info']" routerLinkActive="infoActiveClass" routerLinkActiveOptions="{exact: true}">info</a>
+**** Routing events
+- =NavigationStart=, =RoutesRecongnized=, =NavigationEnd=, =NavigationCancel=, =NavigationError=
+- We can see these events if we do enableTracing like =RouterModule.forRoot([...], {enableTracing: true})=
+- We can react to routing events. It can be used for like showing a loading spinner.
+  #+BEGIN_SRC typescript
+  this.router.events.subscribe((routerEvent: Event) => {
+    if(routerEvent instance of NavigationStart) {
+    /* stuff */
+    }
+  })
+  #+END_SRC
+*** Secondary Routes
+1. We must give each secondary <router-outlet> a name like =<router-outlet name=popup></router-outlet>=
+2. configuring secondary route
+  #+BEGIN_SRC typescript
+    RouterModule.forChild([
+      {
+      path: "message",
+      component: MessageComponent,
+      outlet: "popup"
+      }
+    ])
+  #+END_SRC
+3. Activating secondary routes with link
+  #+BEGIN_SRC typescript
+  <a [routerLink]="[{outlets: { popup: ['message']}}]">Messages</a>
+  #+END_SRC
+4. Activating secondary routes in code
+
+ #+BEGIN_SRC typescript
+   this.router.navigate([{outlets: { popup: ['message']}}])
+ #+END_SRC
+5. Clearing secondary routes
+  #+BEGIN_SRC typescript
+  <a [routerLink]="[{outlets: {popup: null}}]">exit</a>
+  #+END_SRC
+  or
+  =this.router.navigate("[{outlets: {popup: null}}]")=
+
+*** Protecting routes with guards
+The order of execution: canDeactivate => canLoad => canActiveChild => canActivate => resolve
+
+For sharing data with some of these we can use =ActivatedRouteSnapshot=.
+**** canActivate
+**** canActivateChild
+**** canDeactive
+**** canLoad
+  Checks criteria before loading an asynchronous route
+**** resolve
+*** Lazy Loading
+- Prerequisites
+  + Should be in a feature module
+  + Routes grouped under a single parent
+  + Not imported in any other angular module
+- Preloading strategies
+  + No preloading (default)
+  + Preload all
+    =RouterModule.forRoot(routes, { preloadingStrategy: PreloadAllModules }),=
+    Remember =canLoad= can block preloadin
+  + Custom (to control which modules preload when)
+**** Create a custom preloading strategy
+1. We do this by building an angular service, this service should =implements PreloadingStrategy=
+    it =preload= function looks like this
+
+    #+BEGIN_SRC typescript
+    preload(route: Route, load: Function): Observable<any> {
+      if(route.data && route.data['preload'])) {
+          return load();
+      }
+    
+      return Observable.of(null);
+    }
+    #+END_SRC
+
+    Now we ={ path: "products", data: {preload: true}, loadChildren: 'app/products/product.module#ProductModule'}=
+
+2. Register the service in an angular module
+3. we set the preloading strategy property to our preloading strategy service
+** Zone
+Zone allows us to intercept all of the asynchronous API in the browser.
+** Reactive Form Course
+ Directives imported by each module.
+
+|------------------------------------+--------------------|
+| Template Driven                    | Reactive Driven    |
+|------------------------------------+--------------------|
+| FormModule                         | ReactiveFormModule |
+|------------------------------------+--------------------|
+| ngForm                             | formGroup          |
+| ngModel                            | formControl        |
+| ngModelGroup                       | formControlName    |
+|                                    | formGroupName      |
+|                                    | formArrayName      |
+
+*** Tips
+Template-Driven Example
+
+#+BEGIN_SRC html
+<form (ngSubmit)="save()">
+  <fieldset>
+    <div [ngClass]="{'has-error': firstNameVar.touched && !firstNameVar.valid }" >
+      <label for="firstNameId">First Name</label>
+      <input
+        id="firstNameId"
+        placeholder="First Name (required)"
+        required
+        minlength="3"
+        [(ngModel)]="customer.firstName"
+        #firstNameVar="ngModel"
+        name="firstName"
+        type="text" />
+      <span *ngIf="firstNameVar.touched && firstNameVar.errors" >Please enter your first name.</span>
+    </div>
+    <!-- More Stuff... -->
+    <button type="submit" >Save</button>
+  </fieldset>
+</form>
+#+END_SRC
+
+Reative From example. Remember form model is build in the component class.
+
+#+BEGIN_SRC  html
+<form (ngSubmit)="save()" formGroup="signupForm" >
+  <fieldset>
+    <div [ngClass]="{'has-error': formError.firstName }" >
+      <label for="firstNameId">First Name</label>
+      <input
+        id="firstNameId"
+        placeholder="First Name (required)"
+        formControlName="firstName"
+        type="text" />
+      <span *ngIf="formError.firstName" >{{ formError.firstName }}</span>
+    </div>
+    <!-- More Stuff... -->
+    <button type="submit" >Save</button>
+  </fieldset>
+</form>
+#+END_SRC
+
+*** Template Driven
+- Generate from model
+- HTML validation
+- two-way databinding
+- Remeber =name= attribute is required on input fields
+- Value Changed? =pristine=, =dirty=
+- Validity? =valid=, =errors=
+- Visited? =touched=, =untouched=
+**** FormControl
+Tracks the state of an individual state element.
+
+**** FormGroup
+Tracks the state of a group of =FormControl=-s. A form itself is managed as a form group.
+
+*** Reactive Driven
+Sample
+#+BEGIN_SRC typescript
+import { Component, OnInit } from "@angular/core";
+import { FormGroup, FormControl } from "@angular/forms";
+@Component({
+  selector: "app-root",
+  templateUrl: "./app.component.html",
+  styleUrls: ["./app.component.css"],
+})
+export class AppComponent implements OnInit {
+  userInfoForm: FormGroup;
+
+  ngOnInit(): void {
+    this.userInfoForm = new FormGroup({
+      firstName: new FormControl("awesome"),
+      lastName: new FormControl(),
+      emailAddress: new FormControl(),
+      sendCatalog: new FormControl(true), // default value
+    });
+  }
+
+  setStuff() {
+    this.userInfoForm.patchValue({
+      firstName: "Jafar",
+    });
+  }
+
+  save() {
+    console.log(this.userInfoForm.get("firstName"));
+    // same as
+    console.log(this.userInfoForm.controls.firstName);
+  }
+}
+#+END_SRC
+
+And its html
+#+BEGIN_SRC html
+<form (ngSubmit)="save()" [formGroup]="userInfoForm">
+  <!-- we don't need [] because "firstName" is a simple string, not a property -->
+  <input formControlName="firstName" />
+
+  <button type="submit" >SUBMIT</button>
+</form>
+
+<button (click)="setStuff()">set</button>
+#+END_SRC
+
+- Manually creating form model (create a property for the root =FormGroup=)
+- Validation in the class
+- No two-way data binding
+
+Its form model:
+- Root FormGroup
+- FormControl for each input element
+- Nested FormGroups as desired
+- FormArrays
+
+To Update input element on the form from our component class we use
+=setValue= and =patchValue= in our component class. =setValue= for all
+the =FormControl=-s and =patchValue= for a given =FormControl=.
+
+**** FormBuilder
+- Create a form model from a configuration.
+- It shortens boilerplate code for creating a form.
+- provided as a service
+
+- =import { FormBuild } from '@angular/forms'=
+
+- =constructor(private fb: FormBuild){}=
+
+- And use is
+  #+BEGIN_SRC typescript
+      this.customerForm = this.fb.group({
+          firstName: null,
+          lastName: null,
+        })
+      // also possible
+    this.customerForm = this.fb.group({
+        firstName: {value: '', disabled: true}, // using an object
+      })
+  #+END_SRC
+
+  
+*** Validaton 
+
+#+BEGIN_SRC typescript
+  this.customerForm = this.fb.group({
+    firstName: ['', [Validators.required, Validators.minLength(3)], Validators.pattern('[...]')] 
+    // first element is default value, second element is synchronous
+    // validation rules and the third element (not used here) is for
+    // asynchronous validation rules
+  })
+#+END_SRC
+- Usefull stuff
+#+BEGIN_SRC typescript
+  myControl = myForm.get('mycontrol')
+
+  if(blah) {
+    myControl.setValidator(Validators...)
+  } else {
+    myControl.clearValidators()
+  }
+  myControl.updateValueAndValidity()
+  #+END_SRC
+
+- Custom Validator
+#+BEGIN_SRC typescript
+  function myCustomValidator(c: AbstractControl): {[key: string]: boolean} | null {
+    if(somethingIsWrong) {        // e.g c.value.length < 5
+      return {'myBrokenValidationRule': true} // true indicates validation rule was broken
+    }
+
+    return null;                  // it's all okay
+  }
+
+  this.customForm = this.fb.group({
+    username: ['', myCustomValidator]
+  })
+  // we can get the error like
+  this.customForm.get('username').errors.myBrokenValidationRule
+#+END_SRC
+
+- What if we needed our validator function to take extra params? We use a factory function
+
+#+BEGIN_SRC typescript
+  - =import { ValidatorFn } from '@angular/forms'=
+
+  function myCustomValidator(arg1, arg2): ValidatorFn {
+    return (c: AbstractControl): {[key: string]: boolean} | null => {
+             if(somethingIsWrong) {        // e.g c.value.length < 5
+               return {'myBrokenValidationRule': true} // true indicates validation rule was broken
+             }
+        
+              return null;                  // it's all okay
+            }
+  }
+
+  // and use it like
+ this.customForm = this.fb.group({
+    username: ['', myCustomValidator('foo', 'bar')]
+  })
+#+END_SRC
+
+- Cross-Field Validation
+
+#+BEGIN_SRC typescript
+function dateCompare(c: AbstractControl): {[key: string]: boolean} | null {
+    let startControl = c.get('start');
+    let endControl = c.get('end');
+    if(startControl.value !== endControl.value) {
+        return { 'match': true}
+    } 
+    return null
+}
 
 
-** Angular Essentials
+this.customerForm = this.fb.group({
+  firstName: ['', [Validators.required, Validators.minLength(3)]],
+  lastName: ['', [Validators.required, Validators.minLength(50)]],
+  availability: this.fb.group({start: ['', Validators.required], end: ['', Validators.required],}, {validator: dateCompare})
+})
+
+#+END_SRC
+
+to use it in our template:
+
+#+BEGIN_SRC html
+<div formGroupName="availability">
+  <input formControlName="start"/>
+  <input formControlName="end"/>
+</div>
+#+END_SRC
+
+*** Reacting to changes
+- =valueChanges= property emits events on value changes. =valueChanges= is an =Observable<any>=
+- =statusChanges= property emits events on validation changes
+
+#+BEGIN_SRC typescript
+  this.myFormControl.valueChanges.subscribe(value => console.log(value)); // just a control
+  this.myFormGroup.valueChanges.subscribe(value => console.log(value)); // a group
+  this.customerForm.valueChanges.subscribe(value => console.log(value)); // entire form
+#+END_SRC
+

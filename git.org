@@ -46,6 +46,8 @@ NOTE: =HEAD= refers to the last commit in the current branch.
 - To create a branch =git branch <name>=
 - To switch to a branch =git checkout <name-of-branch>=
 - To merge =git merge <name-of-the-branch-to-be-merged-with-the-current-branch>=
+- To know whether there are conflict between two branch =git merge <branch-name> --no-ff --no-commit=, 
+  to return in a normal situation, just abort the merge: =git merge --abort=
 - To delete a branch =git branch -d <name>=
 - To list all remote branches =git branch -r=
 - To create a new branch but make it so its HEAD point to an specific commit =git branch <branch-name> <commit-SHA>=
@@ -87,6 +89,7 @@ Lets say we want to get our local master branch up-to-date with remote =origin/m
 - To get the insertions/deletions of each commit =git log --oneline -p=, =p= for patch
 - To get the number insertions/deletions in each commit =git log --oneline --stat=
 - To get a graph of what's going on  =git log --oneline --graph=
+- To get changes of a file throughout history =git log --follow -p <file>=
 - To get the log for a specified range of date
   + git log --until=1.min.ago
   + git log --since=1.day.ago
