@@ -50,8 +50,15 @@ How this whole thing is getting started?
 main.ts => app.module.ts => app.component.ts => ...
 
 ** Component & Databinding
-*** Databinding
+*** Databinding 
 The comunication between "Business Logic" and Template (HTML file)
+Note that when using property binding we actually binding to property
+of DOM object not the HTML attribute so that if a HTML attribute
+doesn't have correspond to a DOM property we get an error. So what if
+we want to bind to a HTML attribute (which doesn't correspond to a DOM
+property)? we can use =attr.desiredAttribute=, e.g <td [attr.colspan]="myVar"></td>
+
+- The direction of one way binding is from =component ⟹ view=
 1. Output data
    1. String interpolation *{{data}}*
    2. Property Binding *[property]="data"*. BTW these two are
@@ -165,7 +172,7 @@ Another example:
 </div>
 #+END_SRC
 *** Attribute Directives
-**** ngStyle
+**** Style binding
 #+BEGIN_SRC html
 <p [ngStyle]="{backgroundColor: isServerOnline ? 'lightgreen' : 'lightpink'}">{{ isServerOnline }}</p>
 #+END_SRC
@@ -174,18 +181,23 @@ Another example:
 Binds style property width to the result of expression mySize in
 pixels. Units are optional.
 
-**** ngClass
+**** Class binding
 `<div [ngClass]="{'active': isActive, 'disabled': isDisabled}">`
 
 Binds the presence of CSS classes on the element to the truthiness of the
 associated map values. The right-hand expression should return
-{class-name: true/false} map.
+{'class-name': true/false} map.
 There's also another syntax: 
 #+BEGIN_SRC 
 <style>.pink {background-color: lightpink}</style>
 <p [class.pink]="isPink">bar</p>
 #+END_SRC
 
+**** Event Binding
+***** Event Filtering
+#+BEGIN_SRC html
+  <input (keyup.enter)="onKeyUp($event)"/> <!-- only respond to enter -->
+#+END_SRC
 
 *** Build Your Own Directive
 **** Basic approach 
@@ -502,7 +514,7 @@ becuase it kinda matches all the paths.
 To navigate around relatively:
 
 #+BEGIN_SRC typescript
-  constructor(private router: Router, private: ActivatedRoute) { }
+  constructor(private router: Router, private route: ActivatedRoute) { }
   this.router.navigate(['servers'], {relativeTo: this.route});
 #+END_SRC
 
@@ -1396,6 +1408,9 @@ const myObservable = Observable.create((observer: Observer<string>) => {
 The =Subject= class inherits both =Observable= and =Observer=, in the
 sense that it is both an observer and an observable. It's kinda
 comparable to EventEmitter that is shipped with Angular
+#+BEGIN_SRC typescript
+  new Subject<number>();
+#+END_SRC
 
 ** Forms
 *** Template-Driven Approach
@@ -1839,6 +1854,15 @@ Since it's Angular job to handle the forms we don't add =action= or
 =method= to =<form></form>=
 
 ** Pipes
+Some built-in pipes are 
+- number
+- decimal
+- currency
+- lowercase
+- uppercase
+- percent
+- date
+
 app.module.ts
 #+BEGIN_SRC typescript
   import { BrowserModule } from '@angular/platform-browser';
@@ -2620,3 +2644,94 @@ to use it in our template:
   this.customerForm.valueChanges.subscribe(value => console.log(value)); // entire form
 #+END_SRC
 
+*** Dynamically duplicate input element
+- Steps
+  1) Define the input element(s) to duplicate
+  2) Define a =FormGroup=, if needed
+  3) Refactor to make copies
+  4) Create a =FormArray=
+  5) Loop through the =FrmArray=
+  6) Duplicate the input element(s)
+
+- Benefits of a FormGroup
+  1) Match the value of the form model to the data model
+
+  2) Check =touched=, =dirty= and =valid= state
+
+  3) Watch for changes and react
+
+  4) Perform cross field validation
+
+  5) Dynamically duplicate the group
+  #+BEGIN_SRC typescript
+    this.customerForm = this.fb.group({
+        name: ['', [Validators.required, Validators.minLength(e)]]
+        adresses: this.fb.group({   // a FormGroup
+          addressType: 'home',
+          street1: '',
+          city: '',
+          state: '',
+          zip: '',
+        })
+    })
+  #+END_SRC
+
+  and to use in our template
+
+  #+BEGIN_SRC html
+    <div formGroupName="addresses">
+      <!-- our form controls here -->
+    </div>
+  #+END_SRC
+
+Creating a FormGroup in a Method 
+#+BEGIN_SRC typescript
+  buildAdress(): FormGroup {
+    return this.fb.group({   // a FormGroup
+              addressType: 'home',
+              street1: '',
+              city: '',
+              state: '',
+              zip: '',
+            })
+  }
+  // and to use it
+  this.customerForm = this.fb.group({
+      // ...
+      addresses: this.buildAddress()
+  })
+#+END_SRC
+- =FormArray= is a group of =FormControl='s or =FormGroup='s which they can be accessed by index.
+  to Create a =FormArray=
+  + this.myArray = newFormArray([...])
+  + this.myArray = this.fb.array([...])
+- In our example
+#+BEGIN_SRC typescript
+    this.customerForm = this.fb.group({
+      // ...
+      addresses: this.fb.array([ this.buildAddress() ])
+  })
+#+END_SRC
+in our template
+#+BEGIN_SRC html
+  <div formArrayName="addresses">
+    <div formGroupName="0"> <!-- because formArries are accessed by index -->
+    </div>
+    <!-- ... -->
+  </div>
+#+END_SRC
+- Loop through the FormArray
+#+BEGIN_SRC html
+  <div formArrayName="addresses" *ngFor="let address of addresses.controls; let i=index">
+    <div [formGroupName]="i">
+    </div>
+  </div>
+#+END_SRC
+- Duplicate the input Elements
+
+#+BEGIN_SRC typescript
+  addAddress() void {
+    this.addresses.push(this.buildAddress());
+  }
+#+END_SRC
+ 
