@@ -30,7 +30,7 @@
 
 - We can bind to DOM element properties like this <img [src]="foo.bar"/> which is equivalent to <img src="{{foo.bar}}" /> or <img bind-src="foo.bar"/>
 
-- We can use hidden to hide an element(without removing from DOM) <img [hidden]="true" bind-src="url"/>
+- We can use hidden to hide an element(without removing from DOM) <img [hidden]="true" bind-src="url"/> or just =<p hidden></p>=
 
 ** The Component Lifecycle
 
@@ -69,7 +69,7 @@ property)? we can use =attr.desiredAttribute=, e.g <td [attr.colspan]="myVar"></
 4. Custom property binding:
    + By default all properies of a given component are accessible only
      inside that component. To bind to a property of a given component
-     by its parent component use =@Input()= decorator.
+     by its parent component use =@Input()= decorator. To use an alias =@Input('myalias')=
    + We also can inform parent component of a given component that a
      property of its child has changed. We do this by the help of
      =@Output()= and =EventEmitter=. For e.g.
@@ -161,13 +161,79 @@ Another example:
   </ng-template>
 #+END_SRC
 
+Another example
+#+BEGIN_SRC html
+  <div *ngIf="courses.length > 0; then courseList else noCourse"></div>
+
+  <ng-template #courseList>
+    list of courses
+  </ng-template>
+
+  <ng-template #noCourse>
+    no courses yet
+  </ng-template>
+#+END_SRC
+
 **** ngFor
+https://angular.io/api/common/NgForOf
+The actual name of direcive is =ngForOf=
+
+=NgForOf= provides several exported values that can be aliased to local variables:
+
+=$implicit: T=: The value of the individual items in the iterable (=ngForOf=).
+
+=ngForOf: NgIterable<T>=: The value of the iterable expression. Useful
+when the expression is more complex then a property access, for
+example when using the async pipe (=userStreams | async=).
+
+=index=: number: The index of the current item in the iterable.
+=first=: boolean: True when the item is the first item in the iterable.
+=last=: boolean: True when the item is the last item in the iterable.
+=even=: boolean: True when the item has an even index in the iterable.
+=odd=: boolean: True when the item has an odd index in the iterable.
+
+
+#+BEGIN_SRC html
+<div *ngFor="let hobby of hobbies; index as i">
+  <div>{{i}} - {{hobby}}</div>
+</div>
+#+END_SRC
+***** TrackBy
+#+BEGIN_SRC html
+  <ul>
+    <li *ngFor="let course of courses; trackBy: trackCourse"> <!-- trackCourse is a method -->
+      {{ course.name }}
+    </li>
+  </ul>
+#+END_SRC
+and its class
+#+BEGIN_SRC typescript
+  export class AppComponent {
+    courses;
+
+    loadCourse() {
+      this.course = [
+        { id: 1, name: 'course 1'},
+        { id: 1, name: 'course 2'},
+        { id: 1, name: 'course 3'},
+      ];
+    }
+
+    trackCourse(index, course) {
+      return course ? course.id : undefined; // only re-render the DOM
+                                             // if course.id changes not
+                                             // the reference of the
+                                             // object in memory
+    }
+  }
+#+END_SRC
+
 **** ngSwitch
 #+BEGIN_SRC html
 <div [ngSwitch]="value">
   <p *ngSwitchCase = "5">Value is 5</p>
   <p *ngSwitchCase = "10">Value is 10</p>
-  <p *ngSwitchCase = "100">Value is 100</p>
+  <p *ngSwitchCase = "'stringFoo'">Value is stringFoo</p>
   <p *ngSwitchDefault> foobar </p>
 </div>
 #+END_SRC
@@ -181,6 +247,9 @@ Another example:
 Binds style property width to the result of expression mySize in
 pixels. Units are optional.
 
+#+BEGIN_SRC html
+<button [style.color]="{canSave ? 'white' : 'black'}">SAVE</button>
+#+END_SRC
 **** Class binding
 `<div [ngClass]="{'active': isActive, 'disabled': isDisabled}">`
 
@@ -285,9 +354,8 @@ export class BasicHighlightDirective {
     @Input('defaultColor') defColor = 'unset'; // we can also use an
                                                // alias with the name of
                                                // directive just like
-                                               // [ngClas]
+                                               // [ngClass]
     @HostBinding('style.backgroundColor') myBackgroundColor: string;
-    constructor() { }
     ngOnInit(): void { this.myBackgroundColor = this.defColor; }
     @HostListener('mouseenter') mouseover() { this.myBackgroundColor = 'lightgreen'; }
     @HostListener('mouseleave') mouseleave() { this.myBackgroundColor = this.defColor; }
@@ -317,6 +385,53 @@ export class UnlessDirective {
 
 #+BEGIN_SRC html
 <p *appUnless="toggler">foobar</p>
+#+END_SRC
+
+**** MOSH EXAMPLES
+#+BEGIN_SRC typescript
+import { Directive, HostListener, ElementRef, Input } from '@angular/core';
+@Directive({
+  selector: '[appInputFormat]'
+})
+export class InputFormatDirective {
+  @Input('format') format;
+
+  @HostListener('focus') onFocus() {
+    console.log('on Focus')
+  }
+
+  @HostListener('blur') onBlur() {
+    console.log('on blur')
+    const value: string = this.el.nativeElement.value;
+
+    if (this.format === 'lowercase')
+      this.el.nativeElement.value = value.toLowerCase()
+    else
+      this.el.nativeElement.value = value.toUpperCase()
+  }
+
+  constructor(private el: ElementRef) { }
+
+}
+#+END_SRC
+TO USE IT
+#+BEGIN_SRC html
+<input type="text" appInputFormat [format]="'uppercase'"/>
+#+END_SRC
+
+Could be refactored to:
+#+BEGIN_SRC html
+<input type="text" [appInputFormat]="'uppercase'"/>
+#+END_SRC
+If we do
+#+BEGIN_SRC typescript
+// ...
+@Directive({
+  selector: '[appInputFormat]'
+})
+export class InputFormatDirective {
+  @Input('appInputFormat') ;
+// ...
 #+END_SRC
 
 ** Services and DI
@@ -1430,7 +1545,7 @@ Example:
 
 app.component.html
 #+BEGIN_SRC html
-  <form (ngSubmit)="onSubmit(f)" #f="ngForm">
+  <form (ngSubmit)="onSubmit(f)" #f="ngForm"> <!-- ngSubmit is an Output() of ngForm directive  -->
           <!--  -->
           <div id="user-data">
             <div class="form-group">
@@ -1862,6 +1977,7 @@ Some built-in pipes are
 - uppercase
 - percent
 - date
+- json
 
 app.module.ts
 #+BEGIN_SRC typescript
@@ -2551,7 +2667,8 @@ the =FormControl=-s and =patchValue= for a given =FormControl=.
     firstName: ['', [Validators.required, Validators.minLength(3)], Validators.pattern('[...]')] 
     // first element is default value, second element is synchronous
     // validation rules and the third element (not used here) is for
-    // asynchronous validation rules
+    // asynchronous validation rules. To show a loading indicator for
+    // asynchronous Validations we can use something like <div *ngIf="firstName.pending">checking stuff...</div>
   })
 #+END_SRC
 - Usefull stuff
@@ -2570,7 +2687,7 @@ the =FormControl=-s and =patchValue= for a given =FormControl=.
 #+BEGIN_SRC typescript
   function myCustomValidator(c: AbstractControl): {[key: string]: boolean} | null {
     if(somethingIsWrong) {        // e.g c.value.length < 5
-      return {'myBrokenValidationRule': true} // true indicates validation rule was broken
+      return {'myBrokenValidationRule': true} // true indicates validation rule was broken, it can be any type of value though
     }
 
     return null;                  // it's all okay
@@ -2735,3 +2852,39 @@ in our template
   }
 #+END_SRC
  
+** Mosh Course
+*** ng-content
+
+blah.component.ts
+#+BEGIN_SRC html
+  <div>
+    <ng-content select=".heading"></ng-content> <!-- we use select to select the content that should be rendered here -->
+  </div>
+
+  <div>
+    <ng-content select=".footer"></ng-content> <!-- we use select to select the content that should be rendered here -->
+  </div>
+#+END_SRC
+
+Somewhere else 
+#+BEGIN_SRC html
+  <app-blah>
+    <div class="heading">I'm a heading></div>
+
+    <div class="footer">I'm a heading></div>
+  </app-blah>
+#+END_SRC
+*** ng-container 
+https://angular.io/guide/structural-directives#ng-container-to-the-rescue
+***  Safe Traversal Operator
+#+BEGIN_SRC html
+<span>{{ person?.name}}
+#+END_SRC
+*** ngForm
+Angular By default applies this directive to
+=form:not([ngNoForm]):not([formGroup])= and this will internally
+creates a =FormGroup= object. =ngForm= exposes an @Output() property, =ngSubmit=
+
+*** setErrors
+We can use =myForm.setErrors({somethingScary: true})= to set an error
+mangually

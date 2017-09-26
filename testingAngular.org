@@ -1,18 +1,9 @@
-+ You should write isolated unit tests for pipes and services.
-  - Isolated unit tests examine an instance of a class all by itself
-    without any dependence on Angular or any injected values. The
-    tester creates a test instance of the class with new, supplying
-    test doubles for the constructor parameters as needed, and then
-    probes the test instance API surface.
-+ The Angular testing utilities include the =TestBed= class and several
-  helper functions from =@angular/core/testing=
-
 + The Angular testing environment does not know that the test changed
-  the component's title. The =ComponentFixtureAutoDetect= service
+  the component's =title=. The =ComponentFixtureAutoDetect= service
   responds to asynchronous activities such as promise resolution,
   timers, and DOM events. But a direct, synchronous update of the
   component property is invisible. The test must call
-  fixture.detectChanges() manually to trigger another cycle of change
+  =fixture.detectChanges()= manually to trigger another cycle of change
   detection.
 
 + The =TestBed.createComponent= method is synchronous. But the Angular
@@ -33,7 +24,7 @@
       providers: [
         { provide: ComponentFixtureAutoDetect, useValue: true }
       ]
-    }).compileComponents();
+    }).compileComponents();       //
   }));
 #+END_SRC
 
@@ -52,11 +43,664 @@ TestBed.configureTestingModule({
 
 * Tips
 
+The =createComponent= method returns a =ComponentFixture=, a handle on the
+test environment surrounding the created component. The fixture
+provides access to the component instance itself and to the
+=DebugElement=, which is a handle on the component's DOM element.
+
 #+BEGIN_SRC typescript
 abstract class ComponentFixture {
-  debugElement;       // test helper 
+  debugElement;       // test helper
   componentInstance;  // to access properties and methods
   nativeElement;      // to access DOM element
   detectChanges();    // trigger component change detection
 }
 #+END_SRC
+
+Where are the helpers?
+#+BEGIN_SRC js
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By }              from '@angular/platform-browser';
+import { DebugElement }    from '@angular/core';
+import { ComponentFixtureAutoDetect } from '@angular/core/testing';
+import { async } from '@angular/core/testing';
+
+#+END_SRC
+
+#+BEGIN_SRC typescript
+  de = fixture.debugElement.query(By.css('h1'));
+  el = de.nativeElement;
+#+END_SRC
+The query method takes a predicate function and searches the fixture's
+entire DOM tree for the first element that satisfies the
+predicate. *The result is a different DebugElement*, one associated with
+the matching DOM element.
+
+
+* Get injected services
+
+This is the component under test. =welcome.component.ts=
+#+BEGIN_SRC typescript
+import { Component, OnInit } from '@angular/core';
+import { UserService }       from './model';
+
+@Component({
+  selector: 'app-welcome',
+  template: '<h3 class="welcome" ><i>{{welcome}}</i></h3>'
+})
+export class WelcomeComponent  implements OnInit {
+  welcome = '-- not initialized yet --';
+  constructor(private userService: UserService) { }
+
+  ngOnInit(): void {
+    this.welcome = this.userService.isLoggedIn ?
+      'Welcome, ' + this.userService.user.name :
+      'Please log in.';
+  }
+}
+#+END_SRC
+
+=welcome.component.spec.ts=
+#+BEGIN_SRC typescript
+  userServiceStub = {
+    isLoggedIn: true,
+    user: { name: 'Test User'}
+  };
+  // ...
+  TestBed.configureTestingModule({
+     declarations: [ WelcomeComponent ],
+  // providers:    [ UserService ]  // NO! Don't provide the real service!
+                                    // Provide a test-double instead
+     providers:    [ {provide: UserService, useValue: userServiceStub } ]
+  });
+#+END_SRC
+
+The tests need access to the (*stub*) =UserService= injected into the
+=WelcomeComponent=.  Angular has a hierarchical injection
+system. There can be injectors at multiple levels, from the root
+injector created by the =TestBed= down through the component tree.  The
+safest way to get the injected service, the way that *always* works, is
+to get it from the injector of the component-under-test. The component
+injector is a property of the fixture's =DebugElement=.
+#+BEGIN_SRC typescript
+// UserService actually injected into the component
+userService = fixture.debugElement.injector.get(UserService);
+#+END_SRC
+
+** =TestBed.get=
+
+You may also be able to get the service from the root injector via
+=TestBed.get=. This is easier to remember and less verbose. But it only
+works when Angular injects the component with the service instance in
+the test's root injector. Fortunately, in this test suite, the only
+provider of UserService is the root testing module, so it is safe to
+call TestBed.get as follows:
+
+// UserService from the root injector
+=userService = TestBed.get(UserService);=
+
+
+Always get the service from an injector
+
+Do not reference the =userServiceStub= object that's provided to the
+testing module in the body of your test. It does not work! The
+=userService= instance injected into the component is a completely
+different object, a clone of the provided userServiceStub.
+
+** Test a component with an async service
+#+BEGIN_SRC typescript
+@Component({
+  selector: 'twain-quote',
+  template: '<p class="twain"><i>{{quote}}</i></p>'
+})
+export class TwainComponent  implements OnInit {
+  intervalId: number;
+  quote = '...';
+  constructor(private twainService: TwainService) { }
+
+  ngOnInit(): void {
+    this.twainService.getQuote().then(quote => this.quote = quote);
+  }
+}
+#+END_SRC
+
+#+BEGIN_SRC typescript
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+       declarations: [ TwainComponent ],
+       providers:    [ TwainService ],
+    });
+
+    fixture = TestBed.createComponent(TwainComponent);
+    comp    = fixture.componentInstance;
+
+    // TwainService actually injected into the component
+    twainService = fixture.debugElement.injector.get(TwainService);
+
+    // Setup spy on the `getQuote` method
+    spy = spyOn(twainService, 'getQuote')
+          .and.returnValue(Promise.resolve(testQuote)); // <<--<<--<<--<<--
+
+    // Get the Twain quote element by CSS selector (e.g., by class name)
+    de = fixture.debugElement.query(By.css('.twain'));
+    el = de.nativeElement;
+  });
+
+  it('should not show quote before OnInit', () => { // Synchronous test
+    expect(el.textContent).toBe('', 'nothing displayed');
+    expect(spy.calls.any()).toBe(false, 'getQuote not yet called'); // has been called but not resolved yet
+  });
+
+  it('should still not show quote after component initialized', () => { // Synchronous test
+    fixture.detectChanges();
+    // getQuote service is async => still has not returned with quote
+    expect(el.textContent).toBe('...', 'no quote yet');
+    expect(spy.calls.any()).toBe(true, 'getQuote called');
+  });
+
+  it('should show quote after getQuote promise (async)', async(() => {
+    fixture.detectChanges();
+
+    fixture.whenStable().then(() => { // wait for async getQuote
+      fixture.detectChanges();        // update view with quote
+      expect(el.textContent).toBe(testQuote);
+    });
+  }));
+
+  it('should show quote after getQuote promise (fakeAsync)', fakeAsync(() => { // There are limitations. For example, you cannot make an XHR call from within a fakeAsync.
+    fixture.detectChanges();
+    // tick() can only be called within a fakeAsync body.
+    tick();                  // wait for async getQuote
+    fixture.detectChanges(); // update view with quote
+    expect(el.textContent).toBe(testQuote);
+  }));
+
+#+END_SRC
+The first two tests are synchronous. Thanks to the spy, they verify
+that =getQuote= is called after the first change detection cycle during
+which Angular calls =ngOnInit=.
+
+** Test a component with inputs and outputs
+
+The =DashboardHeroComponent= is embedded in the =DashboardComponent= template like this:
+
+src/app/dashboard/dashboard.component.html (excerpt)
+#+BEGIN_SRC html
+<dashboard-hero *ngFor="let hero of heroes"  class="col-1-4"
+  [hero]=hero  (selected)="gotoDetail($event)" >
+</dashboard-hero>
+#+END_SRC
+
+Here's the component's definition:
+
+src/app/dashboard/dashboard-hero.component.ts (component)
+#+BEGIN_SRC typescript
+@Component({
+  selector:    'dashboard-hero',
+  templateUrl: './dashboard-hero.component.html',
+  styleUrls: [ './dashboard-hero.component.css' ]
+})
+export class DashboardHeroComponent {
+  @Input() hero: Hero;
+  @Output() selected = new EventEmitter<Hero>();
+  click() { this.selected.emit(this.hero); }
+}
+#+END_SRC
+
+*** Test it as a stand-alone component.
+#+BEGIN_SRC typescript
+  // async beforeEach
+  beforeEach( async(() => {
+    TestBed.configureTestingModule({
+      declarations: [ DashboardHeroComponent ],
+    })
+    .compileComponents(); // compile template and css
+  }));
+
+  // synchronous beforeEach
+  beforeEach(() => {
+    fixture = TestBed.createComponent(DashboardHeroComponent);
+    comp    = fixture.componentInstance;
+    heroEl  = fixture.debugElement.query(By.css('.hero')); // find hero element
+
+    // pretend that it was wired to something that supplied a hero
+    expectedHero = new Hero(42, 'Test Name');
+    comp.hero = expectedHero;     // assigning @Input() hero manually
+    fixture.detectChanges(); // trigger initial data binding
+  });
+
+  it('should display hero name', () => {
+    const expectedPipedName = expectedHero.name.toUpperCase();
+    expect(heroEl.nativeElement.textContent).toContain(expectedPipedName); // in its component it has <div (click)="click()" class="hero"> {{hero.name | uppercase}} </div>
+
+  });
+
+
+  it('should raise selected event when clicked', () => {
+    let selectedHero: Hero;
+    comp.selected.subscribe((hero: Hero) => selectedHero = hero);
+
+    heroEl.triggerEventHandler('click', null);
+    expect(selectedHero).toBe(expectedHero);
+  });
+
+#+END_SRC
+
+**** triggerEventHandler
+The Angular =DebugElement.triggerEventHandler= can raise any data-bound
+event by its event name. The second parameter is the event object
+passed to the handler.
+
+#+BEGIN_SRC typescript
+/** Button events to pass to `DebugElement.triggerEventHandler` for RouterLink event handler */
+export const ButtonClickEvents = {
+   left:  { button: 0 },
+   right: { button: 2 }
+};
+
+/** Simulate element click. Defaults to mouse left-button click event. */
+export function click(el: DebugElement | HTMLElement, eventObj: any = ButtonClickEvents.left): void {
+  if (el instanceof HTMLElement) {
+    el.click();
+  } else {
+    el.triggerEventHandler('click', eventObj);
+  }
+}
+#+END_SRC
+
+#+BEGIN_SRC typescript
+it('should raise selected event when clicked', () => {
+  let selectedHero: Hero;
+  comp.selected.subscribe((hero: Hero) => selectedHero = hero);
+
+  click(heroEl);   // triggerEventHandler helper
+  expect(selectedHero).toBe(expectedHero);
+});
+#+END_SRC
+
+*** Test a component inside a test host component
+
+dashboard-hero.component.spec.ts
+#+BEGIN_SRC typescript
+  @Component({
+    template: `
+      <dashboard-hero  [hero]="hero"  (selected)="onSelected($event)"></dashboard-hero>`
+  })
+  class TestHostComponent {
+    hero = new Hero(42, 'Test Name');
+    selectedHero: Hero;
+    onSelected(hero: Hero) { this.selectedHero = hero; }
+  }
+
+  beforeEach( async(() => {
+    TestBed.configureTestingModule({
+      declarations: [ DashboardHeroComponent, TestHostComponent ], // declare both
+    }).compileComponents();
+  }));
+
+  beforeEach(() => {
+    // create TestHostComponent instead of DashboardHeroComponent
+    fixture  = TestBed.createComponent(TestHostComponent);
+    testHost = fixture.componentInstance;
+    heroEl   = fixture.debugElement.query(By.css('.hero')); // find hero
+    fixture.detectChanges(); // trigger initial data binding
+  });
+
+  it('should display hero name', () => {
+    const expectedPipedName = testHost.hero.name.toUpperCase();
+    expect(heroEl.nativeElement.textContent).toContain(expectedPipedName);
+  });
+
+  it('should raise selected event when clicked', () => {
+    click(heroEl);
+    // selected hero should be the same data bound hero
+    expect(testHost.selectedHero).toBe(testHost.hero);
+  });
+#+END_SRC
+
+Creating the TestHostComponent has the side-effect of creating a
+DashboardHeroComponent because the latter appears within the template
+of the former.
+
+** Test a routed component
+#+BEGIN_SRC typescript
+  import { Component, OnInit } from '@angular/core';
+  import { Router }            from '@angular/router';
+
+  import { Hero, HeroService } from '../model';
+
+  @Component({
+    selector: 'app-dashboard',
+    templateUrl: './dashboard.component.html',
+    styleUrls: [ './dashboard.component.css' ]
+  })
+  export class DashboardComponent implements OnInit {
+
+    heroes: Hero[] = [];
+
+    constructor(
+      private router: Router,
+      private heroService: HeroService) {
+    }
+
+    ngOnInit() {
+      this.heroService.getHeroes()
+        .then(heroes => this.heroes = heroes.slice(1, 5));
+    }
+
+    gotoDetail(hero: Hero) {
+      let url = `/heroes/${hero.id}`;
+      this.router.navigateByUrl(url); // <<--<<-- Using Router
+    }
+
+    get title() {
+      let cnt = this.heroes.length;
+      return cnt === 0 ? 'No Heroes' :
+        cnt === 1 ? 'Top Hero' :  `Top ${cnt} Heroes`;
+    }
+  }
+#+END_SRC
+
+#+BEGIN_SRC html
+<h2 highlight>{{title}}</h2>
+
+<div class="grid grid-pad">
+  <dashboard-hero *ngFor="let hero of heroes"  class="col-1-4"
+    [hero]=hero  (selected)="gotoDetail($event)" >
+  </dashboard-hero>
+</div>
+#+END_SRC
+
+its test
+#+BEGIN_SRC typescript
+  class RouterStub {
+    navigateByUrl(url: string) { return url; }
+  }
+
+  beforeEach( async(() => {
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: HeroService, useClass: FakeHeroService },
+      { provide: Router,      useClass: RouterStub }
+    ]
+  })
+  .compileComponents().then(() => {
+    fixture = TestBed.createComponent(DashboardComponent);
+    comp = fixture.componentInstance;
+  });
+
+
+  it('should tell ROUTER to navigate when hero clicked',
+    inject([Router], (router: Router) => { // ...
+
+    const spy = spyOn(router, 'navigateByUrl');
+
+    heroClick(); // trigger click on first inner <div class="hero">
+
+    // args passed to router.navigateByUrl()
+    const navArgs = spy.calls.first().args[0];
+
+    // expecting to navigate to id of the component's first hero
+    const id = comp.heroes[0].id;
+    expect(navArgs).toBe('/heroes/' + id,
+      'should nav to HeroDetail for first hero');
+  }));
+#+END_SRC
+
+**** The =inject= function
+#+BEGIN_SRC typescript
+  it('should tell ROUTER to navigate when hero clicked',
+    inject([Router], (router: Router) => { // ...
+  }));
+#+END_SRC
+The =inject= function is one of the Angular testing utilities. It
+injects services into the test function where you can alter, spy on,
+and manipulate them.
+
+The inject function has two parameters:
+
+1- An array of Angular dependency injection tokens.  2- A test
+function whose parameters correspond exactly to each item in the
+injection token array.
+
+*INJECT USES THE TESTBED INJECTOR*
+The =inject= function uses the current =Test=Bed injector and can only return services provided at that
+level. It does not return services from component providers.
+
+This example injects the Router from the current TestBed
+injector. That's fine for this test because the Router is, and must
+be, provided by the application root injector.
+
+If you need a service provided by the component's own injector, call
+=fixture.debugElement.injector.get= instead:
+
+Component's injector
+// UserService actually injected into the component
+=userService = fixture.debugElement.injector.get(UserService);=
+
+Use the component's own injector to get the service actually injected
+into the component.
+
+The =inject= function closes the current TestBed instance to further
+configuration. You cannot call any more TestBed configuration methods,
+not configureTestingModule nor any of the override... methods. The
+TestBed throws an error if you try.
+
+Do not configure the TestBed after calling inject.
+
+** Test a routed component with parameters
+https://angular.io/guide/testing#test-a-routed-component-with-parameters
+*** Create an Observable test double
+https://angular.io/guide/testing#create-an-observable-test-double
+*** Override a component's providers
+The HeroDetailComponent provides its own HeroDetailService.
+
+src/app/hero/hero-detail.component.ts (prototype)
+#+BEGIN_SRC typescript
+  @Component({
+    selector:    'app-hero-detail',
+    templateUrl: './hero-detail.component.html',
+    styleUrls:  ['./hero-detail.component.css' ],
+    providers:  [ HeroDetailService ] // <<----<<< oops, component has its own providers
+  })
+  export class HeroDetailComponent implements OnInit {
+    constructor(
+      private heroDetailService: HeroDetailService,
+      private route:  ActivatedRoute,
+      private router: Router) {
+    }
+  }
+#+END_SRC
+
+It's not possible to stub the component's HeroDetailService in the
+providers of the =TestBed.configureTestingModule=. Those are providers
+for the testing module, not the component. They prepare the dependency
+injector at the fixture level.
+
+Angular creates the component with its own injector, which is a child
+of the fixture injector. It registers the component's providers (the
+HeroDetailService in this case) with the child injector. A test cannot
+get to child injector services from the fixture injector. And
+TestBed.configureTestingModule can't configure them either.
+
+Angular has been creating new instances of the real HeroDetailService
+all along!
+
+The =TestBed.overrideComponent= method can replace the component's
+providers with easy-to-manage test doubles as seen in the following
+setup variation:
+
+#+BEGIN_SRC typescript
+  beforeEach( async(() => {
+    TestBed.configureTestingModule({
+      imports:   [ HeroModule ],
+      providers: [
+        { provide: ActivatedRoute, useValue: activatedRoute },
+        { provide: Router,         useClass: RouterStub},
+      ]
+    })
+
+    // Override component's own provider
+    .overrideComponent(HeroDetailComponent, {
+      set: {                      // <<-------<<-------- Here's the trick ---<<----
+        providers: [
+          { provide: HeroDetailService, useClass: HeroDetailServiceSpy }
+        ]
+      }
+    })
+
+    .compileComponents();
+  }));
+#+END_SRC
+
+**** =overrideComponent=
+Focus on the overrideComponent method.
+
+src/app/hero/hero-detail.component.spec.ts (overrideComponent)
+#+BEGIN_SRC typescript
+.overrideComponent(HeroDetailComponent, {
+  set: {
+    providers: [
+      { provide: HeroDetailService, useClass: HeroDetailServiceSpy }
+    ]
+  }
+})
+#+END_SRC
+It takes two arguments: the component type to override
+(HeroDetailComponent) and an override metadata object. The overide
+metadata object is a generic defined as follows:
+
+#+BEGIN_SRC typescript
+type MetadataOverride = {
+    add?: T;
+    remove?: T;
+    set?: T;
+  };
+#+END_SRC
+
+HeroDetailServiceSpy
+
+#+BEGIN_SRC typescript
+class HeroDetailServiceSpy {
+  testHero = new Hero(42, 'Test Hero');
+
+  getHero = jasmine.createSpy('getHero').and.callFake(
+    () => Promise
+      .resolve(true)
+      .then(() => Object.assign({}, this.testHero))
+  );
+
+  saveHero = jasmine.createSpy('saveHero').and.callFake(
+    (hero: Hero) => Promise
+      .resolve(true)
+      .then(() => Object.assign(this.testHero, hero))
+  );
+}
+#+END_SRC
+
+** Test a =RouterOutlet= component
+#+BEGIN_SRC html
+<app-banner></app-banner>
+<app-welcome></app-welcome>
+
+<nav>
+  <a routerLink="/dashboard">Dashboard</a>
+  <a routerLink="/heroes">Heroes</a>
+  <a routerLink="/about">About</a>
+</nav>
+
+<router-outlet></router-outlet>
+#+END_SRC
+
+#+BEGIN_SRC typescript
+beforeEach( async(() => {
+  TestBed.configureTestingModule({
+    declarations: [
+      AppComponent,
+      BannerComponent, WelcomeStubComponent,
+      RouterLinkStubDirective, RouterOutletStubComponent
+    ]
+  })
+
+  .compileComponents()
+  .then(() => {
+    fixture = TestBed.createComponent(AppComponent);
+    comp    = fixture.componentInstance;
+  });
+}));
+#+END_SRC
+
+*** Stubbing the =RouterLink=
+
+The =RouterLinkStubDirective= contributes substantively to the test:
+
+testing/router-stubs.ts (RouterLinkStubDirective)
+#+BEGIN_SRC typescript
+@Directive({
+  selector: '[routerLink]',
+  host: {
+    '(click)': 'onClick()'
+  }
+})
+export class RouterLinkStubDirective {
+  @Input('routerLink') linkParams: any;
+  navigatedTo: any = null;
+
+  onClick() {
+    this.navigatedTo = this.linkParams;
+  }
+}
+#+END_SRC
+
+The =host= metadata property wires the click event of the host element
+(the =<a>=) to the directive's =onClick= method. The URL bound to the
+=[routerLink]= attribute flows to the directive's =linkParams=
+property. Clicking the anchor should trigger the =onClick= method which
+sets the telltale =navigatedTo= property. Tests can inspect that
+property to confirm the expected click-to-navigation behavior.
+
+*** =By.directive= and injected directives
+
+#+BEGIN_SRC typescript
+beforeEach(() => {
+  // trigger initial data binding
+  fixture.detectChanges();
+
+  // find DebugElements with an attached RouterLinkStubDirective
+  linkDes = fixture.debugElement
+    .queryAll(By.directive(RouterLinkStubDirective));
+
+  // get the attached link directive instances using the DebugElement injectors
+  links = linkDes
+    .map(de => de.injector.get(RouterLinkStubDirective) as RouterLinkStubDirective);
+});
+
+
+it('can get RouterLinks from template', () => {
+  expect(links.length).toBe(3, 'should have 3 links');
+  expect(links[0].linkParams).toBe('/dashboard', '1st link should go to Dashboard');
+  expect(links[1].linkParams).toBe('/heroes', '1st link should go to Heroes');
+});
+
+it('can click Heroes link in template', () => {
+  const heroesLinkDe = linkDes[1];
+  const heroesLink = links[1];
+
+  expect(heroesLink.navigatedTo).toBeNull('link should not have navigated yet');
+
+  heroesLinkDe.triggerEventHandler('click', null);
+  fixture.detectChanges();
+
+  expect(heroesLink.navigatedTo).toBe('/heroes');
+});
+#+END_SRC
+
+Two points of special interest:
+
+2. You can locate elements by directive, using By.directive, not just by
+css selectors.
+
+1. You can use the component's dependency injector to get an attached
+directive because Angular always adds attached directives to the
+component's injector.
+

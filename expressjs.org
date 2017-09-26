@@ -1,0 +1,23 @@
+* Middleware
+- In contrast to vanilla Node, where your requests flow through only
+  one function, Express has a middleware stack, which is effectively
+  an array of functions.
+
+- Note that middleware sometimes continues on but sometimes responds
+  to requests.
+- Each middleware function can modify the request or the response, but
+  it doesn’t always have to. Eventually, some middleware should
+  respond to the request. It could be the first one; it could be the
+  last. If none of them respond, then the server will hang and the
+  browser will sit alone, without a response.
+
+- When a request comes in, it will always go through the middleware in
+  the same order in which you use them.
+
+* Routing
+- Routing is a lot like middleware, but the functions are called only
+  when you visit a specific URL with a specific HTTP method. For
+  example, you could only run a request handler when the browser
+  visits yourwebsite.com/about.
+
+  
