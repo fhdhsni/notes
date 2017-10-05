@@ -704,3 +704,221 @@ css selectors.
 directive because Angular always adds attached directives to the
 component's injector.
 
+** "Shallow component tests" with NO_ERRORS_SCHEMA
+
+Add =NO_ERRORS_SCHEMA= to the testing module's schemas metadata to tell
+the compiler to ignore unrecognized elements and attributes. You no
+longer have to declare irrelevant components and directives.
+
+These tests are /shallow/ because they only "go deep" into the
+components you want to test.
+
+#+BEGIN_SRC typescript
+import { NO_ERRORS_SCHEMA }          from '@angular/core';
+import { AppComponent }              from './app.component';
+import { RouterOutletStubComponent } from '../testing';
+
+beforeEach( async(() => {
+  TestBed.configureTestingModule({
+    declarations: [ AppComponent, RouterLinkStubDirective ],
+    schemas:      [ NO_ERRORS_SCHEMA ]
+  })
+
+  .compileComponents()
+  .then(() => {
+    fixture = TestBed.createComponent(AppComponent);
+    comp    = fixture.componentInstance;
+  });
+}));
+#+END_SRC
+
+Shallow component tests with =NO_ERRORS_SCHEMA= greatly simplify unit
+testing of complex templates. However, the compiler no longer alerts
+you to mistakes such as misspelled or misused components and
+directives.
+
+** Test an attribute directive
+An attribute directive modifies the behavior of an element, component
+or another directive. Its name reflects the way the directive is
+applied: as an attribute on a host element.
+
+The sample application's HighlightDirective sets the background color
+of an element based on either a data bound color or a default color
+(lightgray). It also sets a custom property of the element
+(customProperty) to true for no reason other than to show that it can.
+
+#+BEGIN_SRC typescript
+import { Directive, ElementRef, Input, OnChanges } from '@angular/core';
+
+@Directive({ selector: '[highlight]' })
+/** Set backgroundColor for the attached element to highlight color
+ *  and set the element's customProperty to true */
+export class HighlightDirective implements OnChanges {
+
+  defaultColor =  'rgb(211, 211, 211)'; // lightgray
+
+  @Input('highlight') bgColor: string;
+
+  constructor(private el: ElementRef) {
+    el.nativeElement.style.customProperty = true;
+  }
+
+  ngOnChanges() {
+    this.el.nativeElement.style.backgroundColor = this.bgColor || this.defaultColor;
+  }
+}
+#+END_SRC
+
+src/app/shared/highlight.directive.spec.ts (TestComponent)
+#+BEGIN_SRC typescript
+  @Component({
+    template: `
+      <h2 highlight="yellow">Something Yellow</h2>
+      <h2 highlight>The Default (Gray)</h2>
+      <h2>No Highlight</h2>
+      <input #box [highlight]="box.value" value="cyan"/>`
+  })
+  class TestComponent { }
+#+END_SRC
+The =<input>= case binds the =HighlightDirective= to the name of a color
+value in the input box. The initial value is the word "cyan" which
+should be the background color of the input box.
+
+#+BEGIN_SRC typescript
+beforeEach(() => {
+  fixture = TestBed.configureTestingModule({
+    declarations: [ HighlightDirective, TestComponent ]
+  })
+  .createComponent(TestComponent);
+
+  fixture.detectChanges(); // initial binding
+
+  // all elements with an attached HighlightDirective
+  des = fixture.debugElement.queryAll(By.directive(HighlightDirective));
+
+  // the h2 without the HighlightDirective
+  bareH2 = fixture.debugElement.query(By.css('h2:not([highlight])'));
+});
+
+// color tests
+it('should have three highlighted elements', () => {
+  expect(des.length).toBe(3);
+});
+
+it('should color 1st <h2> background "yellow"', () => {
+  const bgColor = des[0].nativeElement.style.backgroundColor;
+  expect(bgColor).toBe('yellow');
+});
+
+it('should color 2nd <h2> background w/ default color', () => {
+  const dir = des[1].injector.get(HighlightDirective) as HighlightDirective;
+  const bgColor = des[1].nativeElement.style.backgroundColor;
+  expect(bgColor).toBe(dir.defaultColor);
+});
+
+it('should bind <input> background to value color', () => {
+  // easier to work with nativeElement
+  const input = des[2].nativeElement as HTMLInputElement;
+  expect(input.style.backgroundColor).toBe('cyan', 'initial backgroundColor');
+
+  // dispatch a DOM event so that Angular responds to the input value change.
+  input.value = 'green';
+  input.dispatchEvent(newEvent('input'));
+  fixture.detectChanges();
+
+  expect(input.style.backgroundColor).toBe('green', 'changed backgroundColor');
+});
+
+
+it('bare <h2> should not have a customProperty', () => {
+  expect(bareH2.properties['customProperty']).toBeUndefined();
+});
+#+END_SRC
+
+
+1. =DebugElement.properties= affords access to the artificial custom
+   property that is set by the directive.
+2. =DebugElement.styles= affords access to element styles even in the
+   absence of a real browser, thanks to the =DebugElement=
+   abstraction. But feel free to exploit the =nativeElement= when that
+   seems easier or more clear than the abstraction.
+
+** TestBed class summary
+  1- =configureTestingModule=
+  2- =compileComponents=
+  3- =createComponent=
+  4- =overrideModule=
+  5- =overrideComponent=
+  6- =overrideDirective=
+  7- =overridePipe=
+  8- =get=
+  9- =initTestEnvironment=
+  10- =resetTestEnvironment=
+
+** The ComponentFixture
+
+The =TestBed.createComponent<T>= creates an instance of the component =T=
+and returns a strongly typed =ComponentFixture= for that component.
+
+The =ComponentFixture= properties and methods provide access to the
+component, its DOM representation, and aspects of its Angular
+environment.
+
+
+*** ComponentFixture properties
+  1- =componentInstance=
+  The instance of the component class created by TestBed.createComponent.
+
+  2- =debugElement=
+  The DebugElement associated with the root element of the component.
+  The debugElement provides insight into the component and its DOM
+  element during test and debugging. It's a critical property for
+  testers.
+
+  3- =nativeElement=
+  The native DOM element at the root of the component.
+
+  4- =changeDetectorRef=
+   The ChangeDetectorRef for the component.  The
+  ChangeDetectorRef is most valuable when testing a component that has
+  the ChangeDetectionStrategy.OnPush method or the component's change
+  detection is under your programmatic control.
+
+*** ComponentFixture methods
+  1) =detectChanges=
+  2) =autoDetectChanges=
+  3) =checkNoChanges=
+  4) =isStable=
+  5) =whenStable=
+  6) =destroy=
+
+*** DebugElement
+The =DebugElement= provides crucial insights into the component's DOM
+representation.
+
+From the test root component's =DebugElement= returned by
+=fixture.debugElement=, you can walk (and query) the fixture's entire
+element and component subtrees.
+   1 - =nativeElement=
+   2 - =query=
+   3 - =queryAll=
+   4 - =injector=
+   5 - =componentInstance=
+   6 - =context=
+   7 - =children=
+   8 - =parent=
+   9 - =name=
+  10 - =triggerEventHandler= 
+
+        Triggers the event by its name if there is a corresponding
+        listener in the element's listeners collection. The second
+        parameter is the event object expected by the handler. See
+        above.  If the event lacks a listener or there's some other
+        problem, consider calling
+        =nativeElement.dispatchEvent(eventObject)=.
+
+  11 - =listeners=
+  12 - =providerTokens=
+  13 - =source=
+  14 - =references=
+  

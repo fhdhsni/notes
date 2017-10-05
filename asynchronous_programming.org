@@ -1,0 +1,52 @@
+*** iterator
+You can pull values.
+
+*** observer
+An obeject that we give to an Observable.
+
+*** observable
+Observable === Collection + Time
+It pushes the value to the observer.
+An Observable doesn't do anything until someone start listening to it.
+- Observable can model
+  + Events
+  + Async Request Requests
+  + Animations
+
+- A simple implementation of =Observable.fromEvent=
+
+#+BEGIN_SRC javascript
+  Observable.fromEvent = function(dom, eventName) {
+    return {
+      forEach: function(observer) {
+        var handler = (e) => observer.onNext(e)
+        dom.addEventListener(eventName, handler)
+        return {
+          dispose: function() {
+            dom.removeEventListener(eventName, handler)
+          }
+        }
+      }
+    }
+  }
+#+END_SRC
+
+- You may miss stuff from a =hot= observable.
+
+- =concatAll=
+  Flattens an Observable-of-Observables by putting one inner Observable after the other. *Order is preserved*. Use this when you care about order.
+  #+BEGIN_SRC javascript
+  const clicks = Rx.Observable.fromEvent(document, 'click');
+  const higherOrder = clicks.map(ev => Rx.Observable.interval(100).take(4));
+  const firstOrder = higherOrder.concatAll();
+
+  firstOrder.subscribe(x => console.log(x));
+  #+END_SRC
+
+- =takeUntil=
+  Emits the values emitted by the source Observable until a notifier Observable emits a value.
+
+  Lets values pass until a second Observable, notifier, emits something. Then, it completes.
+- =mergeAll=
+  whatever arives it immediately emitted.
+- =switchLatest=
