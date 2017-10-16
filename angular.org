@@ -50,7 +50,7 @@ How this whole thing is getting started?
 main.ts => app.module.ts => app.component.ts => ...
 
 ** Component & Databinding
-*** Databinding 
+*** Databinding
 The comunication between "Business Logic" and Template (HTML file)
 Note that when using property binding we actually binding to property
 of DOM object not the HTML attribute so that if a HTML attribute
@@ -115,7 +115,7 @@ property)? we can use =attr.desiredAttribute=, e.g <td [attr.colspan]="myVar"></
    can use ViewChild to get the first element or the directive
    matching the selector from the view DOM. If the view DOM changes,
    and a new child matches the selector, the property will be updated.
-   Note that it's only available after =ngAfterViewInit()= is called. 
+   Note that it's only available after =ngAfterViewInit()= is called.
 6. =@ContentChild('selector')= we can't get its value before we reach
    =ngAfterContentInit()=
 
@@ -134,7 +134,7 @@ property)? we can use =attr.desiredAttribute=, e.g <td [attr.colspan]="myVar"></
    inside foobar.component.ts
    #+BEGIN_SRC typescript
    @ContentChild('stuff') pStuff: ElementRef;
-  
+
    ngAfterContentInit(): void {
      console.log(this.pStuff.nativeElement.textContent)
    }
@@ -243,7 +243,7 @@ and its class
 <p [ngStyle]="{backgroundColor: isServerOnline ? 'lightgreen' : 'lightpink'}">{{ isServerOnline }}</p>
 #+END_SRC
 
-<div [style.width.px]="mySize">	
+<div [style.width.px]="mySize">
 Binds style property width to the result of expression mySize in
 pixels. Units are optional.
 
@@ -256,8 +256,8 @@ pixels. Units are optional.
 Binds the presence of CSS classes on the element to the truthiness of the
 associated map values. The right-hand expression should return
 {'class-name': true/false} map.
-There's also another syntax: 
-#+BEGIN_SRC 
+There's also another syntax:
+#+BEGIN_SRC
 <style>.pink {background-color: lightpink}</style>
 <p [class.pink]="isPink">bar</p>
 #+END_SRC
@@ -269,7 +269,7 @@ There's also another syntax:
 #+END_SRC
 
 *** Build Your Own Directive
-**** Basic approach 
+**** Basic approach
 Start with =ng g d foo-bar=.
 
 #+BEGIN_SRC typescript
@@ -360,7 +360,7 @@ export class BasicHighlightDirective {
     @HostListener('mouseenter') mouseover() { this.myBackgroundColor = 'lightgreen'; }
     @HostListener('mouseleave') mouseleave() { this.myBackgroundColor = this.defColor; }
   }
-#+END_SRC     
+#+END_SRC
 **** Custom Structural Directive
 #+BEGIN_SRC typescript
 import { Directive, Input, TemplateRef, ViewContainerRef } from '@angular/core';
@@ -478,7 +478,7 @@ export class InputFormatDirective {
     { provide: OldLogger, useClass: NewLogger}]
   #+END_SRC
   The solution: alias with the useExisting option.
-  
+
   #+BEGIN_SRC typescript
   [ NewLogger,
     // Alias OldLogger w/ reference to NewLogger
@@ -490,27 +490,27 @@ export class InputFormatDirective {
   the injector to create it from a class.
 
 - Factory providers
-  
+
   hero.service.ts (excerpt)
   #+BEGIN_SRC typescript
   constructor(
     private logger: Logger,
     private isAuthorized: boolean) { }
-  
+
   getHeroes() {
     let auth = this.isAuthorized ? 'authorized ' : 'unauthorized';
     this.logger.log(`Getting heroes for ${auth} user.`);
     return HEROES.filter(hero => this.isAuthorized || !hero.isSecret);
   }
   #+END_SRC
-  
+
   hero.service.provider.ts (excerpt)
   #+BEGIN_SRC typescript
   let heroServiceFactory = (logger: Logger, userService: UserService) => {
     return new HeroService(logger, userService.user.isAuthorized);
   };
   #+END_SRC
-  
+
   hero.service.provider.ts (excerpt)
   #+BEGIN_SRC typescript
     export let heroServiceProvider =
@@ -519,10 +519,10 @@ export class InputFormatDirective {
         deps: [Logger, UserService]     // heroServiceFactory needs these
       };
   #+END_SRC
-  
+
   The useFactory field tells Angular that the provider is a factory
   function whose implementation is the heroServiceFactory.
-  
+
   The deps property is an array of provider tokens. The Logger and
   UserService classes serve as tokens for their own class providers. The
   injector resolves these tokens and injects the corresponding services
@@ -533,7 +533,7 @@ export class InputFormatDirective {
   components. Each component instance has its own injector. The tree
   of components parallels the tree of injectors.
 
-- 
+-
 
 - Adding a Service to a component gives us a new instance of that
   service, but this is not necessarily the case if you provide to
@@ -712,7 +712,7 @@ export class UserComponent implements OnInit {
 Let's say we are in '/users/9/farhad' so we loaded the `UserComponent`
 and while we are in that route and component we go to
 '/users/42/jafar' in this case =ngOnInit()= of UserComponent won't
-execute again and we can't use 
+execute again and we can't use
 #+BEGIN_SRC typescript
   ngOnInit() {
     const id = this.route.snapshot.params['id']; // get the :id
@@ -801,7 +801,7 @@ export class UserComponent implements OnInit, OnDestroy {
   [routerLink]="['/servers', 9, 'edit']"
   [queryParams]="{allowEdit: '1'}">/servers/9/edit</button>
 #+END_SRC
-This becomes http://localhost:4200/servers/9/edit?allowEdit=1 
+This becomes http://localhost:4200/servers/9/edit?allowEdit=1
 
 **** Fragments
 #+BEGIN_SRC html
@@ -841,7 +841,7 @@ export class EditServerComponent implements OnInit {
 }
 #+END_SRC
 
-For example for http://localhost:4200/servers/9/edit?name=jafar#loading 
+For example for http://localhost:4200/servers/9/edit?name=jafar#loading
 we get ={name: jafar}= for =this.route.snapshot.queryParams= and =loading= for
 =this.route.snapshot.fragment=.
 
@@ -865,7 +865,7 @@ const appRoutes: Routes = [
 ];
 #+END_SRC
 Note that child routes need seperate outlet. i.e. they need
-=router-outlet= in user.component.html. 
+=router-outlet= in user.component.html.
 
 In user.component.html
 #+BEGIN_SRC html
@@ -1515,7 +1515,7 @@ const myObservable = Observable.create((observer: Observer<string>) => {
       (val: string) => console.log(val),
       (error: string) => console.error(error),
       () => console.log('completed'));
-#+END_SRC   
+#+END_SRC
 
 *Remember to unsubscribe from the observables when you're done. Usually in ngOnDestroy hook*
 
@@ -1532,14 +1532,14 @@ comparable to EventEmitter that is shipped with Angular
 In this approach Angular infers the form object from the
 DOM. Template-Driven approach mostly happens in template (rather than in our .ts file)
 
-- In app.module.ts add =FormsModule= to imports 
+- In app.module.ts add =FormsModule= to imports
 - By doing so Angular automatically creates a form object for us when it sees
   =<form></form>=. We can think of =<form>= as a selector for an Angular directive.
 - We need to register controls manually. Angular doesn't do so
   automatically. We do this by adding =ngModel= to our inputs in the
   form.
 - Remember inputs must have a html =name= attribute. Angular uses that.
-- Submitting and Using the Form: 
+- Submitting and Using the Form:
 
 Example:
 
@@ -1823,7 +1823,7 @@ app.component.html
             <span
               *ngIf="!signupForm.get('userData.email').valid && signupForm.get('userData.email').touched"
               class="help-block">Please Enter a Valid Email Address</span>
-          </div>          
+          </div>
         </div>
         <!-- /userData ends here -->
         <div class="radio" *ngFor="let gender of genders">
@@ -1969,7 +1969,7 @@ Since it's Angular job to handle the forms we don't add =action= or
 =method= to =<form></form>=
 
 ** Pipes
-Some built-in pipes are 
+Some built-in pipes are
 - number
 - decimal
 - currency
@@ -2020,7 +2020,7 @@ app.component.ts
     appStatus = new Promise((resolve, reject) => { // to use with async pipe
       setTimeout(() => resolve('aweseom'), 2000)
     });
-  
+
     filteredStatus = '';
 
     servers = [
@@ -2337,7 +2337,7 @@ imports: [RouterModule.forRoot(routes, { preloadingStrategy: PreloadAllModules }
 - <a [routerLink]="['/foo', 0, 'bar']">edit</a> is equivalent to the <a routerLink="product/0/bar">edit</a>
 
 - =ActivatedRoute= service provides access to URL segments, Route
-  parameters, Query parameters, Resolver data and more. 
+  parameters, Query parameters, Resolver data and more.
   + It also provides an observable. =this.route.params.subscribe(...)=
 
 - In Angular 4+ we can use =this.route.snapshot.paramMap.get('id')= or =this.route.paramMap.subscribe(...)=
@@ -2410,7 +2410,7 @@ By defintion data property is static and won't change.
    #+END_SRC
 
 3. Activating Child Routes
-   + Absolute path (note the slash): <a [routerLink]="['/product', product.id, 'edit', 'info']">info<a/> 
+   + Absolute path (note the slash): <a [routerLink]="['/product', product.id, 'edit', 'info']">info<a/>
    + Relative path: <a [routerLink]="['info']">info</a>
    + Absolute path: =this.router.navigate(['/product', this.product, 'edit', 'info'])=
    + Relative path: =this.router.navigate(['info'], {relativeTo: this.route})=
@@ -2421,7 +2421,7 @@ Beside regular possibilities we can use =this.route.parent.snapshot.data['foo']=
 NOTE: The root route doesn't have any component
 *** Style, animating and watching routes
 - We style the active route with =routerLinkActive=, this can also be added to ancestor of routerLink element
-- There's also =routerLinkActiveOptions=. 
+- There's also =routerLinkActiveOptions=.
     + <a [routerLink]="['/info']" routerLinkActive="infoActiveClass" routerLinkActiveOptions="{exact: true}">info</a>
 **** Routing events
 - =NavigationStart=, =RoutesRecongnized=, =NavigationEnd=, =NavigationCancel=, =NavigationError=
@@ -2492,7 +2492,7 @@ For sharing data with some of these we can use =ActivatedRouteSnapshot=.
       if(route.data && route.data['preload'])) {
           return load();
       }
-    
+
       return Observable.of(null);
     }
     #+END_SRC
@@ -2659,12 +2659,12 @@ the =FormControl=-s and =patchValue= for a given =FormControl=.
       })
   #+END_SRC
 
-  
-*** Validaton 
+
+*** Validaton
 
 #+BEGIN_SRC typescript
   this.customerForm = this.fb.group({
-    firstName: ['', [Validators.required, Validators.minLength(3)], Validators.pattern('[...]')] 
+    firstName: ['', [Validators.required, Validators.minLength(3)], Validators.pattern('[...]')]
     // first element is default value, second element is synchronous
     // validation rules and the third element (not used here) is for
     // asynchronous validation rules. To show a loading indicator for
@@ -2710,7 +2710,7 @@ the =FormControl=-s and =patchValue= for a given =FormControl=.
              if(somethingIsWrong) {        // e.g c.value.length < 5
                return {'myBrokenValidationRule': true} // true indicates validation rule was broken
              }
-        
+
               return null;                  // it's all okay
             }
   }
@@ -2729,7 +2729,7 @@ function dateCompare(c: AbstractControl): {[key: string]: boolean} | null {
     let endControl = c.get('end');
     if(startControl.value !== endControl.value) {
         return { 'match': true}
-    } 
+    }
     return null
 }
 
@@ -2801,7 +2801,7 @@ to use it in our template:
     </div>
   #+END_SRC
 
-Creating a FormGroup in a Method 
+Creating a FormGroup in a Method
 #+BEGIN_SRC typescript
   buildAdress(): FormGroup {
     return this.fb.group({   // a FormGroup
@@ -2851,7 +2851,7 @@ in our template
     this.addresses.push(this.buildAddress());
   }
 #+END_SRC
- 
+
 ** Mosh Course
 *** ng-content
 
@@ -2866,7 +2866,7 @@ blah.component.ts
   </div>
 #+END_SRC
 
-Somewhere else 
+Somewhere else
 #+BEGIN_SRC html
   <app-blah>
     <div class="heading">I'm a heading></div>
@@ -2874,7 +2874,7 @@ Somewhere else
     <div class="footer">I'm a heading></div>
   </app-blah>
 #+END_SRC
-*** ng-container 
+*** ng-container
 https://angular.io/guide/structural-directives#ng-container-to-the-rescue
 ***  Safe Traversal Operator
 #+BEGIN_SRC html
@@ -2888,3 +2888,543 @@ creates a =FormGroup= object. =ngForm= exposes an @Output() property, =ngSubmit=
 *** setErrors
 We can use =myForm.setErrors({somethingScary: true})= to set an error
 mangually
+*** Errors in http calls
+| unexpected           | expected          |
+|----------------------+-------------------|
+| Server is offline    | 404 (not found)   |
+| Network is down      | 400 (bad request) |
+| Unhandled exceptions |                   |
+** Animation
+Angular animations are defined as logical states and transitions between states.
+
+#+BEGIN_SRC js
+animations: [
+  trigger('heroState', [
+    state('inactive', style({
+      backgroundColor: '#eee',
+      transform: 'scale(1)'
+    })),
+    state('active',   style({
+      backgroundColor: '#cfd8dc',
+      transform: 'scale(1.1)'
+    })),
+    transition('inactive => active', animate('100ms ease-in')),
+    transition('active => inactive', animate('100ms ease-out'))
+  ])
+]
+#+END_SRC
+
+*** =state=
+These =state= definitions specify the end styles of each state. They are
+applied to the element once it has transitioned to that state, and
+stay as long as it remains in that state. In effect, you're defining
+what styles the element has in different states.
+
+- Void
+  + Not part of DOM
+- Default (indicated by *)
+- Custom
+
+**** The wildcard state *
+The * ("wildcard") state matches any animation state. This is useful
+for defining styles and transitions that apply regardless of which
+state the animation is in.
+
+**** The void state
+The special state called void can apply to any animation. It applies
+when the element is not attached to a view, perhaps because it has not
+yet been added or because it has been removed. The void state is
+useful for defining enter and leave animations.
+
+*** =transition=
+After you define states, you can define transitions between the
+states. Each transition controls the timing of switching between one
+set of styles and the next:
+
+If several transitions have the same timing configuration, you can
+combine them into the same transition definition:
+
+
+#+BEGIN_SRC js
+transition('inactive => active, active => inactive',
+ animate('100ms ease-out'))
+#+END_SRC
+
+
+You can also apply a style during an animation but not keep it around
+after the animation finishes. You can define such styles inline, in
+the =transition=. In this example, the element receives one set of
+styles immediately and is then animated to the next. When the
+transition finishes, none of these styles are kept because they're not
+defined in a =state=.
+
+
+Using the void and * states you can define transitions that animate
+the entering and leaving of elements:
+
+Enter: =void => *=
+Leave: =* => void=
+
+
+#+BEGIN_SRC js
+animations: [
+  trigger('flyInOut', [
+    state('in', style({transform: 'translateX(0)'})),
+    transition('void => *', [
+      style({transform: 'translateX(-100%)'}),
+      animate(100)
+    ]),
+    transition('* => void', [
+      animate(100, style({transform: 'translateX(100%)'}))
+    ])
+  ])
+]
+
+#+END_SRC
+Note that in this case the styles are applied to the void state
+directly in the transition definitions, and not in a separate
+=state(void)= definition. Thus, the transforms are different on enter
+and leave: the element enters from the left and leaves to the right.
+
+
+These two common animations have their own aliases:
+
+#+BEGIN_SRC js
+  transition(':enter', [ ... ]); // void => *
+  transition(':leave', [ ... ]); // * => void
+#+END_SRC
+
+*** Automatic property calculation
+
+You can use a special =*= property value so that the value of the
+property is computed at runtime and then plugged into the animation
+
+In this example, the leave animation takes whatever height the element has before it leaves and animates from that height to zero:
+
+#+BEGIN_SRC js
+animations: [
+  trigger('shrinkOut', [
+    state('in', style({height: '*'})),
+    transition('* => void', [
+      style({height: '*'}),
+      animate(250, style({height: 0}))
+    ])
+  ])
+]
+#+END_SRC
+
+
+*** Animation timing
+
+There are three timing properties you can tune for every animated
+transition: the duration, the delay, and the easing function. They are
+all combined into a single transition timing string.
+
+**** duration
+
+**** delay
+The delay controls the length of time between the animation trigger
+and the beginning of the transition. You can define one by adding it
+to the same string following the duration. It also has the same format
+options as the duration:
+
+Wait for 100ms and then run for 200ms: '0.2s 100ms'
+
+**** timing
+
+*** Multi-step animations with keyframes
+
+Animation keyframes go beyond a simple transition to a more intricate
+animation that goes through *one or more intermediate styles* when
+transitioning between two sets of styles.
+
+
+For each keyframe, you specify an =offset= that defines at which point
+in the animation that keyframe applies. The =offset= is a number between
+zero, which marks the beginning of the animation, and one, which marks
+the end.
+
+#+BEGIN_SRC js
+animations: [
+  trigger('flyInOut', [
+    state('in', style({transform: 'translateX(0)'})),
+    transition('void => *', [
+      animate(300, keyframes([
+        style({opacity: 0, transform: 'translateX(-100%)', offset: 0}),
+        style({opacity: 1, transform: 'translateX(15px)',  offset: 0.3}),
+        style({opacity: 1, transform: 'translateX(0)',     offset: 1.0})
+      ]))
+    ]),
+    transition('* => void', [
+      animate(300, keyframes([
+        style({opacity: 1, transform: 'translateX(0)',     offset: 0}),
+        style({opacity: 1, transform: 'translateX(-15px)', offset: 0.7}),
+        style({opacity: 0, transform: 'translateX(100%)',  offset: 1.0})
+      ]))
+    ])
+  ])
+]
+#+END_SRC
+
+Defining offsets for keyframes is optional. If you omit them, offsets
+with even spacing are automatically assigned. For example, three
+keyframes without predefined offsets receive offsets 0, 0.5, and 1.
+
+*** Parallel animation groups
+
+You've seen how to animate multiple style properties at the same time:
+just put all of them into the same style() definition.
+
+But you may also want to configure different timings for animations
+that happen in parallel. For example, you may want to animate two CSS
+properties but use a different easing function for each one.
+
+For this you can use animation groups. In this example, using groups
+both on enter and leave allows for two different timing
+configurations. Both are applied to the same element in parallel, but
+run independently of each other:
+
+
+#+BEGIN_SRC js
+  animations: [
+    trigger('flyInOut', [
+      state('in', style({width: 120, transform: 'translateX(0)', opacity: 1})), // desired style in `in` state
+      transition('void => *', [
+        style({width: 10, transform: 'translateX(50px)', opacity: 0}), // immediately
+        group([                   // two animation with different timing
+          animate('0.3s 0.1s ease', style({ // first
+            transform: 'translateX(0)',
+            width: 120
+          })),
+          animate('0.3s ease', style({ // second
+            opacity: 1
+          }))
+        ])
+      ]),
+      transition('* => void', [
+        group([
+          animate('0.3s ease', style({
+            transform: 'translateX(50px)',
+            width: 10
+          })),
+          animate('0.3s 0.2s ease', style({
+            opacity: 0
+          }))
+        ])
+      ])
+    ])
+  ]
+#+END_SRC
+
+
+*** Animation callbacks
+
+A callback is fired when an animation is started and also when it is done.
+
+#+BEGIN_SRC html
+template: `
+  <ul>
+    <li *ngFor="let hero of heroes"
+        (@flyInOut.start)="animationStarted($event)"
+        (@flyInOut.done)="animationDone($event)"
+        [@flyInOut]="'in'">
+      {{hero.name}}
+    </li>
+  </ul>
+`,
+#+END_SRC
+
+*** Adding animations to the routed component
+
+# #+BEGIN_SRC js
+#   export const routerTransition = trigger("routerTransition", [ //
+#     transition("* <=> *", [
+#       query(":enter, :leave", style({ position: "fixed", width: "100%" })),
+#       query(":enter", style({ transform: "translateX(100%)" })),
+#       sequence([
+#         query(":leave", animateChild()),
+#         group([
+#           query(":leave", [
+#             style({ transform: "translateX(0%)" }),
+#             animate("500ms ease-in", style({ transform: "translateX(-100%)" })),
+#           ]),
+#           query(":enter", [
+#             style({ transform: "translateX(100%)" }),
+#             animate("500ms ease-out", style({ transform: "translateX(0%)" })),
+#           ]),
+#         ]),
+#         query(":enter", animateChild()),
+#       ]),
+#     ]),
+#   ]);                             //
+# #+END_SRC
+
+#+BEGIN_SRC html
+<div [@routeAnimation]="prepRouteState(routerOutlet)">
+  <!-- make sure to keep the ="outlet" part -->
+  <router-outlet #routerOutlet="outlet"></div>
+<div>
+#+END_SRC
+
+#+BEGIN_SRC js
+<!-- app.ts -->
+const ROUTES = [
+  { path: '',
+    component: HomePageComponent,
+    data: {
+      animation: 'homePage'
+    }
+  },
+  { path: 'support',
+    component: SupportPageComponent,
+    data: {
+      animation: 'supportPage'
+    }
+  }
+]
+#+END_SRC
+
+
+#+BEGIN_SRC js
+// app.ts
+@Component({
+  animations: [
+    trigger('routeAnimation', [
+      // no need to animate anything on load
+      transition(':enter', []),
+      // but anytime a route changes let's animate!
+      transition('* => *', [
+        // we'll fill this in later
+      ])
+    ])
+  ]
+})
+class AppComponent {
+  prepRouteState(outlet: any) {
+    return outlet.activatedRouteData['animation'] || 'firstPage';
+  }
+}
+#+END_SRC
+
+
+So as the routes change, we want to grab ahold of the old and new
+pages that are apart of the route change. So if our animation goes
+from =homePage => supportPage= then the homePage can be queried by
+=:leave= and the supportPage can be queried by =:enter=.
+
+#+BEGIN_SRC js
+trigger('routeAnimation', [
+  //...
+  transition('homePage => supportPage', [
+    // make sure the new page is hidden first
+    query(':enter', style({ opacity: 1 })),
+    // animate the leave page away
+    query(':leave', [
+      animate('0.5s', style({ opacity: 0 })),
+      style({ display: 'none' })
+    ]),
+    // and now reveal the enter
+    query(':enter', animate('0.5s', style({ opacity: 1 }))),
+  ]),
+  //...
+])
+
+#+END_SRC
+
+
+The code above will animate out the homePage first and then animate in
+the supportPage. If we use group() here then can have this animation
+run parallel
+
+
+Now each page might even have its own animation that can be called
+when an enter or a removal happens. This means that we can use
+animateChild to kick off animations at the right time.
+
+#+BEGIN_SRC js
+  // the animation itself
+  trigger('routeAnimation', [
+    //...
+    transition('homePage => supportPage', [
+      group([                     // to run in parallel
+        query(':enter', [
+          style({ opacity: 0 }),
+          animate('0.5s', style({ opacity: 1 })),
+          animateChild()
+        ]),
+        query(':leave', [
+          animate('0.5s', style({ opacity: 0 })),
+          animateChild()
+        ])
+      ])
+    ]),
+    //...
+  ])
+#+END_SRC
+
+
+Note that this implementation for Router transitions is different from
+the use case in animations where we bind our trigger to the element
+that we want to animate. This means that we can’t use states to style
+Route Components as that would apply the styles to the parent (main
+element in our example) and not to Route Components.
+
+*** Notes
+- =transition= animations are ran in sequence
+
+- Configure options and set input variables within animations
+- Define reusable animations using =animation()=
+- Query for inner elements within animations using =query()=
+- Stagger multiple elements within an animation using =stagger()=
+- Enable queried elements to trigger their own animations
+- Orchestrate a full-blown animation when routes change
+- Programmatically build/control an animation using =AnimationBuilder=
+
+#+BEGIN_SRC js
+  sequence([...], { /* options */ })
+  group([...], { /* options */ })
+  trigger([...], { /* options */ })
+  transition([...], { /* options */ })
+  query([...], { /* options */ })
+#+END_SRC
+
+**** =query()=
+Long story short, query() allows for child elements to be collected
+and animated against a bunch of animation steps. So instead of having
+to animate everything on the element containing the animation trigger,
+we can now grab inner elements and make a really cool multi-element
+animation sequence.
+
+Regular CSS Selectors
+query('div, #id, .class, [attr], a + b') will return one or more items
+that match the selector string.
+
+=:enter and :leave=
+calling query(':enter') will return all newly inserted nodes within a
+container and query(':leave') will return nodes that have been set to
+be removed.
+
+=@trigger and @*=
+query('@trigger') will find one or more items that have an an
+animation trigger with that name. query("@*") will return all items
+that have any animation triggers.
+
+=:animating=
+query(':animating') will collect all elements that are currently animating.
+
+=:self=
+query(':self') will return the container element where the query is
+issued (this is useful when a container element is to be included in
+the same animation code along with other queried items)
+
+**** =stagger()=
+
+#+BEGIN_SRC html
+<div [@listAnimation]="items.length">
+  <div *ngFor="let item of items">
+    {{ item }}
+  </div>
+</div>
+#+END_SRC
+
+#+BEGIN_SRC js
+trigger('listAnimation', [
+  transition('* => *', [
+    // this hides everything right away
+    query(':enter', style({ opacity: 0 })),
+
+    // starts to animate things with a stagger in between
+    query(':enter', stagger('100ms', [
+      animate('1s', style({ opacity: 1 }))
+    ])
+  ])
+])
+#+END_SRC
+
+How do you reverse stagger?
+This can be done by using a negative
+number (like stagger(-1000, [])) or using the reverse label in the
+string-based timing value (like stagger("100ms reverse", [])).
+
+What does =style("*")= mean?
+When style("*") is used it will revert all used styles in the
+animation back to their end state value (which is the same as setting
+each value to * explicitly).
+
+**** Sub animations with =animateChild()=
+Now what about the situation when there is an element in the
+application that has an animation ready-to-go, but a parent animation
+runs instead? Is there a way that the parent animation can dictate
+when the child animation runs, how long it runs for or if it doesn't
+run at all?
+
+#+BEGIN_SRC html
+<!-- do these two guys animate at the same time? -->
+<div [@parent]="parentVal">
+  <div [@child]="childVal">
+    ...
+  </div>
+</div>
+#+END_SRC
+
+#+BEGIN_SRC js
+trigger('parent', [
+  style({ transform: 'translate(-100px)' }),
+  animate('500ms', style({ transform: 'translate(0px)' }))
+]),
+trigger('child', [
+  style({ opacity:0 }),
+  animate('0.5s', style({ opacity:1 }))
+])
+#+END_SRC
+
+If these animations trigger at the same time then the parent animation
+will always win and the child animation will be skipped. However,
+using animateChild we can have the parent animation query into the
+child and tell it when it's allowed to animate:
+
+
+#+BEGIN_SRC js
+trigger('parent', [
+  style({ transform: 'translate(-100px)' }),
+  animate('500ms',
+    style({ transform: 'translate(0px)' })),
+  query('@ child', animateChild())
+]),
+trigger('child', [
+  style({ opacity:0 }),
+  animate('0.5s', style({ opacity:1 }))
+])
+#+END_SRC
+
+*** Create Reuseable Animation
+
+#+BEGIN_SRC js
+  export let bounceOutLeftAnimation = animation(
+    animate('0.5s ease-out', keyframes([
+      style({
+        offset: .2,
+        opacity: 1,
+        transform: 'translateX(20px)'
+      }),
+      style({
+        offset: 1,
+        opacity: 0,
+        transform: 'translateX(-100%)'
+      }),
+  ])));
+#+END_SRC
+
+and to use it
+#+BEGIN_SRC js
+  export let slide = trigger('slide', [
+    transition(':enter', [
+      style({ transform: 'translateX(-10px)' }),
+      animate(500)
+    ]),
+
+    transition(':leave',
+      useAnimation(bounceOutLeftAnimation) // use `useAnimation` to reuse an animation made by `animation` function
+    )
+  ]);
+#+END_SRC

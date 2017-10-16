@@ -31,14 +31,14 @@ NOTE: =HEAD= refers to the last commit in the current branch.
 
 
 *** Remote
-- To add a remote: =git remote add <NORUO> remote-address= 
+- To add a remote: =git remote add <NORUO> remote-address=
 - To get list of remotes =git remote -v=
 - To push to remote =git push -u <NORUO> local-branch-name=,
   =-u= sets the upstream.
 - To pull from a remote =git pull=
 - To remove a remotes =git remote rm <name>=
 - To show remote branches and their status(tracked or not) =git remote show <NORUO>=
-- To remove a remote branch =git push <NORUO> :name-of-branch=. 
+- To remove a remote branch =git push -d <NORUO> :name-of-branch=.
   It doesn't delete the local branch. You should delete it with =git branch -d <name-of-branch>=
 - To clean up deleted remote branches =git remote prune <NORUO>=
 
@@ -46,14 +46,14 @@ NOTE: =HEAD= refers to the last commit in the current branch.
 - To create a branch =git branch <name>=
 - To switch to a branch =git checkout <name-of-branch>=
 - To merge =git merge <name-of-the-branch-to-be-merged-with-the-current-branch>=
-- To know whether there are conflict between two branch =git merge <branch-name> --no-ff --no-commit=, 
+- To know whether there are conflict between two branch =git merge <branch-name> --no-ff --no-commit=,
   to return in a normal situation, just abort the merge: =git merge --abort=
 - To delete a branch =git branch -d <name>=
 - To list all remote branches =git branch -r=
 - To create a new branch but make it so its HEAD point to an specific commit =git branch <branch-name> <commit-SHA>=
 
 *** Pull
-What does =git pull= do? 
+What does =git pull= do?
   1. fetches (or Syncs) our local repository with the remote one, but
      it doesn't merge them (same as =git fetch=)
   2. merges =origin/master= with master (same as git merge =origin/master=)
@@ -70,7 +70,7 @@ A tag is a reference to a commit
 - To push new tags =git push --tags=
 
 *** Rebase
-- What does =git rebase= do? 
+- What does =git rebase= do?
 Lets say we want to get our local master branch up-to-date with remote =origin/master=. So we do =git checkout master= then =git rebase origin/master=
   1. Move all the commits in =master= that are not in =origin/master= to a temporary area.
   2. Run all =origin/master= commits
@@ -128,7 +128,7 @@ WHO DID THAT?
 - =interactive rebase= alters every commit after the one you specify, so if we say =git rebase -i HEAD= it does nothing
 - =interactive rebase= shows our commit from oldest to newest. That is old commit are at the top of editor.
 - To split a commit into more commits we can use =edit=:
-  1. =git reset HEAD^= 
+  1. =git reset HEAD^=
   2. stage and commit as you like
   3. =git rebase --continue=
 - To merge two or more commits into one commit we use =squash=
@@ -178,7 +178,7 @@ a .gitattribute example https://github.com/alexkaratarakis/gitattributes/blob/ma
   2. =git cherry-pick <SHA-of-a-commit-from-dev-branch>=
 - To cherry-pick and edit msg
   1. =git cherry-pick --edit <SHA-of-a-commit-from-dev-branch>=
-- To cherry-pick multiple commit from =<dev>= branch and combine them into one commit in =<prod>= branch. 
+- To cherry-pick multiple commit from =<dev>= branch and combine them into one commit in =<prod>= branch.
   1. =git cherry-pick --no-commit <SHA-of-a-commit-from-dev-branch> <SHA-of-another-commit-from-dev-branch>=
      + This just apply changes to current HEAD but doesn't actually make a commit. So we have to commit them ourselves.
 - To keep track of where we cherry-picked a commit we can use =-x= flag.
@@ -192,7 +192,7 @@ didn't do this and made some commit, to solve orphan commits: =git checkout <bra
 A Git repo inside a Git repo
 
 - To add a submodule, =git submodule add <repo-address>=
-- When cloning a git repo that contains submodules we need to 
+- When cloning a git repo that contains submodules we need to
   =git submodule init= then =git submoudle update= to also initialize those
   submodules.
 - To get the changes in the submodules =git submodule update=, this checks outs submodules in a /headlesss/ state.
@@ -219,6 +219,3 @@ http://gitimmersion.com/
 http://gitready.com/
 
 https://ndpsoftware.com/git-cheatsheet.html
-
-
-
