@@ -1,14 +1,15 @@
-From Sara Drasner `intro to Vue` workshop
+Mostly from Sara Drasner `intro to Vue` workshop
 
 ## DIRECTIVES
 HTML attributes, that basically attaches some functionality to that HTML markup.
 - `v-text`: &nbsp; Similar to using mustache templates
 - `v-html`: &nbsp; for strings that have html elements that need to be rendered!
-- `v-show`: it uses `display: none`
-- `v-if`: completely takes the element out of  `DOM`
+- `v-show`: it uses `display: none` Note that `v-show` doesn’t support the `<template>` element, nor does it  work with `v-else`.
+- `v-if`: completely takes the element out of  `DOM`: Unlike `v-show`, `v-if` is “real” conditional rendering because it ensures that event listeners and child components inside the conditional block are properly destroyed and re-created during toggles.
 - `v-else`
 - `v-else-if`
-- `v-for`
+- `v-for`: Other than lists, you can also use `v-for` to iterate through the properties of an object. You can also provide a second argument for the key, and another for the index.
+
 - `@` or `v-on`: &nbsp; for binding to events like click and mouseenter
 
 Multiple binding is also possible
@@ -60,7 +61,7 @@ export default {
             Creates a relationship between the data in the instance/component and a form input, so you can dynamically update values
 - `v-pre`: &nbsp; skip the mustache, that is to say literally print `{{ stuff }}`
 - `v-cloak`
-- `v-once`
+- `v-once`: &nbsp; to do one-time interpolations that do not update on data change, keep in mind this will also affect any binding on the same node:
 
 ### MODIFIERS
 `v-model.trim`: will strip any leading or trailing whitespace from the bound string
@@ -71,6 +72,8 @@ export default {
 (cached until dependency is changed)
 Computed properties are calculations that will be cached and will only update when needed. Highly performant but use with understanding. They are the different view of the same data.
 
+The function provide will be used as the getter function for the property of the same name.
+
 | computed                                            |      methods                                |
 |-----------------------------------------------------|:-------------------------------------------:|
 | Runs only when a dependency has changed             | Runs whenever an update occurs              |
@@ -78,6 +81,53 @@ Computed properties are calculations that will be cached and will only update wh
 | Should be used as a property, in place of data      | Typically invoked from v-on/@, but flexible |
 | By default getter only, but you can define a setter | Getter/setter                               |
 
+
+### Computed Caching vs Methods
+```js
+new Vue({
+  el: '#example',
+  data: {
+    message: 'Hello'
+  },
+  computed: {
+    // a computed getter
+    reversedMessage: function () {
+      return this.message.split('').reverse().join('')
+    }
+  }
+```
+
+computed properties are cached based on their dependencies
+This means as long as `message` has not changed, multiple access to the `reversedMessage` computed property will immediately return the previously computed result without having to run the function again.
+This also means the following computed property will never update, because `Date.now()` is not a reactive dependency:
+```js
+computed: {
+  now: function () {
+    return Date.now()
+  }
+}
+```
+In comparison, a method invocation will always run the function whenever a re-render happens
+
+Computed properties are by default getter-only, but you can also provide a setter when you need it:
+```js
+// ...
+computed: {
+  fullName: {
+    // getter
+    get: function () {
+      return this.firstName + ' ' + this.lastName
+    },
+    // setter
+    set: function (newValue) {
+      var names = newValue.split(' ')
+      this.firstName = names[0]
+      this.lastName = names[names.length - 1]
+    }
+  }
+}
+// ...
+```
 
 ## WATCHERs
 For reactivity Vus.js uses a variation of `getters/setters`
@@ -91,10 +141,11 @@ new Vue({
 })
 
 ```
-Vue cannot detect property addition or deletion so we create this object to keep track
+Vue cannot detect property addition or deletion so we create this object to keep track of it.
 
-Each component has a watcher instance. The properties touched by the watcher during the render are registered as 
-dependencies. When the setter is triggered, it lets the watcher know, and causes the component to re-render.
+Each component has a watcher instance. The properties touched by the watcher during the render are registered as dependencies. When the setter is triggered, it lets the watcher know, and causes the component to re-render. 
+
+Watchers are most useful when you want to perform asynchronous or expensive operations in response to changing data.
 
 The Vue instance is the middleman between the DOM and the business logic
 
@@ -136,9 +187,9 @@ We can also gain access to nested values with 'deep':
 
 ```js
 watch: {
-  watchedProperty {
+  myWatchedProperty: {
     deep: true,
-    nestedWatchedProperty (value, oldValue) {
+    handler: function (value, oldValue) {
       //your dope code here
     }
   }
@@ -814,4 +865,128 @@ export default {
 
 On the component itself, we would use `computed` for `getters` (this makes sense because the value is already computed for us), and `methods` with `commit` to access the `mutations`, and methods with `dispatch` for the `actions`:
 
+# From Vue Doc
+- All Vue components are also Vue instances, and so accept the same options object (except for a few root-specific options).
 
+## Class and Style Bindings
+Vue provides special enhancements when `v-bind` is used with `class` and `style`. In addition to strings, the expressions can also evaluate to objects or arrays.
+
+### Object Syntax
+
+```html
+<div v-bind:class="{ active: isActive }"></div>
+```
+`activle` is the name of a class, `isActive` is an expression
+
+When `isActive` changes, the class list will be updated accordingly. 
+
+
+The bound object doesn’t have to be inline:
+
+```html
+<div v-bind:class="classObject"></div>
+```
+
+```js
+data: {
+  classObject: {
+    active: true,
+    'text-danger': false
+  }
+}
+```
+
+### Array Syntax
+
+We can pass an array to v-bind:class to apply a list of classes:
+```html
+  <div v-bind:class="[activeClass, errorClass]"></div>
+```
+
+```js
+data: {
+  activeClass: 'active',
+  errorClass: 'text-danger'
+}
+```
+
+Which will render:
+```html
+  <div class="active text-danger"></div>
+```
+
+Also possible 
+
+```html
+<div v-bind:class="[{ active: isActive }, errorClass]"></div>
+```
+
+### With Components
+
+When you use the class attribute on a custom component, those classes will be added to the component’s root element. Existing classes on this element will not be overwritten.
+
+
+## Binding Inline Styles
+
+```html
+<div :style="[{backgroundColor: '#eee'}, someCss]">
+```
+
+```js
+  data () {
+    return {
+      someCss: {
+        fontSize: '22px'
+      }
+    }
+  },
+```
+# Conditional Rendering
+
+```html
+<h1 v-if="ok">Yes</h1>
+<h1 v-else-if="maybe">Maybe</h1>
+<h1 v-else>No</h1>
+```
+A `v-else` and `v-else-if` element must immediately follow a `v-if` element - otherwise it will not be recognized.
+
+
+The final rendered result will not include the <template> element.
+```html
+<template v-if="ok">
+  <h1>Title</h1>
+  <p>Paragraph 1</p>
+  <p>Paragraph 2</p>
+</template>
+```
+
+## Controlling Reusable Elements with `key`
+
+Consider this example
+
+```html
+<template v-if="loginType === 'username'">
+  <label>Username</label>
+  <input placeholder="Enter your username">
+</template>
+<template v-else>
+  <label>Email</label>
+  <input placeholder="Enter your email address">
+</template>
+```
+switching the `loginType` in the code above will not erase what the user has already entered. Since both templates use the same elements, the `<input>` is not replaced - just its placeholder.
+
+
+This isn’t always desirable though, so Vue offers a way for you to say, “These two elements are completely separate - don’t re-use them.” Add a `key` attribute with unique values:
+
+```html
+<template v-if="loginType === 'username'">
+  <label>Username</label>
+  <input placeholder="Enter your username" key="username-input">
+</template>
+<template v-else>
+  <label>Email</label>
+  <input placeholder="Enter your email address" key="email-input">
+</template>
+```
+Note that the `<label>` elements are still efficiently re-used, because they don’t have key attributes.
