@@ -794,14 +794,17 @@ live [example](https://codepen.io/sdras/pen/5ca1e0c724d7d900603d8898b5551189)
 
 ** vuex
 
-**WHAT** is it?
+*WHAT* is it?
 Centralized store for shared data and logic, even shared methods or async
 
-**WHY** should we use it?
-In a complex single page application, passing state between many components, and especially deeply nested or sibling components, can get complicated quickly. Having one centralized place to access your data can help you stay organized.
+*WHY* should we use it?
+In a complex single page application, passing state between many
+components, and especially deeply nested or sibling components, can
+get complicated quickly. Having one centralized place to access your
+data can help you stay organized.
 
 
-**HOW**?
+*HOW*?
 The initial set up in =store.js= would look something like this
 
 #+BEGIN_SRC javascript
@@ -833,11 +836,18 @@ new Vue({
 });
 #+END_SRC
 
-**Getters**: will make values able to show statically in our templates. In other words, getters can read the value, but not mutate the state.
+*Getters*: will make values able to show statically in our
+templates. In other words, getters can read the value, but not mutate
+the state.
 
-**Mutations** will allow us to update the state, but they will always be *synchronous*. Mutations are the only way to change data in the state in the store.
+*Mutations* will allow us to update the state, but they will always be
+*synchronous*. Mutations are the only way to change data in the state
+in the store.
 
-**Actions** will allow us to update the state, *asynchronously*, but will use an existing mutation. This can be very helpful if you need to perform a few different mutations at once in a particular order, or reach out to a server.
+*Actions* will allow us to update the state, *asynchronously*, but
+will use an existing mutation. This can be very helpful if you need to
+perform a few different mutations at once in a particular order, or
+reach out to a server.
 
 
 Basic Abstract Example
@@ -970,7 +980,9 @@ Also possible
 
 *** With Components
 
-When you use the class attribute on a custom component, those classes will be added to the component’s root element. Existing classes on this element will not be overwritten.
+When you use the class attribute on a custom component, those classes
+will be added to the component’s root element. Existing classes on
+this element will not be overwritten.
 
 ** Binding Inline Styles
 

@@ -1,0 +1,119 @@
+- Multi-word component names
+- Component data must be a function.
+- Prop definitions should be as detailed as possible.
+- Always use key with =v-for=
+- For applications, styles in a top-level App component and in layout
+  components may be global, but all other components should always be
+  =scoped=.
+- Filenames of single-file components should always be PascalCase.
+- Base components (a.k.a. presentational, dumb, or pure components)
+  that apply app-specific styling and conventions should all begin
+  with =app= prefix.
+- Child components that are tightly coupled with their parent should
+  include the parent component name as a prefix.
+
+  EXAMPLE:
+  #+BEGIN_SRC
+  components/
+  |- TodoList.vue
+  |- TodoListItem.vue
+  |- TodoListItemButton.vue
+  #+END_SRC
+
+
+- Component names should start with the highest-level (often most
+  general) words and end with descriptive modifying words.
+
+  EXAMPLE:
+
+  #+BEGIN_SRC
+    components/
+  |- SearchButtonClear.vue
+  |- SearchButtonRun.vue
+  |- SearchInputExcludeGlob.vue
+  |- SearchInputQuery.vue
+  |- SettingsCheckboxLaunchOnStartup.vue
+  |- SettingsCheckboxTerms.vue
+  #+END_SRC
+
+- Components with no content should be self-closing
+  NOTE: HTML doesn’t allow custom elements to be self-closing hence DOM templates should abide to this rule.
+
+- Component name casing in templates should always be kebab-case. e.g =<my-component>=
+- Component name casing in JS should abide to following demonstration:
+  #+BEGIN_SRC js
+    Vue.component('MyComponent', {
+      // ...
+    })
+    Vue.component('my-component', { // also okay
+      // ...
+    })
+    import MyComponent from './MyComponent.vue'
+    export default {
+      name: 'MyComponent',
+      // ...
+    }
+  #+END_SRC
+
+- Component names should be full words and not their abbreviations.
+- Prop names should always use camelCase during declaration, but kebab-case in templates.
+  #+BEGIN_SRC
+    // in js
+    props: {
+      greetingText: String
+    }
+    // in template
+    <welcome-message greeting-text="hi"/>
+  #+END_SRC
+
+- Elements with multiple attributes should span multiple lines, with one attribute per line.
+  #+BEGIN_SRC html
+  <my-component
+    foo="a"
+    bar="b"
+    baz="c"
+  />
+  #+END_SRC
+
+- Go for computed properties instead of doing the computation in the template.
+
+- Complex computed properties should be split into as many simpler
+  properties as possible.
+  + Small, focused computed properties make fewer assumptions
+    about how information will be used, so require less refactoring
+    as requirements change.
+
+- HTML attribute values should always be inside quoted
+
+- We always use directive shorthands (=:= for =v-bind:= and =@= for =v-on:=) except when we can't.
+
+- As demonstrated bellow use one empty line between component/instance options.
+  + Example:
+
+  #+BEGIN_SRC js
+  props: {
+
+    value: {
+      type: String,
+      required: true
+    },
+
+    focused: {
+      type: Boolean,
+      default: false
+    },
+
+    label: String,
+    icon: String
+  },
+
+  computed: {
+    formattedValue: function () {
+      // ...
+    },
+
+    inputClasses: function () {
+      // ...
+    }
+  }
+  #+END_SRC
