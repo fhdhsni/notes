@@ -2434,6 +2434,27 @@ NOTE: The root route doesn't have any component
     }
   })
   #+END_SRC
+***** Angular 5 route events
+The new events (in sequence) are GuardsCheckStart,
+ChildActivationStart, ActivationStart, GuardsCheckEnd, ResolveStart,
+ResolveEnd, ActivationEnd, ChildActivationEnd. An example of using
+these events to start/stop a spinner might look like this:
+
+#+BEGIN_SRC typescript
+class MyComponent {
+  constructor(public router: Router, spinner: Spinner) {
+    router.events.subscribe(e => {
+      if (e instanceof ChildActivationStart) {
+        spinner.start(e.route);
+      } else if (e instanceof ChildActivationEnd) {
+        spinner.end(e.route);
+      }
+    });
+  }
+}
+#+END_SRC
+
+
 *** Secondary Routes
 1. We must give each secondary <router-outlet> a name like =<router-outlet name=popup></router-outlet>=
 2. configuring secondary route
@@ -3427,4 +3448,91 @@ and to use it
       useAnimation(bounceOutLeftAnimation) // use `useAnimation` to reuse an animation made by `animation` function
     )
   ]);
+#+END_SRC
+
+** Renderer2
+1. Basic
+#+BEGIN_SRC typescript
+import { Directive, Renderer2, ElementRef, OnInit } from '@angular/core';
+
+@Directive({
+  selector: '[appGoWild]'
+})
+export class GoWildDirective implements OnInit {
+  constructor(private renderer: Renderer2, private el: ElementRef) {}
+
+  ngOnInit() {
+    this.renderer.addClass(this.el.nativeElement, 'wild');
+  }
+}
+#+END_SRC
+
+2. createElement / appendChild / createText
+#+BEGIN_SRC typescript
+constructor(private renderer: Renderer2, private el: ElementRef) {}
+
+ngOnInit() {
+  const div = this.renderer.createElement('div');
+  const text = this.renderer.createText('Hello world!');
+
+  this.renderer.appendChild(div, text);
+  this.renderer.appendChild(this.el.nativeElement, div);
+}
+#+END_SRC
+
+3. setAttribute / removeAttribute
+#+BEGIN_SRC typescript
+constructor(private renderer: Renderer2, private el: ElementRef) {}
+
+ngOnInit() {
+  this.renderer.setAttribute(this.el.nativeElement, 'aria-hidden', 'true');
+}
+#+END_SRC
+
+4. addClass / removeClass
+#+BEGIN_SRC typescript
+constructor(private renderer: Renderer2, private el: ElementRef) {}
+
+ngOnInit() {
+  this.renderer.removeClass(this.el.nativeElement, 'wild');
+}
+#+END_SRC
+
+5. setStyle
+#+BEGIN_SRC typescript
+constructor(private renderer: Renderer2, private el: ElementRef) {}
+
+ngOnInit() {
+  this.renderer.setStyle(
+    this.el.nativeElement,
+    'border-left',
+    '2px dashed olive'
+  );
+}
+#+END_SRC
+
+6. removeStyle
+#+BEGIN_SRC typescript
+constructor(private renderer: Renderer2, private el: ElementRef) {}
+
+ngOnInit() {
+  this.renderer.removeStyle(this.el.nativeElement, 'border-left');
+}
+#+END_SRC
+
+7. setProperty
+#+BEGIN_SRC typescript
+constructor(private renderer: Renderer2, private el: ElementRef) {}
+
+ngOnInit() {
+  this.renderer.setProperty(this.el.nativeElement, 'alt', 'Cute alligator');
+}
+#+END_SRC
+
+Or like set value of an input
+
+#+BEGIN_SRC typescript
+ngOnInit() {
+  this.renderer.setProperty(this.el.nativeElement, 'value', 'Cute alligator');
+}
 #+END_SRC
