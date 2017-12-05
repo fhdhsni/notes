@@ -1,0 +1,20 @@
+- fit-content
+   fit-content(argument) => min(max-content, max(min-content, argument))
+
+- Explicitly creating a grid area implicitly creates the named -start
+  and -end grid lines that surround it.
+
+- =spans= have to start counting within the explicit grid. Once they
+  start, they can continue on into the implicit grid but they cannot
+  start counting within the implicit grid.
+  + span counting must start in the explicit grid. It doesn’t have to end there.
+
+| Property        | Aligns                                               | Applied to     |
+|-----------------+------------------------------------------------------+----------------|
+| justify-self    | A grid item in the inline (horizontal) direction     | Grid items     |
+| justify-items   | All grid items in the inline (horizontal) direction  | Grid container |
+| justify-content | The entire grid in the inline (horizontal) direction | Grid container |
+| align-self      | A grid item in the block (vertical) direction        | Grid items     |
+| align-items     | All grid items in the block (vertical) direction     | Grid container |
+| align-content   | The entire grid in the block (vertical) direction    | Grid container |
+|                 |                                                      |                |

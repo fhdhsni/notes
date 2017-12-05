@@ -1,0 +1,44 @@
+[[https://www.lightningdesignsystem.com/][Design System]]
+[[https://www.ibm.com/design/language/][IBM Language Design]]
+
+Animation in Design:
+
+- Statefull transition
+  + Change in task flow location
+  + Where you've been
+  + Where you are now
+- Supplemental Animation
+  + Change in information
+  + What is possible for uesrs
+  + Important details that shouldn't be overlooked
+- Causal Effects
+- Decorative Animations
+
+*
+- Static Animations
+- Stateful Animations
+- Dynamic Animations
+
+
+** Triggering States
+1. Browser events
+   - Loading
+   - Scrolling
+2. Human events
+   - Hovering
+   - Clicking
+3. Timed Events
+   - Timeout
+   - Choreography
+
+** JS events
+- =animationstart=
+- =animationend=
+- =animationiteration=
+- =transitionend=
+
+
+
+I fucking forget this:
+ease-out => fast -> slow;
+ease-in => slow -> fast;
