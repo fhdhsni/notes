@@ -10,7 +10,15 @@
 - =flex-shrink= Used to specify the "shrink factor" of a flex item. It
   accepts number and the *default is 1* which means do shrink.
 - =flex-basis= used to specify the initial size of a flex item. It
-  default to auto.
+  default to auto. In addition to accepting a length unit, =flex-basis=
+  can take the keyword values of =content= and =auto=.
+  A value of =content= means that the =flex-basis= is taken from
+  the content size of the item in the main dimension.
+  Then we have the very useful value of =auto=. Use =auto= as your
+  =flex-basis= and, if you’ve set a =width= on the item, that =width=
+  will be used as the =flex-basis= value. If you haven’t set a =width=,
+  =auto= resolves to the content size.
+
 - =align-self= Used to align individual flex items by overriding the
   =align-items= value. The default value is =stretch=.
 

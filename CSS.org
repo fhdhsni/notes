@@ -66,7 +66,7 @@ a:hover { color:
 #+END_SRC
 
 ** Layout
-Layout rules divide the page into sections.    
+Layout rules divide the page into sections.
 #+BEGIN_SRC css
   #article {
     width:80%;
@@ -89,11 +89,11 @@ Layout rules divide the page into sections.
 Prefixed with =l-= or =layout-=
 
 ** Module
-Modules are the reusable, modular parts of our design. 
+Modules are the reusable, modular parts of our design.
 
 ** State
 State rules are ways to describe how our modules or layouts will
-look when in a particular state. 
+look when in a particular state.
 
 Prefixed with =is-= like =is-hidden=
 
@@ -115,4 +115,81 @@ Prefixed with =is-= like =is-hidden=
 
 /* Inline layout  */
 .l-inline { }
+#+END_SRC
+
+* Estelle CSS Workshop
+
+** Selectors
+
+
+in =.foo > .bar= the =>= doesn't had any specificity weight to the selector
+
+#+BEGIN_SRC css
+  .foo + li {
+    /* immediate adjacent sibling */
+  }
+
+  .foo ~ li {
+    /*
+      general sibling selector
+      matches later siblings, but not nested.
+    */
+  }
+#+END_SRC
+
+
+
+*** Lots 'o Selectors
+#+BEGIN_SRC
+    *
+    E
+    .class
+    #id
+    E F
+    E > F
+    E + F
+    E[attribute]
+    E[attribute=value]
+    E[attribute~=value]
+    E[attribute|=value] // p[lang|="en"] -> <p lang="en-us"> <p lang="en-uk">
+    :first-child
+    :lang()
+    :before
+    ::before
+    ::selection
+    :after
+    ::after
+    :first-letter
+    ::first-letter
+    :first-line
+    ::first-line
+    E[attribute^=value]
+    E[attribute$=value]
+    E[attribute*=value]
+    E ~ F
+    :root
+    :last-child
+    :only-child
+    :nth-child()
+    :nth-last-child()
+    :first-of-type
+    :last-of-type
+    :only-of-type
+    :nth-of-type()
+    :nth-last-of-type()
+    :empty
+    :not()
+    :target
+    :enabled
+    :disabled
+    :checked
+    :default
+    :valid
+    :invalid
+    :in-range
+    :out-of-range
+    :required
+    :optional
+    :read-only
+    :read-write
 #+END_SRC

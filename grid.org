@@ -18,3 +18,138 @@
 | align-items     | All grid items in the block (vertical) direction     | Grid container |
 | align-content   | The entire grid in the block (vertical) direction    | Grid container |
 |                 |                                                      |                |
+
+
+- What happens when flex items wrap onto a new row (or column, if you
+  are working with columns) is that the new row becomes its own flex
+  container. This means that the assigning of available space happens
+  across the individual row. Flexbox won’t try to line the items up
+  with items in rows above or below. We describe this as
+  one-dimensional layout. We are laying out our items in either a row
+  or a column—we can’t control both at once using flexbox.
+
+
+- =fr= represents a fraction of the space available in the grid container.
+
+- The justify-items and justify-self properties do not apply in
+  flexbox because we only have one axis, and the main axis might have
+  multiple items on it. There may be times, how- ever, when we want to
+  space items out on the main axis; to do so, we need to space out the
+  content itself. For this, we use the justify-content property, which
+  affects the entire flex container. The justify-content property acts
+  on the main axis—on the row if our flex-direction is row, on the
+  column if flex-direction is column.
+
+
+GRID PROPERTIES
+#+BEGIN_SRC css
+  /* on container */
+  .container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    grid-gap: 5px; /* => shorthand for grid-column-gap and grid-row-gap */
+    grid-template-areas:
+      "a a b"
+      ". d d"
+      "c e e";
+    align-items: center;
+    justify-items: end;           /* doesn't work with flexbox */
+
+    align-content: foo            /* affect the grid tracks, you need additional space(no fr) */
+    justify-content: foo          /* affect the grid tracks, you need additional space(no fr) */
+
+
+    /* --------------- auto-fill >> ---------------------- */
+    grid-template-columns: repeat(auto-fill, 200px); /* add as many column tracks as will fit. */
+    /*
+      For the column-track width, I then need to use an absolute value; if
+      we used 1fr, we would only get one column track, since 1fr would use
+      all the available space in the grid container.  If the container
+      doesn’t divide neatly by 200 pixels, we get a gap at the end.
+    -------------------------------------------------------- */
+
+    /* --------------- minmax() >> ---------------------- */
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr))
+    /*
+    To address this (problem mentioned at the end of previous example),
+    we can employ another trick, with the minmax() function. Using
+    minmax() in track sizing enables the setting of a minimum and a
+    maximum size for that track. If we update the 200-pixel track
+    definition to minmax(200px, 1fr), the browser will work out how many
+    200-pixel columns will fit into the container, and then take the
+    leftover space and assign it equally to the tracks, since the
+    maximum is 1fr.
+
+    We now have as many tracks as will fit in the container.
+    The tracks have a flexible width, but won’t collapse below a
+    minimum, and the layout remains a strict grid.
+    -------------------------------------------------------- */
+
+    /* --------------- auto-fill vs auto-fit >> ----------------------
+      There are two possible keywords to use in repeat(): auto-fill
+      and auto-fit. They do the same thing insofar as they add as
+      many column tracks as will fit into the container. The difference
+      is that if you use auto-fill but don’t have enough items to fill
+      the tracks, the tracks remain open, so you will get space at the
+      end where the reserved column tracks are.
+      If we instead use auto-fit, once all the items have been laid
+      out, any completely empty tracks will be collapsed. In the case
+      of a flexible listing such as ours, the available space will then
+      be distributed to the filled tracks
+
+      Use auto-fill if you want to maintain the tracks; use auto-
+      fit if you want the content to fill the container (in case there are
+      fewer items than tracks).
+      ----------------------------------------------------------------*/
+
+      /* ------------ The behavior of auto in Grid Layout >> -------------*/
+      grid-template-columns: 1fr auto 1fr;
+
+      /*
+      Similiar to `auto` in flex-basis,
+      taking the width of the item or resolving to content. In
+      Grid Layout, auto works in roughly the same way; however, be
+      aware that it affects the entire row or column track.
+      ----------------------------------------------------------------*/
+
+      /* ------------ Using auto as a maximum in minmax() >> ---------*/
+      grid-auto-rows: minmax(150px, auto);
+      /*
+      Because auto can generally be expected to mean “content-sized,”
+      it can be usefully employed as the maximum in minmax().
+      This enables the creation of tracks that are always a minimum
+      height or width, but that expand if more content is added
+      than expected.
+      The track sizing is achieved using the minmax() function
+      we met earlier, with our minimum set to the ideal size of the
+      track—150px—and our maximum set to auto. This means that
+      as long as the content is shorter than 150px, we get a 150-pixel
+      track, as designed.
+      And if someone comes along and adds additional text into
+      any box, the design adapts: the full row extends down to con-
+      tain the content.
+      ----------------------------------------------------------------*/
+
+      /* ------------ GRID AUTO-PLACEMENT >> ---------*/
+      grid-column: auto / span 2;
+      /*
+        using auto-placement, causing them to start on line `auto` , but end
+        on line `span 2`. So auto-placement will decide where
+        to put them, but they will always span two tracks.
+      ----------------------------------------------------------------*/
+
+      grid-auto-flow: dense;        /* Something like flex-direction, default is row */
+
+    }
+
+  /* on child */
+  .child {
+    grid-column: 1 / -1;
+    grid-row: 1 / span 2;
+    grid-area: foobar;
+    align-self: center;
+    justify-self: center;         /* doesn't work with flexbox */
+    order: 2;
+  }
+#+end_src

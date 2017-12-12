@@ -117,3 +117,23 @@
     }
   }
   #+END_SRC
+
+- Properties in a Vue Component:
+     1. =name=
+     2. =props=
+     3. =mixins=
+     4. =directives=
+     5. =data=
+     6. =components=
+     7. =computedProps=
+     8. =methods=
+     9. =beforeCreate=
+    10. =created=
+    11. =beforeMount=
+    12. =mounted=
+    13. =beforeUpdate=
+    14. =updated=
+    15. =activated=
+    16. =deactivated=
+    17. =beforeDestroy=
+    18. =destroyed=

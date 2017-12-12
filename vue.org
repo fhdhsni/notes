@@ -1,6 +1,5 @@
 From Sara Drasner =intro to Vue= workshop and official doc.
 
-
 ** DIRECTIVES
 HTML attributes, that basically attaches some functionality to that HTML markup.
 - =v-text=: &nbsp; Similar to using mustache templates
@@ -71,10 +70,14 @@ export default {
 =v-model.lazy= won’t populate the content automatically, it will wait to bind until an event happens. (It listens to change events instead of input)
 
 ** COMPUTED properties
-(cached until dependency is changed)
-Computed properties are calculations that will be cached and will only update when needed. Highly performant but use with understanding. They are the different view of the same data.
+(Cached until dependency is changed)
 
-The function provide will be used as the getter function for the property of the same name.
+Computed properties are calculations that will be cached and will only
+update when needed. Highly performant but use with understanding. They
+are the different view of the same data.
+
+The function provide will be used as the getter function for the
+property of the same name.
 
 | computed                                            |      methods                                |
 |-----------------------------------------------------|:-------------------------------------------:|
@@ -100,8 +103,13 @@ new Vue({
 #+END_SRC
 
 computed properties are cached based on their dependencies
-This means as long as =message= has not changed, multiple access to the =reversedMessage= computed property will immediately return the previously computed result without having to run the function again.
-This also means the following computed property will never update, because =Date.now()= is not a reactive dependency:
+
+This means as long as =message= has not changed, multiple access to
+the =reversedMessage= computed property will immediately return the
+previously computed result without having to run the function again.
+This also means the following computed property will never update,
+because =Date.now()= is not a reactive dependency:
+
 #+BEGIN_SRC javascript
 computed: {
   now: function () {
@@ -492,7 +500,9 @@ The current element transitions out and then the new element transitions in.
 </script>
 #+END_SRC
 ** Filters
-The first thing to understand about filters is that they aren't replacements for methods, computed values, or watchers, because filters don't transform the data, just the output that the user sees.
+The first thing to understand about filters is that they aren't
+replacements for methods, computed values, or watchers, because
+filters don't transform the data, just the output that the user sees.
 
 #+BEGIN_SRC javascript
 //global
@@ -517,7 +527,9 @@ filters: {
   }
 }
 #+END_SRC
-Filters sounds like it would be good to filter a lot of data, but filters are rerun on every single update, so better to use computed, for values like these that should be cached
+Filters sounds like it would be good to filter a lot of data, but
+filters are rerun on every single update, so better to use computed,
+for values like these that should be cached
 
 ** MIXINS
 It's a common situation: you have two components that are pretty
@@ -668,7 +680,9 @@ new Vue({
 /* This console.log would now appear in every component */
 #+END_SRC
 
-Global mixins are literally applied to every single component. One use I can think of that makes sense is something like a plugin, where you may need to gain access to everything.
+Global mixins are literally applied to every single component. One use
+I can think of that makes sense is something like a plugin, where you
+may need to gain access to everything.
 
 But still, the use case for them is extremely limited and they should be considered with great caution.
 
@@ -685,17 +699,28 @@ Vue.directive('tack', {
 });
 #+END_SRC
 
-=v-example= - this will instantiate a directive, but doesn't accept any arguments. Without passing a value, this would not be very flexible, but you could still hang some piece of functionality off of the DOM element.
+=v-example= - this will instantiate a directive, but doesn't accept
+any arguments. Without passing a value, this would not be very
+flexible, but you could still hang some piece of functionality off of
+the DOM element.
 
-=v-example="value"= - this will pass a value into the directive, and the directive figures out what to do based off of that value.
+=v-example="value"= - this will pass a value into the directive, and
+the directive figures out what to do based off of that value.
 
 
-=v-example:arg="value"= - this allows us to pass in an argument to the directive. In the example below, we're binding to a class, and we'd style it with an object, stored separately.
-=v-example:arg.modifier="value"= - this allows us to use a modifier. The example below allows us to call =preventDefault()= on the click event.
+=v-example:arg="value"= - this allows us to pass in an argument to the
+directive. In the example below, we're binding to a class, and we'd
+style it with an object, stored separately.
+
+=v-example:arg.modifier="value"= - this allows us to use a
+modifier. The example below allows us to call =preventDefault()= on
+the click event.
 
 =<button v-on:submit.prevent="onSubmit"></button>=
 
-We have different hooks for binding like =v-bind=, =v-inserted=, =v-updated=, and [more](https://s3.amazonaws.com/media-p.slid.es/uploads/75854/images/3909041/custom-directives-flat.svg)
+We have different hooks for binding like =v-bind=, =v-inserted=,
+=v-updated=, and
+[more](https://s3.amazonaws.com/media-p.slid.es/uploads/75854/images/3909041/custom-directives-flat.svg)
 
 example
 #+BEGIN_SRC html
@@ -853,35 +878,35 @@ reach out to a server.
 Basic Abstract Example
 
 #+BEGIN_SRC javascript
-export const store = new Vuex.Store({
-  state: {
-    counter: 0
-  },
-  //showing things, not mutating state
-  getters: {
-    tripleCounter: state => {
-      return state.counter * 3;
+  export const store = new Vuex.Store({
+    state: {
+      counter: 0
+    },
+    //showing things, not mutating state
+    getters: {
+      tripleCounter: state => {
+        return state.counter * 3;
+      }
+    },
+    //mutating the state
+    //mutations are always synchronous
+    mutations: {
+      //showing passed with payload, represented as num
+      increment: (state, num) => {
+        state.counter += num;
+      }
+    },
+    //commits the mutation, it's asynchronous
+    actions: {
+      // showing passed with payload, represented as asynchNum (an object)
+      asyncIncrement: ({ commit }, asyncNum) => { // commit is just the function name that calls a mutation function with the provided payload.
+        setTimeout(() => {
+          //the asyncNum objects could also just be static amounts
+          commit('increment', asyncNum.by);
+        }, asyncNum.duration);
+      }
     }
-  },
-  //mutating the state
-  //mutations are always synchronous
-  mutations: {
-    //showing passed with payload, represented as num
-    increment: (state, num) => {
-      state.counter += num;
-    }
-  },
-  //commits the mutation, it's asynchronous
-  actions: {
-    // showing passed with payload, represented as asynchNum (an object)
-    asyncIncrement: ({ commit }, asyncNum) => {
-      setTimeout(() => {
-        //the asyncNum objects could also just be static amounts
-        commit('increment', asyncNum.by);
-      }, asyncNum.duration);
-    }
-  }
-})
+  })
 #+END_SRC
 
 To actually use it in our component
@@ -920,10 +945,14 @@ export default {
 </script>
 #+END_SRC
 
-On the component itself, we would use =computed= for =getters= (this makes sense because the value is already computed for us), and =methods= with =commit= to access the =mutations=, and methods with =dispatch= for the =actions=:
+On the component itself, we would use =computed= for =getters= (this
+makes sense because the value is already computed for us), and
+=methods= with =commit= to access the =mutations=, and methods with
+=dispatch= for the =actions=:
 
 # From Vue Doc
-- All Vue components are also Vue instances, and so accept the same options object (except for a few root-specific options).
+- All Vue components are also Vue instances, and so accept the same
+  options object (except for a few root-specific options).
 
 ** Class and Style Bindings
 Vue provides special enhancements when =v-bind= is used with =class= and =style=. In addition to strings, the expressions can also evaluate to objects or arrays.
@@ -1094,7 +1123,11 @@ You could add a new age property to the nested userProfile object with:
 You can also use the =vm.$set= instance method, which is an alias for the global =Vue.set=:
 =this.$set(this.userProfile, 'age', 27)=
 
-Sometimes you may want to assign a number of new properties to an existing object, for example using =Object.assign()= or =_.extend()=. In such cases, you should create a fresh object with properties from both objects. So instead of:
+Sometimes you may want to assign a number of new properties to an
+existing object, for example using =Object.assign()= or
+=_.extend()=. In such cases, you should create a fresh object with
+properties from both objects. So instead of:
+
 #+BEGIN_SRC javascript
 Object.assign(this.userProfile, {
   age: 27,
@@ -1500,7 +1533,9 @@ The above will be equivalent to:
 
 *** Non Parent-Child Communication
 
-Sometimes two components may need to communicate with one-another but they are not parent/child to each other. In simple scenarios, you can use an empty Vue instance as a central event bus:
+Sometimes two components may need to communicate with one-another but
+they are not parent/child to each other. In simple scenarios, you can
+use an empty Vue instance as a central event bus:
 
 #+BEGIN_SRC javascript
   var bus = new Vue()
@@ -1837,3 +1872,196 @@ add reactive properties to a nested object using the =Vue.set(object, key, value
 
 You can also use the =vm.$set= instance method, which is an alias to the global =Vue.set=:
 =this.$set(this.someObject, 'b', 2)=
+** Testing
+
+*** Shallow Rendering
+#+BEGIN_SRC js
+import { shallow } from 'vue-test-utils'
+
+const wrapper = shallow(Component) // returns a Wrapper containing a mounted Component instance
+wrapper.vm // the mounted Vue instance
+#+END_SRC
+
+*** Asserting Emitted Events
+#+BEGIN_SRC js
+wrapper.vm.$emit('foo')
+wrapper.vm.$emit('foo', 123)
+
+/*
+`wrapper.emitted()` returns the following object:
+{
+  foo: [[], [123]]
+}
+*/
+
+// You can then make assertions based on these data:
+
+import { expect } from 'chai'
+
+// assert event has been emitted
+expect(wrapper.emitted().foo).toBeTruthy()
+
+// assert event count
+expect(wrapper.emitted().foo.length).toBe(2)
+
+// assert event payload
+expect(wrapper.emitted().foo[1]).toEqual([123])
+
+#+END_SRC
+
+*** Manipulating Component State
+#+BEGIN_SRC js
+wrapper.setData({ count: 10 })
+wrapper.setProps({ foo: 'bar' })
+#+END_SRC
+
+*** Mocking Props
+#+BEGIN_SRC js
+import { mount } from 'vue-test-utils'
+
+mount(Component, {
+  propsData: {
+    aProp: 'some value'
+  }
+})
+#+END_SRC
+
+*** Applying Global Plugins and Mixins
+#+BEGIN_SRC js
+import { createLocalVue } from 'vue-test-utils'
+
+// create an extended `Vue` constructor
+const localVue = createLocalVue()
+
+// install plugins as normal
+localVue.use(MyPlugin)
+
+// pass the `localVue` to the mount options
+mount(Component, {
+  localVue
+})
+#+END_SRC
+
+*** Mocking Injections
+#+BEGIN_SRC js
+import { mount } from 'vue-test-utils'
+
+const $route = {
+  path: '/',
+  hash: '',
+  params: { id: '123' },
+  query: { q: 'hello' }
+}
+
+mount(Component, {
+  mocks: {
+    $route // adds the mocked `$route` object to the Vue instance before mounting component
+  }
+})
+#+END_SRC
+
+*** Testing Key, Mouse and other DOM events
+
+**** Trigger events
+The Wrapper expose a trigger method. It can be used to trigger DOM events.
+
+#+BEGIN_SRC js
+  const wrapper = mount(MyButton)
+
+  wrapper.trigger('click')
+#+END_SRC
+
+You should be aware that the find method returns a Wrapper as
+well. Assuming MyComponent contains a button, the following code
+clicks the button.
+
+#+BEGIN_SRC js
+  const wrapper = mount(MyComponent)
+
+  wrapper.find('button').trigger('click')
+#+END_SRC
+
+***** Options
+
+
+The trigger method takes an optional options object. The properties in the options object are added to the Event.
+
+You can run preventDefault on the event by passing =preventDefault: true= in options.
+
+#+BEGIN_SRC js
+const wrapper = mount(MyButton)
+
+wrapper.trigger('click', { preventDefault: true })
+
+#+END_SRC
+
+
+**** Keyboard Example
+#+BEGIN_SRC js
+  it('Magic character "a" sets quantity to 13', () => {
+    const wrapper = mount(QuantityComponent)
+    wrapper.trigger('keydown', {
+      which: 65
+    })
+    expect(wrapper.vm.quantity).to.equal(13)
+  })
+#+END_SRC
+
+*** Using with Vue Router
+#+BEGIN_SRC js
+import VueRouter from 'vue-router'
+const localVue = createLocalVue()
+
+localVue.use(VueRouter)
+
+shallow(Component, {
+  localVue
+})
+#+END_SRC
+
+**** Testing components that use =router-link= or =router-view=
+***** Using stubs
+#+BEGIN_SRC js
+shallow(Component, {
+  stubs: ['router-link', 'router-view']
+})
+#+END_SRC
+
+***** Installing Vue Router with localVue
+
+#+BEGIN_SRC js
+import VueRouter from 'vue-router'
+const localVue = createLocalVue()
+
+localVue.use(VueRouter)
+
+shallow(Component, {
+  localVue
+})
+#+END_SRC
+
+***** Mocking $route and $router
+#+BEGIN_SRC js
+const $route = {
+  path: '/some/path'
+}
+
+const wrapper = shallow(Component, {
+  mocks: {
+    $route
+  }
+})
+
+wrapper.vm.$router // /some/path
+#+END_SRC
+
+
+
+Installing Vue Router adds =$route= and =$router= as read-only properties on Vue prototype.
+
+This means any future tests that try to mock =$route= or =$router= will fail.
+
+To avoid this, never install Vue Router when you're running tests.
+
+*** Using with Vuex
+**** Mocking Actions
