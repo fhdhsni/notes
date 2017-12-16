@@ -48,3 +48,80 @@ Notes from /The Rust Book/
   The semantics for passing a value to a function are similar to
   assigning a value to a variable. Passing a variable to a function will
   move or copy, just like assignment.
+
+- A data race is a particular type of race condition in which these three behaviors occur:
+    1. Two or more pointers access the same data at the same time.
+    2. At least one of the pointers is being used to write to the data.
+    3. There’s no mechanism being used to synchronize access to the data.
+
+-  /dangling pointer/, a pointer that references a location in memory
+  that may have been given to someone else, by freeing some memory
+  while preserving a pointer to that memory.
+
+
+-
+  + At any given time, you can have /either/ but not both of:
+    * One mutable reference.
+    * Any number of immutable references.
+  + References must always be valid.
+
+*** slices
+- String Literals Are Slices
+
+#+BEGIN_SRC rust
+let s = "Hello, world!";
+#+END_SRC
+The type of =s= here is =&str=: it’s a slice pointing to that specific
+point of the binary. This is also why string literals are immutable;
+=&str= is an immutable reference.
+
+instead of
+#+BEGIN_SRC rust
+fn first_word(s: &String) -> &str {
+#+END_SRC
+
+A more experienced Rustacean would write the following line instead
+because it allows us to use the same function on both Strings and
+&strs:
+
+#+BEGIN_SRC rust
+fn first_word(s: &str) -> &str {
+#+END_SRC
+
+If we have a string slice, we can pass that directly. If we have a
+String, we can pass a slice of the entire String. Defining a function
+to take a string slice instead of a reference to a String makes our
+API more general and useful without losing any functionality:
+
+#+BEGIN_SRC rust
+fn main() {
+    let my_string = String::from("hello world");
+
+    // first_word works on slices of `String`s
+    let word = first_word(&my_string[..]);
+
+    let my_string_literal = "hello world";
+
+    // first_word works on slices of string literals
+    let word = first_word(&my_string_literal[..]);
+
+    // since string literals *are* string slices already,
+    // this works too, without the slice syntax!
+    let word = first_word(my_string_literal);
+}
+
+fn first_word(s: &str) -> &str {
+    let bytes = s.as_bytes();
+
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' && i != 0 {
+            return &s[..i];
+        }
+    }
+
+    &s[..]
+}
+
+#+END_SRC
+
+* Struct

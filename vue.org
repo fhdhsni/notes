@@ -1106,7 +1106,10 @@ To deal with caveat 2, you can use splice:
 
 *** Object Change Detection Caveats
 
-Vue does not allow dynamically adding new root-level reactive properties to an already created instance. However, it’s possible to add reactive properties to a nested object using the Vue.set(object, key, value) method. For example, given:
+Vue does not allow dynamically adding new root-level reactive
+properties to an already created instance. However, it’s possible to
+add reactive properties to a nested object using the Vue.set(object,
+key, value) method. For example, given:
 
 #+BEGIN_SRC javascript
 var vm = new Vue({
@@ -1120,8 +1123,8 @@ var vm = new Vue({
 You could add a new age property to the nested userProfile object with:
 =Vue.set(vm.userProfile, 'age', 27)=
 
-You can also use the =vm.$set= instance method, which is an alias for the global =Vue.set=:
-=this.$set(this.userProfile, 'age', 27)=
+You can also use the =vm.$set= instance method, which is an alias for
+the global =Vue.set=: =this.$set(this.userProfile, 'age', 27)=
 
 Sometimes you may want to assign a number of new properties to an
 existing object, for example using =Object.assign()= or
@@ -1277,9 +1280,16 @@ Will be equivalent to:
 
 ** One-Way Data Flow
 
-All props form a **one-way-down** binding between the child property and the parent one: when the parent property updates, it will flow down to the child, but not the other way around. This prevents child components from accidentally mutating the parent’s state, which can make your app’s data flow harder to understand.
+All props form a **one-way-down** binding between the child property
+and the parent one: when the parent property updates, it will flow
+down to the child, but not the other way around. This prevents child
+components from accidentally mutating the parent’s state, which can
+make your app’s data flow harder to understand.
 
-In addition, every time the parent component is updated, all props in the child component will be refreshed with the latest value. This means you should not attempt to mutate a prop inside a child component.
+In addition, every time the parent component is updated, all props in
+the child component will be refreshed with the latest value. This
+means you should not attempt to mutate a prop inside a child
+component.
 
 
 There are usually two cases where it’s tempting to mutate a prop:
