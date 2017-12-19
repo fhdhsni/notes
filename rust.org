@@ -125,3 +125,113 @@ fn first_word(s: &str) -> &str {
 #+END_SRC
 
 * Struct
+#+BEGIN_SRC rust
+#[derive(Debug)]
+struct Rectangle {
+    width: u32,
+    height: u32,
+}
+
+fn main() {
+    let rect1 = Rectangle { width: 30, height: 50 };
+
+    println!(
+        "The area of the rectangle is {} square pixels.",
+        area(&rect1)
+    );
+}
+
+fn area(rectangle: &Rectangle) -> u32 {
+    rectangle.width * rectangle.height
+}
+#+END_SRC
+
+Our =area= function is defined with one parameter, which we’ve named
+rectangle, whose type is an immutable borrow of a =struct Rectangle=
+instance. We want to borrow the struct rather than take ownership of
+it. This way, main retains its ownership and can continue using =rect1=,
+which is the reason we use the =&= in the function signature and where
+we call the function.
+
+** Method Syntax
+#+BEGIN_SRC rust
+
+#[derive(Debug)]
+struct Rectangle {
+    width: u32,
+    height: u32,
+}
+
+impl Rectangle {
+    fn area(&self) -> u32 {
+        self.width * self.height
+    }
+}
+
+fn main() {
+    let rect1 = Rectangle { width: 30, height: 50 };
+
+    println!(
+        "The area of the rectangle is {} square pixels.",
+        rect1.area()
+    );
+}
+#+END_SRC
+
+    Where’s the =->= Operator?
+
+    In languages like C++, two different operators are used for
+    calling methods: you use =.= if you’re calling a method on the
+    object directly and =->= if you’re calling the method on a pointer
+    to the object and need to dereference the pointer first. In other
+    words, if object is a pointer, =object->something()= is similar to
+    =(*object).something()=.
+
+    Rust doesn’t have an equivalent to the =->= operator; instead, Rust
+    has a feature called =automatic referencing and dereferencing=.
+    Calling methods is one of the few places in Rust
+    that has this behavior.
+
+    Here’s how it works: when you call a method with
+    =object.something()=, Rust automatically adds in =&=, =&mut=, or =*= so
+    *object matches the signature of the method*. In other words, the
+    following are the same:
+
+    #+BEGIN_SRC rust
+      p1.distance(&p2);
+      (&p1).distance(&p2);
+    #+END_SRC
+
+    The first one looks much cleaner. This automatic referencing
+    behavior works because methods have a clear receiver—the type of
+    self. Given the receiver and name of a method, Rust can figure out
+    definitively whether the method is reading (=&self=), mutating (=&mut self=),
+    or consuming (=self=). The fact that Rust makes borrowing
+    implicit for method receivers is a big part of making ownership
+    ergonomic in practice.
+
+**  Associated Functions
+
+
+Another useful feature of =impl= blocks is that we’re allowed to define
+functions within =impl= blocks that don’t take =self= as a
+parameter. These are called associated functions because they’re
+associated with the =struct=. They’re still functions, not methods,
+because they don’t have an instance of the struct to work with. You’ve
+already used the =String::from= associated function.
+
+Associated functions are often used for constructors that will return
+a new instance of the struct.
+
+#+BEGIN_SRC rust
+impl Rectangle {
+    fn square(size: u32) -> Rectangle {
+        Rectangle { width: size, height: size }
+    }
+}
+let sq = Rectangle::square(3);
+#+END_SRC
+
+Methods let us specify the behavior that instances of our structs
+have, and associated functions let us namespace functionality that is
+particular to our struct without having an instance available.

@@ -1,0 +1,57 @@
+My notes on precalculus book.
+
+|------+--------------------------------------+-----+-------------------|
+| cm   | centimeter                           | mg  | milligram         |
+| dB   | decibel                              | MHz | megahertz         |
+| F    | farad                                | mi  | mile              |
+| ft   | foot                                 | min | minute            |
+| g    | gram                                 | mL  | milliliter        |
+| gal  | gallon                               | mm  | millimeter        |
+| h    | hour                                 | N   | Newton            |
+| H    | henry                                | qt  | quart             |
+| Hz   | Hertz                                | oz  | ounce             |
+| in.  | inch                                 | s   | second            |
+| J    | Joule                                | Ω   | ohm               |
+| kcal | kilocalorie                          | V   | volt              |
+| kg   | kilogram                             | W   | watt              |
+| km   | kilometer                            | yd  | yard              |
+| kPa  | kilopascal                           | yr  | year              |
+| L    | liter                                | °C  | degree Celsius    |
+| lb   | pound                                | °F  | degree Fahrenheit |
+| lm   | lumen                                | K   | Kelvin            |
+| M    | mole of solute per liter of solution | ->  | implies           |
+| m    | meter                                | <-> | is equivalent to  |
+
+* Principles Of Problem Solving
+
+1. Understand the Problem
+   - What is the unknown?
+   - What are the given quantities?
+   - What are the given conditions?
+2. Think of a Plan
+   Find a connection between the given information and the unknown that
+   enables you to calculate the unknown.
+   Ask yourself explicitly: “How can I relate the given to the unknown?”
+   - *Try to Recognize Something Familiar*
+   - *Try to Recognize Patterns*
+   - *Use Analogy*: If you can solve the similar, simpler problem, then
+     it might give you the clues you need to solve the original, more
+     difficult one. For instance, if a problem involves very large
+     numbers, you could first try a similar problem with smaller
+     numbers. Or if the problem is in three-dimensional geometry, you
+     could look for some- thing similar in two-dimensional
+     geometry. Or if the problem you start with is a general one, you
+     could first try a special case.
+   - *Introduce Something Extra*: For instance, in a problem for which a
+     diagram is useful, the auxiliary aid could be a new line drawn in
+     the diagram.
+   - *Take Cases*: You might sometimes have to split a problem into
+     several cases and give a different argument for each case.
+   - *Work Backward*
+   - *Establish Subgoals*
+   - *Indirect Reasoning*
+   - *Mathematical Induction*: ??
+3. Carry Out the Plan
+4. Look Back: “Every problem that I solved became a rule which served
+   afterwards to solve other problems.”
+5.
