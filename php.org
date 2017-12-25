@@ -1,0 +1,267 @@
+Modern PHP by Josh Lockhart
+
+- Provisioning tools like: =Ansible=, =Chef=, and =Puppet=.
+
+- To import a function, change =use= to =use func=:
+
+- *Traits*:
+  1. Traits behave like classes but look like interfaces. Which one are
+     they? Neither and both.
+
+  2. A trait is a partial class implementation (i.e., constants,
+     properties, and methods) that can be mixed into one or more existing
+     PHP classes. Traits work double duty: they say what a class can do
+     (like an interface), and they provide a modular implementation (like
+     a class). They enable modular implementations that can be injected
+     into otherwise unrelated classes. Traits also encourage code reuse.
+
+  3. Both namespaces and traits are imported with the use keyword. Where
+     they are imported is different. We import namespaces, classes,
+     interfaces, functions, and constants outside of a class
+     definition. We import traits inside a class definition. The
+     difference is subtle but important.
+
+  4. The PHP interpreter copies and pastes traits into class definitions
+     at compile time, and it does not protect against incompatibilities
+     introduced by this action. If your PHP trait assumes a class
+     property or method exists (that is not defined in the trait itself),
+     be sure those properties and methods exist in the appropriate classes.
+- *Generators*
+  1. Generators are simple iterators.
+  #+BEGIN_SRC php
+  function getRows($file) {
+    $handle = fopen($file, 'rb');
+    if ($handle === false) {
+      throw new Exception();
+    }
+    while (feof($handle) === false) {
+      yield fgetcsv($handle);
+    }
+    fclose($handle);
+  }
+  foreach (getRows('data.csv') as $row) {
+    print_r($row);
+  }
+  #+END_SRC
+
+- *Closures*
+
+Don’t forget, PHP closures are objects. Each closure instance has its own internal state that
+is accessible with the $this keyword just like any other PHP object. A closure object’s
+default state is pretty boring; it has a magic __invoke() method and a bindTo() method.
+That’s it.
+
+#+BEGIN_SRC php
+<?php
+$closure = function ($name) {
+  return sprintf('Hello %s', $name);
+};
+echo $closure("Josh");
+// Outputs --> "Hello Josh"
+#+END_SRC
+
+- We can invoke the =$closure= variable because the variable’s value is
+  a closure, and closure objects implement the =\__invoke()= magic
+  method. PHP looks for and calls the =__invoke()= method whenever =()=
+  follows a variable name.
+
+- Attach State
+#+BEGIN_SRC php
+<?php
+function enclosePerson($name) {
+    return function ($doCommand) use ($name) {
+        return sprintf('%s, %s', $name, $doCommand);
+    };
+}
+// Enclose "Clay" string in closure
+$clay = enclosePerson('Clay');
+// Invoke closure with command
+echo $clay('get me sweet tea!');
+// Outputs --> "Clay, get me sweet tea!"
+#+END_SRC
+
+- Zend OPcache
+sample php.ini configuration file
+#+BEGIN_SRC
+    opcache.validate_timestamps = 1 // "0" in production
+    opcache.revalidate_freq = 0
+    opcache.memory_consumption = 64
+    opcache.interned_strings_buffer = 16
+    opcache.max_accelerated_files = 4000
+    opcache.fast_shutdown = 1
+#+END_SRC
+
+Be careful if the opcache.validate_timestamps INI directive is
+false. When this setting is false, the Zend OPcache does not know
+about changes to your PHP scripts, and you must manually clear Zend
+OPcache’s bytecode cache before it recognizes changes to your PHP
+files. This setting is good for production but inconvenient for
+development. You can enable automatic cache revalidation with these
+php.ini configuration settings:
+
+#+BEGIN_SRC
+    opcache.validate_timestamps=1
+    opcache.revalidate_freq=0
+#+END_SRC
+
+Configure the Server to use its own PHP INI configuration file
+#+BEGIN_SRC
+php -S localhost:8000 -c app/config/php.ini
+#+END_SRC
+
+What is a *front controller*?  A front controller is a single PHP file
+to which all HTTP requests are forwarded (via .htaccess files or
+rewrite rules). The front-controller PHP file is responsible for
+routing the request and dispatching the appropriate PHP code.
+
+The PHP built-in server mitigates this omission with router scripts. The router script is
+executed before every HTTP request. If the router script returns false, the static asset
+referenced by the current HTTP request URI is returned. Otherwise, the output of the
+router script is returned as the HTTP response body. In other words, if you use a router
+script you’re effectively hardcoding the same functionality as an .htaccess file.
+Using a router script is easy. Just pass the PHP script file path as a an argument when you
+start up the PHP built-in server:
+#+BEGIN_SRC
+php -S localhost:8000 router.php
+#+END_SRC
+
+- The *PHP-FIG* is a group of PHP framework representatives who,
+  according to the PHP-FIG website, “talk about the commonalities
+  between our projects and find ways we can work together.”
+
+- *Autoloading*
+
+PHP frameworks work together via autoloading. Autoloading is the
+process by which a PHP class is automatically located and loaded
+on-demand by the PHP interpreter during runtime.
+
+- *PSR*
+The PHP-FIG has published five recommendations as of this book’s
+publication:
+
+- PSR-1: Basic code style
+  + *PHP tags*
+      You must surround your PHP code with either the <?php ?> or <?= ?> tags. You must
+      not use any other PHP tag syntax.
+  + *Encoding*
+      All PHP files must be encoded with the UTF-8 character set without a byte order mark
+      (BOM). This sounds complicated, but your text editor or IDE can do this for you
+      automatically.
+  + *Objective*
+      A single PHP file can either define symbols (a class, trait, function, constant, etc.) or
+      perform an action that has side effects (e.g., create output or manipulate data). A PHP
+      file should not do both. This is a simple task and requires only a little foresight and
+      planning on your part.
+  + *Autoloading*
+      Your PHP namespaces and classes must support the PSR-4 autoloader standard. All you
+      have to do is choose appropriate names for your PHP symbols and make sure their
+      definition files are in the expected location. We’ll chat about PSR-4 soon.
+  + *Class names*
+      Your PHP class names must use the common CamelCase format. This format is also
+      called TitleCase. Examples are CoffeeGrinder, CoffeeBean, and PourOver.
+  + *Constant names*
+      Your PHP constants must use all uppercase characters. They may use underscores to
+      separate words if necessary. Examples are WOOT, LET_OUR_POWERS_COMBINE, and
+      GREAT_SCOTT.
+  + *Method names*
+      Your PHP method names must use the common camelCase format. This means the
+      method name’s first character is lowercase, and the first letter of each subsequent word
+      in the method name is uppercase. Examples are phpIsAwesome, iLoveBacon, and
+      tennantIsMyFavoriteDoctor.
+- PSR-2: Strict code style
+  + Implement PSR-1
+  + Indentation: Four space
+  + Files and lines
+    Your PHP files must use Unix linefeed (LF)
+    endings, must end with a single blank line, and must not include a
+    trailing ?> PHP tag. Each line of code should not exceed 80
+    characters. Ultimately, each line of code must not exceed 120
+    characters. Each line must not have trailing white space. This
+    sounds like a lot of work, but it’s really not. Most code editors
+    can automatically wrap code to a specific width, strip trailing
+    whitespace, and use Unix line endings. All of these should happen
+    automatically with little to no thought on your part.
+
+    Why does it "must end with a single blank line"?  Because that’s
+    how the POSIX standard defines a line: A sequence of zero or more
+    non- <newline> characters plus a terminating <newline> character.
+    Therefore, lines not ending in a newline character aren't
+    considered actual lines. That's why some programs have problems
+    processing the last line of a file if it isn't newline terminated.
+  + Keywords: type all PHP keywords in lowercase.
+  + Namespaces: Each namespace declaration must be followed by one
+    blank line. Likewise, when you import or alias namespaces with the
+    use keyword, you must follow the block of use declarations with
+    one blank line.
+  + Methods
+    #+BEGIN_SRC php
+    <?php
+    namespace Animals;
+
+    class StrawNeckedIbis
+    {
+        public function flapWings($numberOfTimes = 3, $speed = 'fast')
+        {
+            // Method definition body
+        }
+    }
+    #+END_SRC
+
+  + Visibility You must declare a visibility for each class property
+    and method. A visibility is one of =public= , =protected=, or
+    =private=; If you declare a class property or method as =abstract=
+    or =final=, the =abstract= and =final= qualifiers must appear before the
+    visibility. If you declare a property or method as =static=, the
+    =static= qualifier must appear after the visibility:
+
+    #+BEGIN_SRC php
+    <?php
+    namespace Animals;
+    class StrawNeckedIbis
+    {
+        // Static property with visibility
+        public static $numberOfBirds = 0;
+
+        // Method with visibility
+        public function __construct()
+        {
+            static::$numberOfBirds++;
+        }
+    }
+    #+END_SRC
+
+  + Control structures
+    All control structure keywords must be followed by a single space
+    character.
+    #+BEGIN_SRC php
+    <?php
+    $gorilla = new \Animals\Gorilla;
+    $ibis = new \Animals\StrawNeckedIbis;
+    if ($gorilla->isAwake() === true) {
+        do {
+            $gorilla->beatChest();
+        } while ($ibis->isAsleep() === true);
+        $ibis->flyAway();
+    }
+    #+END_SRC
+  +
+- PSR-3: Logger interface
+
+- PSR-4: Autoloading The fourth PHP-FIG recommendation describes a
+  standardized autoloader strategy. An autoloader is a strategy for
+  finding a PHP class, interface, or trait and loading it into the PHP
+  interpreter on-demand at runtime. PHP components and frameworks that
+  support the PSR-4 autoloader standard can be located by and loaded
+  into the PHP interpreter with only one autoloader. This is a big
+  deal given the modern PHP ecosystem’s affinity for many
+  interoperable components.
+  An autoloader is a strategy for finding a PHP class, interface, or
+  trait and loading it into the PHP interpreter on-demand at runtime,
+  without explicitly including files as the example does.
+
+* Components
+the Composer dependency manager automatically generates a PSR-compatible autoloader for all of our project’s PHP
+components. Composer effectively abstracts away dependency management and
+autoloading.
+
+** Composer and Private Repositories

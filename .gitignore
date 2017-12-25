@@ -1,2 +1,11 @@
 sed1line.txt
 sw.js
+*.log
+*.aux
+*.out
+*.toc
+*.bib
+_minted-latex
+auto
+latex.pdf
+math.pdf

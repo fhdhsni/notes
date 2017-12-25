@@ -1,0 +1,175 @@
+\documentclass[16pt]{article}
+
+\usepackage{caption}
+
+\usepackage{minted}
+
+\usepackage{float}
+
+\usepackage{hyperref}
+
+\author{Farhad}
+\title{It's {\LaTeX} Title}
+\date{\today!}
+
+\begin{document}
+
+\maketitle
+
+\newpage
+\tableofcontents
+\newpage
+
+\begin{abstract}
+ \LaTeX \hspace{1pt} documentation written as \LaTeX! How novel and totally not
+ my idea!
+\end{abstract}
+
+\section*{Introduction}         %
+Some Text is for intro. A reference to sublist \ref{blah}
+
+\subsection{sub intro}
+
+Some normal text for sub intro.
+
+\textbf{some bold text here}.
+
+\textit{italic stuff}.
+
+\emph{this is emphatic}
+
+\underline{some underline text}
+
+``this is in double quote''
+
+`this is in single quote'
+
+\section{Lists}
+\begin{enumerate}
+\item foo
+\item bar
+\item zoo
+\end{enumerate}
+
+\subsection{sublist \label{blah}}
+\begin{itemize}
+\item foo
+  \begin{itemize}
+  \item one
+  \item twoo
+  \item three
+  \end{itemize}
+\item bar
+\item zoo
+\end{itemize}
+
+\section{Math}
+
+Sets and relations play a vital role in many mathematical research papers.
+Here's how you state all x that belong to X, $\forall$ x $\in$ X. \\
+
+\[a^2 + b^2 = c^2 \]
+
+My favorite Greek letter is $\xi$. I also like $\beta$, $\gamma$ and $\sigma$.
+I haven't found a Greek letter yet that \LaTeX \hspace{1pt} doesn't know
+about! \\
+
+
+Operators are essential parts of a mathematical document:
+trigonometric functions ($\sin$, $\cos$, $\tan$),
+logarithms and exponentials ($\log$, $\exp$),
+limits ($\lim$), etc.
+have per-defined LaTeX commands.
+Let's write an equation to see how it's done:
+$\cos(2\theta) = \cos^{2}(\theta) - \sin^{2}(\theta)$ \\
+
+$$ ^{10}/_{7} $$
+
+$$ \frac{n!}{k!(n - k)!} $$ \\
+
+
+% Display math with the equation 'environment'
+\begin{equation} % enters math-mode
+  c^2 = a^2 + b^2.
+  \label{eq:pythagoras} % for referencing
+\end{equation} % all \begin statements must have an end statement
+
+\begin{equation}
+  \sum_{i=0}^{5} f_{i}
+\end{equation}
+
+\begin{equation}
+  \int_{0}^{\infty} \mathrm{e}^{-x} \mathrm{d}x
+\end{equation}
+
+\begin{figure}[H] % H here denoted the placement option.
+    \centering % centers the figure on the page
+    % Inserts a figure scaled to 0.8 the width of the page.
+    %\includegraphics[width=0.8\linewidth]{right-triangle.png}
+    % Commented out for compilation purposes. Please use your imagination.
+    \caption{reset with sides $a$, $b$, $c$}
+    \label{fig:reset}
+\end{figure}
+
+
+\begin{table}[H]
+  \caption{Caption for the Table.}
+  % the {} arguments below describe how each row of the table is drawn.
+  % Again, I have to look these up. Each. And. Every. Time.
+  \begin{tabular}{c|cc}
+    Number &  Last Name & First Name \\ % Column rows are separated by &
+    \hline % a horizontal line
+    1 & Biggus & Dickus \\
+    2 & Monty & Python
+  \end{tabular}
+\end{table}
+
+\begin{verbatim}
+  print("Hello World!")
+  a%b; % look! We can use % signs in verbatim.
+  random = 4; #decided by fair random dice roll
+\end{verbatim}
+
+\begin{minted}{python}
+import numpy as np
+
+def incmatrix(genl1,genl2):
+    m = len(genl1)
+    n = len(genl2)
+    M = None #to become the incidence matrix
+    VT = np.zeros((n*m,1), int)  #dummy variable
+
+    #compute the bitwise xor matrix
+    M1 = bitxormatrix(genl1)
+    M2 = np.triu(bitxormatrix(genl2),1)
+
+    for i in range(m-1):
+        for j in range(i+1, m):
+            [r,c] = np.where(M2 == M1[i,j])
+            for k in range(len(r)):
+                VT[(i)*n + r[k]] = 1;
+                VT[(i)*n + c[k]] = 1;
+                VT[(j)*n + r[k]] = 1;
+                VT[(j)*n + c[k]] = 1;
+
+                if M is None:
+                    M = np.copy(VT)
+                else:
+                    M = np.concatenate((M, VT), 1)
+
+                VT = np.zeros((n*m,1), int)
+
+    return M
+\end{minted}
+
+\begin{minted}{javaScript}
+  console.log("foo");
+\end{minted}
+
+
+\url{https://learnxinyminutes.com/docs/latex/}, or
+\href{https://learnxinyminutes.com/docs/latex/}{shadowed by text}
+
+
+
+\end{document}

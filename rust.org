@@ -235,3 +235,509 @@ let sq = Rectangle::square(3);
 Methods let us specify the behavior that instances of our structs
 have, and associated functions let us namespace functionality that is
 particular to our struct without having an instance available.
+* Enums and Pattern Matching
+
+We can express this concept in code by defining an =IpAddrKind=
+enumeration and listing the possible kinds an IP address can be, =V4=
+and =V6=. These are known as the /variants/ of the enum:
+
+#+BEGIN_SRC rust
+enum IpAddr {
+    V4(String),
+    V6(String),
+}
+
+let home = IpAddr::V4(String::from("127.0.0.1"));
+
+let loopback = IpAddr::V6(String::from("::1"));
+#+END_SRC
+
+#+BEGIN_SRC rust
+  enum Message {
+      Quit,
+      Move { x: i32, y: i32 },
+      Write(String),
+      ChangeColor(i32, i32, i32),
+  }
+  // The following structs could hold the same data that the preceding
+  // enum variants hold:
+  #![allow(unused_variables)]
+  fn main() {
+    struct QuitMessage; // unit struct
+    struct MoveMessage {
+        x: i32,
+        y: i32,
+    }
+    struct WriteMessage(String); // tuple struct
+    struct ChangeColorMessage(i32, i32, i32); // tuple struct
+  }
+
+#+END_SRC
+
+*** The =Option= Enum and Its Advantages Over Null Values
+
+The =Option<T>= enum is so useful that it’s even included in the
+prelude; you don’t need to import it explicitly. In addition, so are
+its variants: you can use =Some= and =None= directly without prefixing
+them with =Option::=. =Option<T>= is still just a regular =enum=, and
+=Some(T)= and =None= are still variants of type =Option<T>=.
+
+#+BEGIN_SRC rust
+#![allow(unused_variables)]
+fn main() {
+  let some_number = Some(5);
+  let some_string = Some("a string");
+
+  let absent_number: Option<i32> = None;
+}
+#+END_SRC
+
+*** =match=
+
+The code associated with each arm is an expression, and the resulting
+value of the expression in the matching arm is the value that gets
+returned for the entire =match= expression.
+
+#+BEGIN_SRC rust
+#[derive(Debug)]
+enum UsState {
+    Alabama,
+    Alaska,
+}
+
+enum Coin {
+    Penny,
+    Nickel,
+    Dime,
+    Quarter(UsState),
+}
+
+fn main() {
+    let foo = Coin::Quarter(UsState::Alabama);
+
+    println!("{}", value_in_cents(foo));
+}
+
+
+fn value_in_cents(coin: Coin) -> u32 {
+    match coin {
+        Coin::Penny => 1,
+        Coin::Nickel => 5,
+        Coin::Dime => 10,
+        Coin::Quarter(state) => {
+            println!("{:?}", state);
+            25
+        }
+    }
+}
+
+#+END_SRC
+**** =_= placehodler
+#+BEGIN_SRC rust
+let some_u8_value = 0u8;
+
+match some_u8_value {
+    1 => println!("one"),
+    3 => println!("three"),
+    5 => println!("five"),
+    7 => println!("seven"),
+    _ => (),
+}
+#+END_SRC
+*** =let if=
+#+BEGIN_SRC rust
+if let Some(3) = some_u8_value {
+    println!("three");
+}
+#+END_SRC
+
+* =mod=
+#+BEGIN_SRC rust
+  fn main() {
+      mod network {
+          fn connect() {}         // network::connect
+
+          mod client {
+              fn connect() {}     // network::client::connect
+          }
+      }
+  }
+#+END_SRC
+
+=mod client;= means
+#+BEGIN_SRC rust
+mod client {
+    // contents of client.rs
+}
+#+END_SRC
+
+- If a module named foo has no submodules, you should put the
+  declarations for foo in a file named foo.rs.
+
+- If a module named foo does have submodules, you should put the
+  declarations for foo in a file named foo/mod.rs.
+
+** Controlling Visibility with =pub=
+#+BEGIN_SRC rust
+extern crate communicator;
+
+fn main() {
+    communicator::client::connect();
+}
+#+END_SRC
+Also note that even if we’re using an external crate within a
+submodule of our project, the extern crate should go in our root
+module (so in src/main.rs or src/lib.rs). Then, in our submodules, we
+can refer to items from external crates as if the items are top-level
+modules.
+
+
+
+ - If an item is public, it can be accessed through any of its parent
+ modules.
+ - If an item is private, it can be accessed only by its
+ immediate parent module and any of the parent’s child modules.
+
+** Importing Names
+#+BEGIN_SRC rust
+pub mod a {
+    pub mod series {
+        pub mod of {
+            pub fn nested_modules() {}
+        }
+    }
+}
+
+use a::series::of;
+
+fn main() {
+    of::nested_modules();
+}
+#+END_SRC
+
+=use= with enums
+#+BEGIN_SRC rust
+enum TrafficLight {
+    Red,
+    Yellow,
+    Green,
+}
+
+use TrafficLight::{Red, Yellow};
+
+fn main() {
+    let red = Red;
+    let yellow = Yellow;
+    let green = TrafficLight::Green;
+}
+#+END_SRC
+
+* Common Collections
+
+ Most other data types represent one specific value, but collections
+ can contain multiple values. Unlike the built-in array and tuple
+ types, the data these collections point to is stored on the heap,
+ which means the amount of data does not need to be known at compile
+ time and can grow or shrink as the program runs.
+
+ 0 - A /vector/ allows us to store a variable number of values next to
+ each other.
+
+ 1 - A /string/ is a collection of characters.
+
+ 2 - A /hash map/ allows us to associate a value with a particular
+ key. It’s a particular implementation of the more general data
+ structure called a /map/.
+
+** Vector
+#+BEGIN_SRC rust
+fn main() {
+  let v: Vec<i32> = Vec::new();
+}
+#+END_SRC
+
+When the vector gets dropped, all of its contents will also be dropped
+
+to access
+#+BEGIN_SRC rust
+fn main() {
+  let v = vec![1, 2, 3, 4, 5];
+
+  let third: &i32 = &v[2];
+  let third: Option<&i32> = v.get(2);
+}
+#+END_SRC
+
+When you run this code, the first [] method will cause a panic!
+because it references a nonexistent element. This method is best used
+when you want your program to consider an attempt to access an element
+past the end of the vector to be a fatal error that crashes the
+program.
+
+When the get method is passed an index that is outside the vector, it
+returns None without panicking. You would use this method if accessing
+an element beyond the range of the vector happens occasionally under
+normal circumstances. Your code will then have logic to handle having
+either =Some(&element)= or =None=
+
+
+This doesn't work
+#+BEGIN_SRC rust
+let mut v = vec![1, 2, 3, 4, 5];
+
+let first = &v[0];
+
+v.push(6);
+#+END_SRC
+
+might look like it should work: why should a reference to the first
+element care about what changes at the end of the vector? The reason
+behind this error is due to the way vectors work: adding a new element
+onto the end of the vector might require /allocating new memory and/
+/copying the old elements/ to the new space if there isn’t enough room
+to put all the elements next to each other where the vector was. In
+that case, the reference to the first element would be pointing to
+deallocated memory. The borrowing rules prevent programs from ending
+up in that situation.
+
+
+Iterating Over the Values in a Vector
+#+BEGIN_SRC rust
+let v = vec![100, 32, 57];
+for i in &v {
+    println!("{}", i);
+}
+#+END_SRC
+
+or mutating
+#+BEGIN_SRC rust
+  fn main() {
+    let mut v = vec![100, 32, 57];
+
+    for i in &mut v {
+        *i += 50;                 // we have to use the dereference operator (*) to get to the value.
+    }
+  }
+#+END_SRC
+
+Using an Enum to Store Multiple Types
+
+#+BEGIN_SRC rust
+
+#![allow(unused_variables)]
+fn main() {
+  enum SpreadsheetCell {
+      Int(i32),
+      Float(f64),
+      Text(String),
+  }
+
+  let row = vec![
+      SpreadsheetCell::Int(3),
+      SpreadsheetCell::Text(String::from("blue")),
+      SpreadsheetCell::Float(10.12),
+  ];
+}
+#+END_SRC
+
+The reason Rust needs to know what types will be in the vector at
+compile time is so it knows exactly how much memory on the heap will
+be needed to store each element. A secondary advantage is that we can
+be explicit about what types are allowed in this vector
+
+** String
+
+strings are implemented as a /collection of bytes/ plus some methods to
+provide useful functionality when those bytes are interpreted as text.
+
+Rust has only one string type in the core language, which is the
+string slice =str= that is usually seen in its borrowed form =&str=.
+
+string slices, which are references to some UTF-8 encoded string data
+stored elsewhere. *String literals*, for example, are stored in the
+binary output of the program and are therefore *string slices*.
+
+The =String= type is provided in Rust’s standard library rather than
+coded into the core language and is a growable, mutable, owned, UTF-8
+encoded string type.
+
+#+BEGIN_SRC rust
+let mut s = String::new();
+#+END_SRC
+
+pushing
+#+BEGIN_SRC rust
+fn main() {
+  let mut s = String::from("foo");
+  s.push_str("bar");
+}
+#+END_SRC
+The =push_str= method takes a string slice because we don’t
+necessarily want to take ownership of the parameter.
+
+=+=
+#+BEGIN_SRC rust
+fn main() {
+  let s1 = String::from("Hello, ");
+  let s2 = String::from("world!");
+  let s3 = s1 + &s2; // Note that s1 has been moved here and can no longer be used
+}
+#+END_SRC
+[[https://doc.rust-lang.org/book/second-edition/ch08-02-strings.html#concatenation-with-the--operator-or-the-format-macro][see for explanation]]
+
+using =format!= macro
+#+BEGIN_SRC rust
+fn main() {
+  let s1 = String::from("tic");
+  let s2 = String::from("tac");
+  let s3 = String::from("toe");
+
+  let s = format!("{}-{}-{}", s1, s2, s3);
+}
+#+END_SRC
+=format!= is much easier to read and also doesn’t take ownership of any
+of its parameters.
+
+*** Internal Representation
+
+A =String= is a wrapper over a =Vec<u8>=.
+
+*** Bytes and Scalar Values and Grapheme Clusters! Oh My!
+#+BEGIN_SRC rust
+
+  #![allow(unused_variables)]
+  fn main() {
+    let hello = "Здравствуйте";
+
+    let s = &hello[0..4]; // s will be a &str that contains the first
+                          // four bytes of the string. Each of these
+                          // characters was two bytes, which means s
+                          // will be Зд.
+  }
+#+END_SRC
+
+*** Methods for Iterating Over Strings
+
+** HashMap
+#+BEGIN_SRC rust
+    use std::collections::HashMap;
+
+    let mut scores = HashMap::new();
+
+    scores.insert(String::from("Blue"), 10);
+    scores.insert(String::from("Yellow"), 50);
+#+END_SRC
+
+using =collect=
+#+BEGIN_SRC rust
+use std::collections::HashMap;
+
+let teams  = vec![String::from("Blue"), String::from("Yellow")];
+let initial_scores = vec![10, 50];
+
+let scores: HashMap<_, _> = teams.iter().zip(initial_scores.iter()).collect();
+#+END_SRC
+
+*** hash maps and ownership
+For types that implement the =Copy= trait, like =i32=, the values are
+copied into the hash map. For owned values like =String=, the values
+will be moved and the hash map will be the owner of those values
+
+#+BEGIN_SRC rust
+fn main() {
+  use std::collections::HashMap;
+
+  let field_name = String::from("Favorite color");
+  let field_value = String::from("Blue");
+
+  let mut map = HashMap::new();
+  map.insert(field_name, field_value);
+  // field_name and field_value are invalid at this point, try using them and
+  // see what compiler error you get!
+}
+#+END_SRC
+
+*** Accessing Values in a Hash Map
+
+#+BEGIN_SRC rust
+  fn main() {
+    use std::collections::HashMap;
+
+    let mut scores = HashMap::new();
+
+    scores.insert(String::from("Blue"), 10);
+    scores.insert(String::from("Yellow"), 50);
+
+    let team_name = String::from("Blue");
+    let score = scores.get(&team_name); // `get` returns an `Option<&V>`
+  }
+#+END_SRC
+
+
+Looping
+#+BEGIN_SRC rust
+    use std::collections::HashMap;
+
+    let mut scores = HashMap::new();
+
+    scores.insert(String::from("Blue"), 10);
+    scores.insert(String::from("Yello"), 50);
+
+    for (key, value) in &scores {
+        println!("{}: {}", key, value);
+    }
+#+END_SRC
+
+*** Updaing a HashMap
+
+**** overwriting a value
+#+BEGIN_SRC rust
+fn main() {
+  use std::collections::HashMap;
+
+  let mut scores = HashMap::new();
+
+  scores.insert(String::from("Blue"), 10);
+  scores.insert(String::from("Blue"), 25);
+
+  println!("{:?}", scores);
+}
+#+END_SRC
+
+**** Only Insert If the Key Has No Value
+#+BEGIN_SRC rust
+  fn main() {
+      use std::collections::HashMap;
+
+      let mut scores = HashMap::new();
+
+      scores.insert(String::from("Blue"), 10);
+
+      // The return value of the entry function is an enum called Entry
+      // that represents a value that might or might not exist
+      scores.entry(String::from("Blue")).or_insert(50); // <--
+      scores.entry(String::from("Yello")).or_insert(50);
+
+      println!("{:?}", scores);
+  }
+#+END_SRC
+
+
+**** Updating a Value Based on the Old Value
+#+BEGIN_SRC rust
+  fn main() {
+      use std::collections::HashMap;
+
+      let text = "hello world wonderful world";
+
+      let mut map = HashMap::new();
+
+      for word in text.split_whitespace() {
+          // The or_insert method returns a mutable reference (&mut V) to the value for this key
+          let count = map.entry(word).or_insert(0);
+          *count += 1; // first dereference count using the asterisk (*)
+      }
+
+      println!("{:?}", map);
+  }
+#+END_SRC

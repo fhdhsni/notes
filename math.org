@@ -54,4 +54,17 @@ My notes on precalculus book.
 3. Carry Out the Plan
 4. Look Back: “Every problem that I solved became a rule which served
    afterwards to solve other problems.”
-5.
+
+* Fundamentals
+
+natural numbers: 1, 2, 3, ..
+integers: ..., -2, -1, 0, 1, 2,..
+rational numbers: r = m/n where m and n are integers and n != 0
+irrational numbers: √2, √5, ∛2, 𝚷
+
+/Commutative Property/: =ab=ba=
+/Associative Properties/: =(ab)c = a(bc)=
+/Distributive Property/: =a(b + c) = ab + ac=
+
+*0 is additive identity*: =a + 0 = a= for any real number a
+*1 is multiplicative identity*: =a*1 = a= for any real numbr a
