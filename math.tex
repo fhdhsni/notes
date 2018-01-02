@@ -1,7 +1,7 @@
 \documentclass{article}
 \usepackage{amssymb}
-\author{Farhad}
-\title{my precalculus notes}
+% \author{Farhad}
+\title{Precalculus Notes}
 \date{\today}
 
 \begin{document}
@@ -11,20 +11,20 @@
 
 Natural numbers: $ 1, 2, 3, ... $ \\
 Integers: $..., -2, -1, 0, 1, 2, ...$ \\
-Rational numbers: $ r = \frac{m}{n} $ where m and n are integers and n != 0 \\
+Rational numbers: $ r = \frac{m}{n} $ where m and n are integers and n != 0, e.g 1.33333... \\
 Irrational numbers: $ \sqrt{2}, \sqrt{5}, \sqrt[3]{2}, \pi  $ \\
 \newline
-Commutative Property: $ ab = ba $
+Commutative Property (order doesn't matter): $ ab = ba $
 
-Associative Properties: $ (ab)c = a(bc) $
+Associative Properties (doesn't matter which two we do first):
+$ (ab)c = a(bc) $ or $ (a+b) + c = a + (b+c) $
 
 Distributive Property: $ a(b + c) = ab + ac $
 
-$0$ is additive identity: $ a + 0 = a $ for any real number a
 
-$1$ is multiplicative identity: $ a . 1 = a $ for any real numbr a
-
-Every nonzero real number a has an inverse: $ a . (\frac{1}{a}) = 1 $
+$0$ is additive identity: $ a + 0 = a $ for any real number a\\
+$1$ is multiplicative identity: $ a . 1 = a $ for any real numbr a\\
+Every nonzero real number a has an inverse: $ a . (\frac{1}{a}) = 1 $\\
 
 We refer to $\frac{a}{b}$ as the \emph{quotient} of a and b or as the fraction a over b; a is the \emph{numerator} and b is \emph{denominator} (or divisor).
 
@@ -48,5 +48,27 @@ $$A = \{\,x \mid x \mbox{ is an integer and } 0 < x < 7 \,\}$$
 Which is read ``A is the set of all x such that is an integer and $0 < x < 7$ ''
 \newline
 If \emph{S} and \emph{T} are sets, then their \textbf{union} $S \cup T$ is the set that consists of all elements that are in \emph{S} \textit{or} \emph{T} (or in both). The \textbf{intersection} of \emph{S} and \emph{T} is the set $S \cap T$ consisting of all elements that are in both \emph{S} \textit{and} \emph{T}. In other words, $S \cap T$ is the common part of \emph{S} and \emph{T}. The \textbf{empty set}, denoted by $\emptyset$, isthe set that contains no element.
+\newline
+\textbf{intervals:}\\
+open interval $$(a, b) = \{\, x \mid a < x < b\,\} $$
+closed interval $$[a, b] = \{\, x \mid a \leq x \leq b\,\}$$
+\newline
+\textbf{Absolute Value and Distance:}
+The absolute value of a number $a$, denoted by $|a|$, is the distance from $a$ to 0 on the real number line. Distance is always positive or zero, so we have $|a| \geq 0$ for every number $a$;
+\newline
+
+\begin{itemize}
+\item $|ab| = |a||b|$\\
+  The absolute value of a product is the product of the absolute values.
+
+\item $|\frac{a}{b}| = \frac{|a|}{|b|}$\\
+  The absolute value of a quotient is the quotient of the absolute values.
+
+\item $|a + b| \leq |a| + |b|$\\
+  Triangle Inequality: For e.g. $|-3 + 5| \leq |-3| + |5|$
+\end{itemize}
+
+\newline
+If $a$ and $b$ are real numbers, then the \textbf{distance} between the points $a$ and $b$ on the real line is $$d(a,b) = |b-a|$$
 
 \end{document}

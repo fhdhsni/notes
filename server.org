@@ -1,0 +1,522 @@
+* Security
+1. Creating a new (non-root) user
+    #+BEGIN_SRC shell
+      sudo adduser someusername
+      sudo groupadd sudo                   # create group sudo
+      sudo usermod -a -G sudo someusername # for redhat: sudo usermod -a -G wheel someusername
+    #+END_SRC
+2. Allowing this user to use “sudo” for administrative privileges
+    =/etc/sudoers=
+    #+BEGIN_SRC
+     # [bracket] around each section being discussed.
+     # We can also set rules for groups. Group rules are prefixed with a %
+     [root] ALL=(ALL:ALL) ALL # This applies to user root
+     root [ALL]=(ALL:ALL) ALL # This rule applies to all user root logged in from all hosts
+     root ALL=([ALL]:ALL) ALL # User root can run commands as all users
+     root ALL=(ALL:[ALL]) ALL # User root can run commands as all groups
+     root ALL=(ALL:ALL) [ALL] # These rules apply to all commands
+    #+END_SRC
+
+    The following entry will allow user vagrant to run all commands with
+    sudo without specifying a password: Editing /etc/sudoers via visudo
+    #+BEGIN_SRC
+     vagrant ALL=(ALL:ALL) NOPASSWD:ALL
+    #+END_SRC
+
+    Let’s give the group “admin” the ability to run ‘sudo mkdir’
+    without a password, but require a password to run sudo rm:
+    #+BEGIN_SRC
+    %admin ALL NOPASSWD:/bin/mkdir, PASSWD:/bin/rm
+    #+END_SRC
+3. Stopping user =root= from remotely logging in via SSH
+   File: =/etc/ssh/sshd_config=
+    #+BEGIN_SRC
+    PermitRootLogin no
+    #+END_SRC
+4. Configuring SSH to change the port and add other restrictions
+    We’re allowed to assign ports between 1024 and 65536. To change
+    the SSH port, change the Port option in the same
+    File: =/etc/ssh/sshd_config=
+    #+BEGIN_SRC
+    Port 1234
+    #+END_SRC
+    and to connect
+    #+BEGIN_SRC
+     ssh -p 1234 user@hostname
+    #+END_SRC
+    Also possible to restrict by user and group
+    #+BEGIN_SRC
+     # Can define multiple users,
+     # separated by a space
+     AllowUsers someusername anotherusername
+     AllowGroups sudo canssh
+    #+END_SRC
+
+5. Creating an SSH key on our local computer for logging in as our new
+   user
+
+   #+BEGIN_SRC
+   ssh-keygen -t rsa -b 4096 -C your@email.com -f id_myidentity
+
+   # -t rsa - Create an RSA type key pair5.
+   # -b 4096 - Use 4096 bit encryption. 2048 is “usually sufficient”, but I go higher.
+   # -C your@email.com - Keys can have comments. Often a user’s identity goes here as a comment, such as their name or email address
+   # -f id_myidentity - The name of the SSH identity files created. The two files would be id_- myidentity and id_myidentity.pub in this example.
+   #+END_SRC
+
+   append =id_myidentity.pub= to =~/.ssh/authorized_keys= one can do this manually or like
+   #+BEGIN_SRC
+   ssh-copy-id -p 3022 -i ~/.ssh/id_rsa.pub me@104.236.54.306
+   #+END_SRC
+
+   NOTE: You may also need to set some permissions of your =.ssh=
+   directory and =authorized_keys= file on your server.
+
+   #+BEGIN_SRC
+   ssh -i ~/.ssh/my_identity -o "IdentitiesOnly yes" someusername@my-server.com
+   #+END_SRC
+
+6. Turning off password-based authentication, so we must use an SSH
+   key to access the server
+   #+BEGIN_SRC
+   PasswordAuthentication no
+   #+END_SRC
+
+** Setting Up the Firewall
+
+- Configuring iptables involves setting up the list of rules that
+  check network traffic. The rules are checked whenever a piece of
+  data enters or leaves the server over a network. If the iptables
+  rules allows the traffic type, it goes through. If traffic is not
+  allowed, the data packet is dropped or rejected.
+
+- Rejecting data lets the other end know data was not allowed
+  through. Dropping the data behaves like a blackhole, where no
+  response is made.
+
+*** =iptables=
+It's an interface to the netfilter that is built-in to the Linux Kernel.
+
+The tables are made up of a set of predefined chains, and the chains
+contain rules which are traversed in order.  Each rule consists of a
+predicate of potential matches and a corresponding action (called a
+target) which is executed if the predicate is true; i.e. the
+conditions are matched. iptables is the user utility which allows you
+to work with these chains/rules.
+
+In the vast majority of use cases you won't need to use the raw,
+mangle, or security tables at all. Consequently, the following chart
+depicts a simplified network packet flow through iptables:
+
+    #+BEGIN_SRC
+                                   XXXXXXXXXXXXXXXXXX
+                                 XXX     Network    XXX
+                                   XXXXXXXXXXXXXXXXXX
+                                           +
+                                           |
+                                           v
+     +-------------+              +------------------+
+     |table: filter| <---+        | table: nat       |
+     |chain: INPUT |     |        | chain: PREROUTING|
+     +-----+-------+     |        +--------+---------+
+           |             |                 |
+           v             |                 v
+     [local process]     |           ****************          +--------------+
+           |             +---------+ Routing decision +------> |table: filter |
+           v                         ****************          |chain: FORWARD|
+    ****************                                           +------+-------+
+    Routing decision                                                  |
+    ****************                                                  |
+           |                                                          |
+           v                        ****************                  |
+    +-------------+       +------>  Routing decision  <---------------+
+    |table: nat   |       |         ****************
+    |chain: OUTPUT|       |               +
+    +-----+-------+       |               |
+          |               |               v
+          v               |      +-------------------+
+    +--------------+      |      | table: nat        |
+    |table: filter | +----+      | chain: POSTROUTING|
+    |chain: OUTPUT |             +--------+----------+
+    +--------------+                      |
+                                          v
+                                   XXXXXXXXXXXXXXXXXX
+                                 XXX    Network     XXX
+                                   XXXXXXXXXXXXXXXXXX
+
+    #+END_SRC
+
+- Tables:
+  + iptables contains five tables:
+    * =raw= is used only for configuring packets so that they are exempt from connection tracking.
+    * =filter= is the default table, and is where all the actions typically associated with a firewall take place.
+    * =nat= is used for network address translation (e.g. port forwarding).
+    * =mangle= is used for specialized packet alterations.
+    * =security= is used for Mandatory Access Control networking rules (e.g. SELinux -- see this article for more details).
+  + In most common use cases you will only use two of these: =filter=
+    and =nat=. The other tables are aimed at complex configurations
+    involving multiple routers and routing decisions
+
+- Chains
+  Tables consist of chains, which are lists of rules which are followed
+  in order. The default table, =filter=, contains three built-in chains:
+  =INPUT=, =OUTPUT= and =FORWARD= which are activated at different points of
+  the packet filtering process, as illustrated in the flow chart. The
+  =nat= table includes =PREROUTING=, =POSTROUTING=, and =OUTPUT= chains.
+
+- Rules Packet filtering is based on rules, which are specified by
+  multiple matches (conditions the packet must satisfy so that the
+  rule can be applied), and one target (action taken when the packet
+  matches all conditions). The typical things a rule might match on
+  are what interface the packet came in on (e.g eth0 or eth1), what
+  type of packet it is (ICMP, TCP, or UDP), or the destination port of
+  the packet. Targets are specified using the -j or --jump
+  option. Targets can be either user-defined chains (i.e. if these
+  conditions are matched, jump to the following user-defined chain and
+  continue processing there), one of the special built-in targets, or
+  a target extension. Built-in targets are ACCEPT, DROP, QUEUE and
+  RETURN, target extensions are, for example, REJECT and LOG. If the
+  target is a built-in target, the fate of the packet is decided
+  immediately and processing of the packet in current table is
+  stopped. If the target is a user-defined chain and the fate of the
+  packet is not decided by this second chain, it will be filtered
+  against the remaining rules of the original chain. Target extensions
+  can be either terminating (as built-in targets) or non-terminating
+  (as user-defined chains)
+
+- Modules
+  There are many modules which can be used to extend iptables such as
+  connlimit, conntrack, limit and recent. These modules add extra
+  functionality to allow complex filtering rules.
+
+- What can filtering protect againt?
+  + Source address spoofing
+  + Useful information revealed in response to port scans
+  + Malformed broadcast packetss used to identify UNIX systems
+  + Some denial-of-sevice attacks
+  + Source-routed packets
+  + some forms of fragmentation bombs
+  + Local mistakes that affect remote sites
+  + Access to private LAN services
+
+- Logging
+
+Create the chain with:
+
+#+BEGIN_SRC shell
+iptables -N logdrop
+#+END_SRC
+
+And add the following rules to the newly created chain:
+
+#+BEGIN_SRC shell
+iptables -A logdrop -m limit --limit 5/m --limit-burst 10 -j LOG
+iptables -A logdrop -j DROP
+#+END_SRC
+
+Limiting log rate
+
+The above logdrop chain uses the limit module to prevent the iptables
+log from growing too large or causing needless hard drive
+writes. Without limiting an erroneously configured service trying to
+connect, or an attacker, could fill the drive (or at least the /var
+partition) by causing writes to the iptables log.
+
+The limit module is called with -m limit. You can then use --limit to
+set an average rate and --limit-burst to set an initial burst rate. In
+the logdrop example above:
+
+#+BEGIN_SRC shell
+iptables -A logdrop -m limit --limit 5/m --limit-burst 10 -j LOG
+#+END_SRC
+
+appends a rule which will log all packets that pass through it. The
+first 10 consecutive packets will be logged, and from then on only 5
+packets per minute will be logged. The "limit burst" count is reset
+every time the "limit rate" is not broken, i.e. logging activity
+returns to normal automatically.  Viewing logged packets
+
+Logged packets are visible as kernel messages in the systemd journal.
+
+To view all packets that were logged since the machine was last booted:
+
+#+BEGIN_SRC shell
+journalctl -k | grep "IN=.*OUT=.*" | less
+#+END_SRC
+
+Now whenever we want to drop a packet and log this event, we just jump
+to the =logdrop= chain, for example:
+
+#+BEGIN_SRC shell
+iptables -A INPUT -m conntrack --ctstate INVALID -j logdrop
+#+END_SRC
+
+=iptables= syntax
+#+BEGIN_SRC shell
+# flush all the firewall rules
+iptables --flush
+
+# delete rulenum 6 of INPUT chain in filter (default) table.
+sudo iptables -D INPUT 6
+
+# port range. Insert a new rule in INPUT chain of filter (default) table for the given port range of UDP Protocal
+sudo iptables -I INPUT 6 -p udp --dport 60000:61000 -j ACCEPT
+
+# to accept current/established connections:
+sudo iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+
+# append to INPUT chain, -i for interface, -j for --jump `target`
+# lo for loopback
+iptables -A INPUT -i lo -j ACCEPT  # always necessary
+
+# Output Rules as Commands
+iptables -S
+
+# append to OUTPUT chain, -o for outgoing interface,
+iptables -A OUTPUT -o lo -j ACCEPT # always necessary
+
+
+# to have persistent iptables
+sudo apt install -y iptables-persistent
+# Start the service
+sudo service iptables-persistent start
+
+# Output rules to a file called "iptables-backup.rules"
+sudo iptables-save > iptables-backup.rules
+
+# Save current rules to iptables rules file
+sudo iptables-save | sudo tee /etc/iptables/rules.v4
+
+# Restore rules from our backup file
+sudo iptables-restore < iptables-backup.rules
+
+
+# change default policy
+iptables --policy INPUT DROP
+iptables --policy OUTPUT DROP
+iptables --policy FORWARD DROP
+#+END_SRC
+
+- iptables targets
+  + =ACCEPT=: let the packet through
+  + =DROP=: drop the packet quietly
+  + =REJECT=: return icmp-port-unreachable
+  + =RETURN= target. The “RETURN” target simply tells iptables to send
+    the traffic back to where it came from - the INPUT chain in this
+    case. There it will be analyzed by the rest of rules in the INPUT
+    chain.
+
+- =iptables= example
+  + Drop FTP Request:
+    #+BEGIN_SRC shell
+    SERVER_IP="192.168.0.3"
+    iptables -I INPUT -i eth0 -p tcp -s 0/0 -d $SERVER_IP --dport 21 -j DROP
+    # -I: insert
+    # INPUT chain
+    # -i eth0: interface eth0
+    # -p tcp: protocol tcp because FTP runs over TCP
+    # -s 0/0: source address, 0/0 means any source address
+    # -d $SERVER_IP: destination address
+    # --dport 21: on port 21
+    #+END_SRC
+  + Allow SSH Connections
+    #+BEGIN_SRC shell
+    iptables -I INPUT -i eth0 -p tcp -s 0/0 -d $SERVER_IP --dport 22 -j ACCEPT
+    #+END_SRC
+  + Enable or allow ICMP ping incoming client request
+    #+BEGIN_SRC shell
+    iptables -I INPUT -i eth0 -p icmp -icmp-type 8 -s 0/0 -d $SERVER_IP -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+    # -p icmp: our protocal is icmp
+    # -icmp-type 8: type 8 is echo-request (that is to say a ping)
+    # -m, --match match (from man page)
+    #   Specifies a match to use, that is, an extension module that tests for a specific property. The set of matches make up the condition under which a target is invoked. Matches are evaluated  first
+    #   to last as specified on the command line and work in short-circuit fashion, i.e. if one extension yields false, evaluation will stop.
+    #+END_SRC
+
+    #+BEGIN_SRC shell
+    iptables -I OUTPUT -i eth0 -p icmp -icmp-type 0 -s $SERVER_IP -d 0/0 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+    # note the -s and -d is swapped comparing to previous rule
+    #+END_SRC
+  + Disable outgoing ICMP request
+    #+BEGIN_SRC shell
+    iptables -A OUTPUT -p icmp --icmp-type echo-request -j DROP
+    # or
+    iptables -A OUTPUT -p icmp --icmp-type 8 -j DROP
+    # NOTE: No -s and no -d means apply to all source and destination addresses
+    #+END_SRC
+  + Stateful Packet Inspection
+    #+BEGIN_SRC shell
+    iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+    iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+    #+END_SRC
+** Fail2Ban
+Fail2Ban monitors for instrusion attempts on your server. It uses the
+iptables firewall to ban specific hosts if they meet a configured
+threshold of invalid attempts.
+
+Here’s the explanation from the website;
+
+Fail2Ban scans log files (e.g. =/var/log/apache/error_log=) and bans
+IPs that show the malicious signs – too many password failures,
+seeking for exploits, etc. Generally Fail2Ban is then used to update
+firewall rules to reject the IP addresses for a specified amount of
+time, although any arbitrary other action (e.g. sending an email)
+could also be configured. Out of the box Fail2Ban comes with filters
+for various services (apache, courier, ssh, etc).
+
+Fail2Ban creates a new iptables chain per jail it monitors. For SSH,
+Fail2Ban will create a chain called “Fail2Ban-ssh”. This chain (and
+others it creates) is used early in the iptables INPUT chain, so it
+gets checked first.
+
+#+BEGIN_SRC
+ sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+#+END_SRC
+
+Files in =jail.d= can overwrite existing configurations and add
+additional configurations. However, we’ll simply use the =jail.local=
+file for our purposes.
+
+** Automatic Security Updates
+#+BEGIN_SRC
+sudo apt install -y unattended-upgrades
+
+#+END_SRC
+Make sure ="${distro_id}:${distro_codename}-security";= is enabled in
+=/etc/apt/apt.conf.d/50unattended-upgrades=
+Disable Automatic-Reboot
+#+BEGIN_SRC
+Unattended-Upgrade::Automatic-Reboot "false";
+#+END_SRC
+Finally, create or edit the =/etc/apt/apt.conf.d/20auto-upgrades= file
+and ensure these lines are present:
+#+BEGIN_SRC
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+#+END_SRC
+
+This will run once at set intervals. “Periodic” items are set to run
+once per day via the daily cron.  If you’re curious, you can find that
+configured in the =/etc/cron.daily/apt-compat= file which in turn runs
+=/usr/lib/apt/apt.systemd.daily= which in turn runs various apt
+settings, such as our unattended upgrades.
+
+Upgrade information is logged within the
+=/var/log/unattended-upgrades= directory.
+
+* Package Managers
+#+BEGIN_SRC
+add-apt-repository -y ppa:namespace-name/repo-name
+apt -n search redis
+apt show redis-server
+apt policy redis-server
+#+END_SRC
+
+* User Management
+Every user created by default belongs to a user and group of the same
+name. Users can belong to one primary group, and then can be added to
+many other secondary groups.  The primary group is usually what
+files/directories are assigned when a user creates a new file or
+directory. (Their username is of course the user assigned to those
+same files/directories).
+
+/etc/passwd
+=sfh:x:1000:1000:,,,:/home/sfh:/usr/bin/zsh=
+- User
+- Password (“x” meaning the user has an encrypted password)
+- User ID (UID)
+- Group ID (GID)
+- User Information (extraneous notes)
+- Home Directory
+- Command/Shell used by the user
+
+#+BEGIN_SRC
+adduser deploye
+su - deployer
+usermod -g www-data deployer # Assign group www-data (primary)
+chgrp -R www-data /var/www
+chmod -R g+rwx /var/www
+#+END_SRC
+*** umask
+Many users have a umask of 022. These numbers follow the User, Group
+and Other scheme. The series 022 means:
+
+=0= - User can read, write and execute
+=2= - Group can read, execute
+=2= - Other can read, execute
+
+Here’s what octal values we can use for each of the three numbers:
+=0= - read, write and execute
+=1= - read and write
+=2= - read and execute
+=3= - read only
+=4= - write and execute
+=5= - write only
+=6= - execute only
+=7= - no permissions
+
+*** SUID, GUID and Sticky Bit
+**** SUID
+NUMERICALLY: 4
+Execute with UID of the file, instead of the UID of the current user.
+    - SUID Stands for Super User ID
+    - SUID should be applied to a binary file or to a script
+    - SUID alphabetically identified by letter “s” and Numerically
+      Identified by “4“.
+    -
+**** GUID
+NUMERICALLY: 2
+On Files: Execute with GID of the file, instead of the GID of the current user.
+
+On Directories: we need new files/directories to take on the group of
+their parent directories. We can do this with the “group id bit”.
+We’ll use a familiar command to do that:
+
+#+BEGIN_SRC
+sudo chmod g+s /var/www # Set group id bit of directory /var/www
+#+END_SRC
+**** Sticky bit
+NUMERICALLY: 1
+On Directories: As in /tmp where any user can store files in /tmp but
+only the owner of the file has the rights to modify or delete the file
+from /tmp
+
+* HTTP, Web Servers and Web Sites
+If a web server is hosting multiple web sites, how does the server
+route incoming requests to the correct web site?
+
+It reads the HTTP request’s Host header. If the Host header is not
+present or doesn’t match a defined site, the web server routes the
+request to a default site.
+** DNS (Domain Name System)
+The Host header can inform our web server what website a client requested.
+However, how does a domain used in a user’s browser reach our server in the first place?
+[[https://aws.amazon.com/route53/what-is-dns/][What is DNS]]?
+
+*** CNAME
+A CNAME or Canonical Name record links an alias name to another true
+or canonical domain name. For instance, www.example.com might link to
+example.com.
+
+*** A Record
+An A or Address record (also known as a host record) links a domain to
+the physical IP address of a computer hosting that domain's services.
+
+*** NS Record
+Name server (NS) records determine which servers will communicate DNS
+information for a domain. Generally, you have primary and secondary
+name server records for your domain.
+
+*** MX Record
+Mail Exchange (MX) records direct a domain's email to the servers
+hosting the domain's user accounts.
+
+*** Time To Live (TTL)
+The TTL is a value in a DNS record that determines the number of
+seconds before subsequent changes to the record go into effect. Each
+of your domain's DNS records, such as an MX record, CNAME record, and
+so on, has a TTL value. A record's current TTL determines how long it
+will take any change you make now to go into effect. Changes to a
+record that has a TTL of 86400 seconds, for example, will take up to
+24 hours to go into effect.
