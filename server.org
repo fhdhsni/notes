@@ -520,3 +520,521 @@ so on, has a TTL value. A record's current TTL determines how long it
 will take any change you make now to go into effect. Changes to a
 record that has a TTL of 86400 seconds, for example, will take up to
 24 hours to go into effect.
+
+** Hosts
+
+The hosts file is providing the service of telling our computer what
+IP address to resolve to when the domain is used.
+
+We can also use xip.io
+
+Web servers look for the Host header in an HTTP request to map the
+request to a configured website.
+
+** Three Actors
+Hosting a web application requires the orchestration of three actors:
+
+*** The Application
+*** The Gateway (Like CGI?)
+Some common functionality of gateways include:
+   + Listen for requests (HTTP, FastCGI, uWSGI and more)
+   + Translate requests to application code
+   + Spawn multiple processes and/or threads of applications
+   + Monitor spawned processes
+   + Load balance requests between processes
+   + Reporting/logging
+
+Consider a gateway receiving a request meant for a Python
+application. The gateway will translate the request into a
+WSGI-compliant request.
+
+PHP-FPM, the gateway for PHP, is an implementation of FastCGI. It will
+listen for FastCGI requests from a web server.
+
+Many gateways can accept HTTP requests directly. uWSGI, Gunicorn, and
+Unicorn are examples of such gateways.  Other protocols are also often
+supported. For example, uWSGI will accept HTTP, FastCGI and uwsgi
+(lowercase, the protocol) requests.
+
+No matter what protocol is used, gateways can accept a request and
+translate it to speak a web application’s “language”.
+
+Applications built in such languages can skip the use of gateways. In
+that scenario, a web server will send HTTP requests directly to the
+application.  Such applications can still benefit from the use of a
+gateway. For example, NodeJS applications.  Node’s asynchronous model
+allows it to run efficiently as a single-process. However, you may
+want to use multiple processes on multi-core servers.  A NodeJS
+gateway such as =PM2= could manage multiple processes. This would
+allow for more concurrent application requests to be handled.
+
+*** The Web Server
+Web servers excel at serving requested files, but usually serve other
+purposes as well.
+
+Popular web-server features include:
+    - Hosting multiple sites
+    - Serving static files
+    - Hosting Web Applications
+    - Proxying requests to other processes
+    - Load balancing
+    - HTTP caching
+    - Streaming media
+
+As mentioned, a web server will translate an HTTP request to something
+a gateway can understand.  Gateways listen for requests using various
+protocols.
+
+Some gateways can listen for HTTP connections. In this case, the web
+server can relay the HTTP request to the gateway directly.
+
+Other gateways listen for FastCGI or uwsgi connections. Web servers
+which support these protocols must translate an HTTP request to those
+protocols.
+
+Nginx and Apache can both “speak” HTTP, uwsgi, and FastCGI. These web
+servers will accept an HTTP request and relay them to a gateway in
+whichever protocol the gateway needs.
+
+Most servers will only have one public IP address assigned to
+them. That’s not always the case, however. One common reason to add
+extra IP addresses is when using an SSL certificate. In some
+situations, an IP address must be unique per domain under an SSL
+certificate. If a server has multiple sites using their own SSL
+certificates, they’ll need more than one IP address.
+
+To host a web application, a web server can accept an HTTP request and
+pass it (proxy it) off to a “gateway”. The gateway handles converting
+the request into something an application can understand.
+
+These gateways are various implementations and flavors of a “CGI”s - a
+Common Gateway Interfaces.
+
+For example, many Python applications use the uWSGI36 gateway. Apache
+will “proxy” a request to the gateway. In turn, the uWSGI gateway
+passes the request to the Python application.
+
+PHP, when not directly loaded by Apache, can use the PHP-FPM
+gateway. FPM is an implementation of the FastCGI gateway, which is a
+very common protocol.
+
+Apache can also proxy to web applications over HTTP. This is popular
+when proxying requests to applications listening on HTTP. NodeJS and
+Golang are two languages that can listen for HTTP connections
+directly.
+
+Gunicorn and Unicorn are two popular gateways which can communicate
+over HTTP as well. These can be used to serve Python and Ruby
+applications, respectively.
+
+In the next sections, we’ll discuss how Apache can talk to
+applications using HTTP, FastCGI and WSGI gateways.
+
+Note that gateways are commonly tied to specific languages, but some
+are not!
+
+Apache can handle requests for static assets. This frees the
+application from wasting resources on static assets.
+
+Apache can send requests to pools of resources of the
+application. Instead of one running NodeJS process, picture 3-4
+running! Apache can send requests to each of them. This would
+substantially increase the number of requests the application could
+simultaneously handle.  This essentially is load balancing.
+
+Some gateways monitor and manage multiple application processes for
+us. A gateway will expose one HTTP listener for Apache to send
+requests to. The gateway would then be responsible for sending
+requests to each running process. Some gateways can dynamically spin
+up and destroy running application processes.
+
+Apache has a module system that can determine how requests are
+processed. These are called Multi- Processing Modules (MPM). They are
+responsible for communicating over a network, accepting requests, and
+dispatching child processes/threads to handle requests.  There are
+three MPM modules to consider:
+
+- MPM Prefork
+- MPM Worker
+- MPM Event
+
+- *MPM Prefork*: MPM Prefork is usually the default MPM used in
+  Apache. It does not use threads. An entire process is dedicated to
+  each HTTP request.  The default may change depending on how you
+  install Apache. For example, the repository we use,
+  ppa:ondrej/apache2, enables Event as the default MPM.  If you
+  install the php5 module, this is automatically changed to MPM
+  Prefork. You can see which is installed on Debian/Ubuntu servers at
+  /etc/apache/mods-enabled/ and see which mpm_*.conf file is present.
+  Because each process handles only one request, Prefork is slightly
+  quicker than a threaded module.  There’s no processing time spent
+  creating and tracking threads.  While using processes is a little
+  faster, they can eat up CPU and memory in a situation where there is
+  lots of simultaneous requests. A threaded module will be able to
+  handle more concurrent requests.
+
+- *MPM Worker*: MPM Worker uses threading. Each process can spawn
+  multiple threads. Threads are much cheaper to create than processes,
+  and so fewer expensive processes need to be created and
+  managed. This helps Apache handle more concurrent requests by
+  reducing the overall memory needed to handle each request.  With MPM
+  Worker, the processes spawn threads to handle incoming HTTP
+  requests. To be precise, Worker uses one thread per HTTP
+  connection. Multiple HTTP requests can be made per connection.  A
+  thread will handle multiple requests until a connection is
+  closed. As a request is completed and a connection closed, the
+  thread opens up to accept the next connection and handle its
+  requests.
+
+- *MPM Event*: MPM Event is the newest processing module. It works just
+  like Worker, except it dedicates a thread to each HTTP request. A
+  thread is created per HTTP request, rather than per connection.
+  This means that a thread will free up when the HTTP request is
+  complete, rather than when the connection is closed. Connections are
+  managed within the parent process rather than the threads.  MPM
+  Event is better for applications with relatively long-lasting
+  requests (long Keep-Alive timeouts). With MPM Worker, each
+  long-running connection would use a whole thread. With Event,
+  threads don’t need to be taken up by connections which may or may
+  not be sending any data at the moment. A process can use a thread
+  only when a new request comes from the connection.  An application
+  using server-push, long-polling or web sockets are good use cases
+  for employing MPM Event.
+  If a connection is made using SSL or TLS, MPM Event defaults back to
+  working just like MPM Worker. It will handle a connection per
+  thread.
+
+**** Nginx
+Nginx is similar to NodeJS, HAProxy, and other “web scale”
+technologies (put in quotes, only a tad sarcastisically). Nginx runs
+as an evented, single process. It manages requests
+asynchronously. This helps Nginx work with a large number of
+concurrent connections while using a stable and relatively low amount
+of memory. Actually Nginx can use a few processes. A typical setup with
+Nginx will spawn as many processes as there are CPU cores on the
+server.
+
+Apache, as we learned, spawns processes or threads for each
+connection. Its synchronous manner means that processes and threads
+pause (“block”) while performing slower tasks.  Examples of such tasks
+are reading from the file system or performing network
+operations. This means that Apache processes are “blocking”; We must
+wait for them to finish their task before moving onto the next one.
+
+While Apache spawns many processes and threads, Nginx spawns very few
+processes (“workers”).  Each process is single-threaded. Nginx workers
+accept requests from a shared socket and execute them inside of an
+efficient run-loop. Nginx is asynchronous, evented and
+non-blocking. It is free to accomplish other tasks while waiting for
+slow tasks such as file I/O or network operations to finish.
+
+Each Nginx worker can process thousands of simultaneous connections. It
+avoids the overhead of constantly creating, tracking and destroying
+new processes/threads. This is much more memory and CPU efficient.
+
+Nginx can act as a:
+- Web Server
+- Reverse Proxy (“Application Proxy”)
+    + A proxy server is a go between or intermediary server that
+      forwards requests for content from multiple clients to different
+      servers across the Internet. A reverse proxy server is a type of
+      proxy server that typically sits behind the firewall in a
+      private network and directs client requests to the appropriate
+      backend server. A reverse proxy provides an additional level of
+      abstraction and control to ensure the smooth flow of network
+      traffic between clients and servers.
+
+      Common uses for a reverse proxy server include:
+
+      Load balancing – A reverse proxy server can act as a “traffic
+      cop,” sitting in front of your backend servers and distributing
+      client requests across a group of servers in a manner that
+      maximizes speed and capacity utilization while ensuring no one
+      server is overloaded, which can degrade performance. If a server
+      goes down, the load balancer redirects traffic to the remaining
+      online servers.  Web acceleration – Reverse proxies can compress
+      inbound and outbound data, as well as cache commonly requested
+      content, both of which speed up the flow of traffic between
+      clients and servers. They can also perform additional tasks such
+      as SSL encryption to take load off of your web servers, thereby
+      boosting their performance.  Security and anonymity – By
+      intercepting requests headed for your backend servers, a reverse
+      proxy server protects their identities and acts as an additional
+      defense against security attacks. It also ensures that multiple
+      servers can be accessed from a single record locator or URL
+      regardless of the structure of your local area network.
+
+- Content Caching (“Web Cache”)
+- Load Balancer
+  + TCP Load Balancing as of 1.9.4
+- SSL Terminator
+
+***** Configuration
+In Ubuntu, Nginx follows the usual scheme for configuration. Let’s
+look at some files and directories in the /etc/nginx directory:
+
+#+BEGIN_SRC
+/etc/nginx/conf.d
+/etc/nginx/sites-available
+/etc/nginx/sites-enabled
+/etc/nginx/nginx.conf
+#+END_SRC
+
+Configurations can be enabled by symlinking a file from
+=sites-available= to the =sites-enabled= directory
+
+- Main nginx config is =/etc/nginx/nginx.conf=
+- Any =.conf= file included in =/etc/nginx/conf.d= will be included and
+  enabled.
+- Like Apache, Nginx has the concept of Virtual Hosts, which we’ll
+  just call “servers” in context of Nginx.
+
+basic nginx server
+#+BEGIN_SRC nginx
+  server {
+      listen 80 default_server; # defines itself as the default server for requests on port 80. If no Host HTTP header matches a configured server, then Nginx will default back to this default site.
+      listen [::]:80 default_server; # We also listen on port 80 of an ipv6 interface, if it is enabled on the server
+      root /var/www/html; # This is where the web files are pulled from.
+      index index.html index.htm index.nginx-debian.html; # The index directive defines which files are to be attempted to be read if no file is specified
+      server_name _; # The hostname that Nginx should use to match the Host header with to match to this server. Since this is a default server (via default_server), currently this site will load if no other host is matched.
+  }
+
+  # Nginx can use the location block along with a file path or regex
+  # pattern to match URL’s or files and handle them differently.
+  # Here we see any location is grabbed. Then the try_files directive
+  # will attempt to find a file in the order of the given patterns. By
+  # default, this tries to use the explicit URL to find a file, followed by a
+  # directory name, and lastly responds with a 404 if no matching file
+  # or directory is found.
+  location / {                    # This captures the URI “/” and any sub-URI (sub-directory). In other words, this location block applies to all URIs.
+      try_files $uri $uri/ =404;  # The use of try_files is good for handling static content. It tries to find the URI as a file or directory in the order of the defined variables.
+  }
+#+end_src
+
++ The =location= directive is very important. It helps determine how
+  files and URI’s are handled Nginx.
++ =try_files $uri $uri/ =404;=
+  1) First try the URI given to see if a matching file can be found on the server. This is relative to the root path.
+  2) Failing to find a file, try the URI as a directory on the server. This is relative to the root path.
+  3) Failing to find a file or a directory, respond with a 404 error.
++ Example
+  #+BEGIN_SRC nginx
+  location = /favicon.ico { log_not_found off; access_log off; }
+  location = /robots.txt { log_not_found off; access_log off; }
+  #+END_SRC
+
+  The above two directives will turn off 404 error logging and any
+  access log information on these two files.
++ Blocking Access to Files
+  #+BEGIN_SRC nginx
+  location ~ /\. {
+       deny all;
+       access_log off;
+       log_not_found off;
+   }
+  #+END_SRC
+  This turns off the access log and 404 error logging for “dot
+  files”. If the files or directories exist on the server, Nginx
+  will deny access to them.
++ Handling Files by Extension
+  #+BEGIN_SRC nginx
+  location ~ \.(js|css|png|jpg|gif|swf|ico|pdf|mov|fla|zip|rar)$ { # The tilde instructs nginx to perform a case-sensitive regular expression match, instead of a straight string comparison.
+      try_files $uri =404;
+  }
+  #+END_SRC
+  This uses regular expressions to match files =.js=, =.css= and the
+  others listed above. The above uses =try_files= for the exact file
+  name but doesn’t attempt to match them as a directory.
+
+  We can reduce the risk of unwanted PHP files being processed by
+  explicitly specifying which PHP files can be run:
+
+  #+BEGIN_SRC nginx
+  location ~ ^/(app|app_dev|config)\.php(/|$) {
+      ...magic here...
+  }
+  #+END_SRC
++ Pretty URL’s (Hiding ‘index.php’)
+  #+BEGIN_SRC nginx
+  # With a PHP application, this
+  # becomes our default `location {}` block
+  location / {
+      try_files $uri $uri/ /index.php$is_args$args;
+  }
+  #+END_SRC
++ Redirect www to non-www
+
+  #+BEGIN_SRC nginx
+   server {
+       server_name *.example.com;
+       return 301 $scheme://example.com$request_uri;
+   }
+
+   server {
+       server_name example.com;
+       ...
+   }
+  #+END_SRC
++ Redirect non-www to www
+  #+BEGIN_SRC nginx
+  server {
+      listen 80;
+      server_name example.com;
+      return 301 http://www.example.com$request_uri;
+  }
+  server {
+      listen 80;
+      server_name www.example.com;
+      ...
+  }
+  #+END_SRC
++ Forcing SSL
+  #+BEGIN_SRC nginx
+   server {
+       listen 80;
+       server_name example.com www.example.com;
+       return 301 https://example.com$request_uri;
+   }
+   server {
+       listen 443 ssl;
+       server_name example.com;
+       ssl on;
+       # Other SSL directives, covered later
+       # ...
+   }
+  #+END_SRC
++ Wildcard Subdomains and Document Root
+  #+BEGIN_SRC nginx
+  server {
+      listen 80 default_server;
+      server_name ~^(.*)\.local\.dev$;
+      set $file_path $1;
+      root /var/www/$file_path/public
+      location / { ... }
+  }
+  #+END_SRC
+  We’re using regular expressions in the server_name directive. This
+  matches any subdomain and captures the subdomain. The subdomain is
+  available via the $1 variable. The $1 variable is the result of
+  the first capture group found in the regular expression
+  =∼ˆ(.*)\.local\.dev$=.  We then use the $1 variable and map it to a
+  variable called $file_path. Lastly, we append =$file_path= to the
+  root directive to make up part of our document root. This will
+  dynamically change the document root based on the subdomain used.
+  Each subdomain will automatically map to our project directories!
++ Integration with Web Applications
+  Typically a web server will accept a request and pass it off to a
+  “gateway”. Gateways then translate and pass the request off to a
+  coded application. Gateways are various implementations and
+  flavors of a “CGI”s - a Common Gateway Interfaces.
+
+  * HTTP Proxy
+    #+BEGIN_SRC nginx
+    location /api {
+      include proxy_params;
+      proxy_pass http://127.0.0.1:9000;
+    }
+    #+END_SRC
+    We included the /etc/nginx/proxy_parms file. This file contains
+    some sensible defaults to use when proxying requests for another
+    service. Here’s what that file does:
+
+    - It sets the Host header to the requests original Host
+    - It adds a X-Read-IP header to the IP address of the original request
+    - It adds a X-Forwarded-For header
+    - It adds a X-Forwared-Proto header
+
+    Nginx will return to the client whatever the backend server returns.
+
+    A Unix socket version of the same proxy pass might look like
+    this: (NOTE: if =foobar.sock= permission is important)
+    #+BEGIN_SRC nginx
+    location /api {
+         include proxy_params;
+         proxy_pass http://unix:/tmp/foobar.sock:/;
+    }
+    #+END_SRC
+  * Multiple Backends
+
+    Nginx can proxy off to multiple HTTP backends. In fact, this is
+    Nginx’s load balancing!
+
+    #+BEGIN_SRC nginx
+      upstream my_app {
+          zone backend 64k;
+          least_conn; # LB algorithms
+          server 127.0.0.1:9000 max_fails=3 fail_timeout=30s;
+          server 127.0.0.1:9001 max_fails=3 fail_timeout=30s;
+      }
+      server {
+          listen 80 default_server;
+          listen [::]:80 default_server ipv6only=on;
+          root /usr/share/nginx/html;
+          index index.html index.htm;
+          server_name localhost
+          charset utf-8;
+
+          location /static {
+              try_files $uri $uri/ =404;
+          }
+
+          location / {
+              include proxy_params;
+              proxy_pass http://my_app/;
+          }
+      }
+    #+END_SRC
+  * FastCGI
+    - php-fmp
+        #+BEGIN_SRC nginx
+          server {
+              listen 80 default_server;
+              listen [::]:80 default_server ipv6only=on;
+              root /usr/share/nginx/html;
+              index index.html index.htm;
+              server_name localhost
+              charset utf-8;
+
+              location / {
+                  try_files $uri $uri/ /index.php$is_args$args; # will pass requests off to PHP last if no directory or static file is found to serve the request.
+              }
+
+              location ~ \.php$ {
+                  include snippets/fastcgi-php.conf;
+
+                  fastcgi_pass 127.0.0.1:9000; # when on a unix socket => fastcgi_pass unix:/run/php/php7.2-fpm.sock;
+                  fastcgi_param ENV development;
+              }
+          }
+        #+END_SRC
+
+    - other CGIs
+      #+BEGIN_SRC nginx
+      location / {
+        try_files $uri $uri/ @proxy;
+      }
+
+      location @proxy {
+          include fastcgi_params;
+          fastcgi_pass 127.0.0.1:9000;
+          fastcgi_param ENV development;
+      }
+      #+END_SRC
+      This attempts to find the URI as an existing file or
+      directory. If they don’t exist, it jumps the request to the
+      =@proxy= location block. This will then proxy the request to the
+      back-end server (application) configured.
+  * uWSGI
+    #+BEGIN_SRC nginx
+      location / {
+          try_files $uri $uri/ @proxy;
+      }
+      location @proxy {
+          include uwsgi_params;
+          uwsgi_pass 127.0.0.1:9000;
+          uwsgi_param ENV productionmaybe;
+      }
+    #+END_SRC
+
+
+* PHP

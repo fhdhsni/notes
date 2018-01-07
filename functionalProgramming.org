@@ -4,7 +4,7 @@
 ** Avoiding Mutations
 *** Arrays
     - Mutator methods should be avoided where possible.
-    -  useful non-mutator array methods include /concat/, /map/, /filter/, and /reduce/.
+    - useful non-mutator array methods include /concat/, /map/, /filter/, and /reduce/.
 *** Objects
 use /Object.assign/
 *** Note on /const/
@@ -42,7 +42,7 @@ Currying is the process of translating a function that takes multiple arguments 
       return function ( y ) {
         return fn( x, y );
       };
-    };	
+    };
   };
 
   const curriedMultiply = curry( multiply );
@@ -56,7 +56,7 @@ Currying is the process of translating a function that takes multiple arguments 
 Currying and partial application are conceptually similar (and you’ll probably never need both), but still distinct. The main difference is that currying will always produce a nested chain of functions that each accept only one argument, whereas partial application can return functions that accept more than one argument. This distinction is clearer when you compare their effects on functions that accept at least three arguments:
 #+BEGIN_SRC js2
   const multiply = function ( x, y, z ) {
-	  return x * y * z;	
+	  return x * y * z;
   };
 
   const curry = function ( fn ) {
@@ -66,7 +66,7 @@ Currying and partial application are conceptually similar (and you’ll probably
           return fn( x, y, z );
         };
       };
-    };	
+    };
   };
 
   const partApply = function ( fn, x ) {
@@ -107,7 +107,7 @@ However, this can be avoided with tail call optimisation.
    modifying a global object or modifying a parameter passed by
    reference.
 3) If a function consistently yields the same result for the same
-   input, it is referentially transparent. 
+   input, it is referentially transparent.
    Pure functions + immutable data = referential transparency
 4) A declarative program declares “what” the program does without
    necessarily telling us “how” it does it.
@@ -115,10 +115,10 @@ However, this can be avoided with tail call optimisation.
    by using statements that specify control flow (e.g. for-loops,
    if-else statements, etc.) or state changes.
 
-   Long story short: 
+   Long story short:
    /Declarative/ = *WHAT*
    /Imperative/ = *HOW*
-6) 
+6)
 
 
 * Professor Frisby egghead course
@@ -235,7 +235,7 @@ const Left = x =>
 const fromNullable = x =>
       x != null ? Right(x) : Left(x);
 
-const findColor = name => 
+const findColor = name =>
       fromNullable({red: '#ff4444', blue: '#3b6998', yellow: '#fff68f'}[name]);
 
 console.log(
@@ -282,7 +282,7 @@ const tryCatch = f => {
   }
 };
 
-const getPort = () => 
+const getPort = () =>
       tryCatch(() => fs.readFileSync('./config.json'))
       .chain(c => tryCatch(() => JSON.parse(c))) // we already have a Right ot Left so we use chain
       .fold(e => 3000,          // in case of error it'll be 3000
@@ -415,7 +415,7 @@ console.log(result);
 const Sum = x =>
       ({
         x,
-        concat: o => 
+        concat: o =>
           Sum(x + o.x),
         inspect: () => `Sum(${x})`,
       });
@@ -424,7 +424,7 @@ const Sum = x =>
 const All = x =>
       ({
         x,
-        concat: o => 
+        concat: o =>
           All(x && o.x),
         inspect: () => `All(${x})`,
       });
@@ -433,7 +433,7 @@ const All = x =>
 const First  = x =>
       ({
         x,
-        concat: _ => 
+        concat: _ =>
           First(x),
         inspect: () => `First(${x})`,
       });
