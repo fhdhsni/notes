@@ -1610,8 +1610,10 @@ The rendered result will be:
 
 *** Scoped Slots
 
-A scoped slot is a special type of slot that functions as a reusable template (that can be passed data to) instead of already-rendered-elements.
-In a child component, pass data into a slot as if you are passing =props= to a component:
+A scoped slot is a special type of slot that functions as a reusable
+template (that can be passed data to) instead of
+already-rendered-elements.  In a child component, pass data into a
+slot as if you are passing =props= to a component:
 
 hello component
 #+BEGIN_SRC html
@@ -1681,7 +1683,10 @@ And the template for the list component:
 
 **** Destructuring
 
-scope-slot‘s value is in fact a valid Javascript expression that can appear in the argument position of a function signature. This means in supported environments (in single-file components or in modern browsers) you can also use ES2015 destructuring in the expression:
+scope-slot‘s value is in fact a valid Javascript expression that can
+appear in the argument position of a function signature. This means in
+supported environments (in single-file components or in modern
+browsers) you can also use ES2015 destructuring in the expression:
 #+BEGIN_SRC html
 <child>
   <span slot-scope="{ text }">{{ text }}</span>
@@ -1866,7 +1871,6 @@ Vue.component('terms-of-service', {
 })
 #+END_SRC
 
-** Transition
 ** mixin
 
 ** Under The Hood

@@ -962,7 +962,7 @@ basic nginx server
     #+BEGIN_SRC nginx
       upstream my_app {
           zone backend 64k;
-          least_conn; # LB algorithms
+          least_conn; # Least Connections algorithms
           server 127.0.0.1:9000 max_fails=3 fail_timeout=30s;
           server 127.0.0.1:9001 max_fails=3 fail_timeout=30s;
       }
@@ -1036,5 +1036,1312 @@ basic nginx server
       }
     #+END_SRC
 
-
 * PHP
+** Installation
+#+BEGIN_SRC shell
+  sudo add-apt-repository -y ppa:ondrej/php # to get the latest version
+  sudo apt show php-cli                     # check the version in `Depends` section
+
+  # A good base-line PHP install
+  # PHP "common" along with CLI php and other common modules:
+  # Note that php5 or php5-common will install Apache as well!
+  # You can skip those packages (php5 and php5-common)
+  sudo apt install -y php7.2-common php-cli php7.2-curl php7.2-mcrypt php7.2-intl php7.2-gmp
+
+  # Some database (and cache) specific modules (will also install PDO)
+  sudo apt install -y php7.2-mysql php7.2-pgsql php7.2-sqlite php7.2-memcached
+
+  # Image processing
+  sudo apt install -y php7.2-gd php7.2-imagick
+
+  # Debugging, likely not to be installed in production
+  sudo apt install -y php7.2-xdebug
+#+END_SRC
+
+- =/etc/php/7.2/apache2= - If Apache is installed, this directory
+  controls PHP configuration for Apache
+- =/etc/php/7.2/fpm= - If PHP-FPM is installed, this directory
+  controls PHP configuratoin for PHP-FPM
+- =/etc/php/7.2/cli= - Controls PHP configuration for CLI-based PHP
+- =/etc/php/mods-available= - All PHP modules available for use
+- =/etc/php/7.2/mods-available= - Mods specifical to PHP 7 - usually an empty directory
+
+PHP can be configured separately for each context in which it’s
+used. These contexts are called SAPI’s, or “Server APIs”. For our
+purposes here, we can use “SAPI” or “context” interchangeably.
+
+For each context, modules are loaded in alpha-numeric order from the
+=conf.d= directory.
+
+
+Modules inside of =/etc/php/mods-available= are the pool of available
+modules - we decide which are loaded when PHP is used with any of the SAPIs by
+creating the symlinks to files the /etc/php/7.0/fpm|apache2|cli/conf.d
+directory.
+
+#+BEGIN_SRC shell
+ # Enable PHP's mcrypt for apache2
+ sudo phpenmod apache2 mcrypt
+ # Or disable it:
+ sudo phpdismod apache2 mcrypt
+#+END_SRC
+
+*** PHP-FPM
+PHP-FPM allows us to run PHP as a separate process. PHP-FPM is a
+FastCGI implementation for PHP. When the web server detects a PHP
+script is called, it can hand that request off (proxy it) to PHP-FPM
+using the FastCGI protocol.
+
+Some benefits of PHP-FPM:
+- PHP-FPM runs separately from the web server, reducing memory used
+  for requests that are not PHP-related
+- Web servers can do what they do best - simply serve static content
+- PHP-FPM can be run on multiple servers, distributing server load
+- PHP-FPM can run different “resource pools”, allowing for separate
+  configurations per pool
+
+**** Process Management
+PHP-FPM’s master process creates child processes to handle all PHP
+requests. Processes are expensive to create and manage. How we treat
+them is important.  PHP-FPM is an implementation of FastCGI, which
+uses “persistent processes”. Rather than killing and re-creating a
+process on each request, FPM will re-use processes.  This is much more
+efficient than Apache’s mod_php, which requires Apache to create and
+destroy a process on every request.
+
+**** Configuring PHP-FPM
+FPM's global configuration, found at =/etc/php/7.0/php-fpm.conf=
+
+- Pool config
+
+  + Pool name: =www=
+    At the top of the config file, we define the name of the pool in
+    brackets: [www]. This one is named “www”. The pool name needs to
+    be unique per pool defined.  Conveniently, the pool name is set to
+    the variable $pool. This can be used anywhere within the
+    configuration file after it is defined.
+  + *user=www-data & group=www-data*
+    It’s worth noting that PHP-FPM runs as user root. However, when it
+    receive a new request to parse some PHP, it spawns child processes
+    which run as this set user and group.
+  + *listen.owner / listen.group & listen.mode*
+
+    If you use a Unix socket instead of a TCP socket, then you need to
+    set the user/group permissions of the socket file. If you change
+    the user/group setting of a resource pool, you should also change
+    this to the same user/group.
+  + *listen.allowed_clients = 127.0.0.1*
+    If you are using a TCP socket, then this setting is good for security.
+
+  + =pm = dynamic=
+
+    Process management is set to dynamic by default. The dynamic
+    setting will start FPM with at least 1 child process waiting to
+    accept a connection. It will dynamically decide how many child
+    processes are active or waiting on a request. This uses other
+    settings we’ll discuss next to manage processes.  The pm directive
+    can also be set to static. This sets a specific number of child
+    processes. This number of processes is alway present regardless of
+    other settings.  Lastly, the pm directive can be set to
+    ondemand. This is the same as dynamic, except there’s no minimum
+    number of child processing created.
+
+  + =pm.max_children = 5=
+
+    The maximum number of child processes to exist at any point. This
+    sets the overall maximum number of simultaneous requests PHP-FPM
+    will handle.  Increasing this will allow for more requests to be
+    processed concurrently. However there are diminishing returns on
+    overall performance due to memory and processor constraints.
+    Nginx starts with a low number (5), since Ubuntu packages tend to
+    optimize for low-powered servers.  A rule of thumb for figuring
+    out how many to use is:
+    #+BEGIN_SRC
+    pm.max_children = (total RAM - RAM used by other process) / (average amount of RAM used by a PHP process)
+    #+END_SRC
+    For example, if:
+    • The server has 1GB of ram (1024mb)
+    • The server has an average baseline of 500mb of memory used
+    • Each PHP process takes 18mb of memory
+    Then our max_children can be set to 29, much higher than the default of 5!
+    That math was: =( (1024-500)/18 = 29.111 )=. I rounded down to be conservative.
+
+  + =pm.start_servers = 2=
+
+    The number of processes created by PHP-FPM on startup. Because
+    processes are expensive to create, having some created at startup
+    will get requests handled more quickly. This is especially useful
+    for reducing startup time on busy servers. This only applies when
+    process management is set to “dynamic”
+
+  + =pm.min_spare_servers = 1=
+    The minimum number of processes PHP-FPM will keep when there are
+    no requests to process (when idle). Because processes are
+    expensive to create, having some “idle” will get requests
+    processed quickly after a period of idleness.
+
+  + =pm.max_spare_servers = 3=
+    This is the number of “desired” spare servers. PHP-FPM will
+    attempt to have this many idle processes ready, but will not go
+    over the maximum set by pm.max_children. If pm.max_children is set
+    to 5, and there are 4 processes in use, then only one spare (idle)
+    process will be created. This only applies when process management
+    is set to “dynamic”.
+  + =pm.process_idle_timeout = 10s=
+    The number of seconds a process will remain idle before being
+    killed. This only applies when process management is set to
+    “ondemand”. Dynamic process management uses the spare server
+    settings to determine when/how to kill processes.
+
+  + =pm.max_requests = 500=
+    The number of request to handle before a child process is killed and
+    respawned. By default, this is set to 0, meaning unlimited.  You may
+    want a child process to have a limited lifetime. This is useful if
+    you’re worried about memory leaks created by your application.
+
+    That was a lot about process management! It’s important to know,
+    however. In most cases, the default settings are likely too low
+    relative to what your server can handle!
+
+  + =pm.status_path = /status= & =ping.path = /ping=
+    This is off (not set) by default, but you can configure an
+    end-point to get the status of FPM. This example will set a URI
+    end point to /status. Once configured, you can use the following
+    URL parameters (assuming you keep it at /status) to determine what
+    is output:
+    - /status - Show basic status information
+    - /status?full - Show basic status information + information on each child process
+    - /status?full&html - In HTML format
+    - /status?full&xml- In XML format
+    - /status?full&json - in JSON format
+      #+BEGIN_SRC nginx
+        location ~ ^(/status|ping)$ {
+            access_log off;
+            allow 127.0.0.1;
+            allow 104.236.54.206; # A local-only network IP address
+            deny all;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_pass unix:/run/php/php7.2-fpm.sock;
+        }
+      #+END_SRC
+
+  + chroot
+    Disabled by default, the chroot directive is a file path which
+    becomes the relative file path for all of PHP. This includes
+    php.ini settings. Chroot is sort of like running PHP-FPM in a
+    jail - the child process can’t access other parts of the
+    system. This is a boon for security!  However the downside is
+    ensuring your configuration and application will work with
+    this. Every- thing works relative to this defined file path. This
+    includes paths used for include/require functions and file upload
+    paths.  By default this is not set, but you should consider using
+    it for security.  If you do use chroot in production, mirror this
+    setting in development. Making your development machine match
+    production can be important. You don’t want to run into snags due
+    to settings like this when deploying a site to production.
+
+* Server Setup for Multi-Tenancy Apps
+#+BEGIN_SRC nginx
+  # Marketing Site
+  server {
+      listen 80;
+      server_name www.myapp.io myapp.io
+      root /var/www/marketing-site
+  }
+
+  # App Site
+  server {
+      listen 80;
+      # Match *.myapp.io
+      server_name ~^(?<user>.+)\.myapp\.io$;
+      root /var/www/app-site
+      # Optionally pass the subdomain to the app via
+      # fastcgi_param, so it's available as an
+      # environment variable
+      location / {
+          include fastcgi.conf; # fastcgi_params for nginx < 1.6.1
+          fastcgi_param USER $user; # Passing the user to our app!
+          fastcgi_pass 127.0.0.1:9000;
+      }
+  }
+#+END_SRC
+
+In this server block, we match a wildcard subdomain. As a bonus, we
+use the RegEx to capture the variable =$user=, which can be passed off
+to our application using a fastcgi_pass directive. This will then
+become available as an environment variable in our application!
+
+* SSL
+** Creating Self-Signed Certificates
+
+The basic steps to create a self-signed certificate are:
+
+1. Create a Private Key
+2. Create a Certificate Signing Request (CSR)
+3. Create a Self-Sign certificate using the Private Key and the CSR
+    - Alternatively, if you purchased an SSL, the last step is
+    accomplished by the certificate signing authority
+4. Install the certificate for use on your web server
+
+
+#+BEGIN_SRC shell
+ # Create a 2048 bit private key
+ # Change your -out filepath as needed
+ sudo mkdir -p /etc/ssl/example
+ sudo openssl genrsa -out "/etc/ssl/example/example.key" 2048
+#+END_SRC
+
+The private key is used to generate our Certificate Signing Request
+(CSR) and is needed to properly sign/create our certificate. It’s also
+used to properly decrypt SSL traffic.
+
+Next we need to create the CSR. The CSR holds information used to
+generate the SSL certificate.  The information provided also contains
+information about the company or entity owning the SSL.
+
+#+BEGIN_SRC shell
+sudo openssl req -new -key "/etc/ssl/example/example.key" -out "/etc/ssl/example/example.csr"
+#+END_SRC
+
+The Common Name option is the most important, as your domain used with
+the certificate needs to match it. If you use the “www” subdomain for
+your site, this means specifying the “www” subdomain in the Common
+Name field as well!
+
+So, we now have example.key and example.csr files created. Let’s
+finish this up by creating the self-signed certificate.
+
+#+BEGIN_SRC shell
+sudo openssl x509 -req -days 365 -in "/etc/ssl/example/example.csr" \
+ -signkey "/etc/ssl/example/example.key" \
+ -out "/etc/ssl/example/example.crt"
+#+END_SRC
+
+Here’s what we did:
+ =sudo openssl x509= - Create an SSL certificate following x509 specification63
+ =-req= - State that we’re generating a certificate
+ =-days 365= - This certificate is valid for one year
+ =-in "/etc/ssl/example.csr"= - The CSR generated for this certificate
+ =-signkey "/etc/ssl/example.key"= - The Private Key used for this certificate
+ =-out "/etc/ssl/example.crt"= - Where to put the new certificate file
+
+Here’s a one-liner for generating an self-signed certificate in one go:
+#+BEGIN_SRC shell
+ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+ -keyout /etc/ssl/example/example.key \
+ -out /etc/ssl/example/example.crt
+#+END_SRC
+explanation:
++ =sudo openssl req= - Req says we’re generating a certificate
++ =-x509= - Using the x509 specification67
++ =-nodes= - Since we’re doing this in one step, don’t encrypt the
+  Private Key (since it may require a password). Read more here68.
++ =-days 365= - Create a certificate valid for 1 year
++ =rsa:2048= - Use a 2048 bit Private Key
++ =-keyout /etc/apache2/ssl/example.key= - Where to put the Private Key
++ =-out /etc/apache2/ssl/example.crt= - Where to put the generated Certificate
+
+*** Creating a Wildcard Self-Signed Certificate
+generate-ssl.sh
+#+BEGIN_SRC shell
+#!/usr/bin/env bash
+
+# Specify where we will install
+# the xip.io certificate
+SSL_DIR="/etc/ssl/xip.io"
+
+# Set the wildcarded domain
+# we want to use
+DOMAIN="*.xip.io"
+
+# A blank passphrase
+PASSPHRASE=""
+
+# Set our CSR variables
+SUBJ="
+C=US
+ST=Connecticut
+O=
+localityName=New Haven
+commonName=$DOMAIN
+organizationalUnitName=
+emailAddress=
+"
+
+# Create our SSL directory
+# in case it doesn't exist
+sudo mkdir -p "$SSL_DIR"
+
+# Generate our Private Key, CSR and Certificate
+sudo openssl genrsa -out "$SSL_DIR/xip.io.key" 2048
+
+sudo openssl req -new -subj "$(echo -n "$SUBJ" | tr "\n" "/")" \
+-key "$SSL_DIR/xip.io.key" \
+-out "$SSL_DIR/xip.io.csr" -passin pass:$PASSPHRASE
+
+sudo openssl x509 -req -days 365 -in "$SSL_DIR/xip.io.csr" \
+-signkey "$SSL_DIR/xip.io.key" \
+-out "$SSL_DIR/xip.io.crt"
+#+END_SRC
+
+*** Nginx Setup
+#+BEGIN_SRC nginx
+server {
+    listen 443 ssl;
+    server_name example.local;
+    root /var/www/example.com;
+    ssl_certificate /etc/ssl/example/example.crt;
+    ssl_certificate_key /etc/ssl/example/example.key;
+    # ... the rest...
+}
+#+END_SRC
+
+and for Xip.io
+#+BEGIN_SRC nginx
+ server {
+     listen 443 ssl;
+     server_name project-a.192.168.33.10.xip.io;
+     root /var/www/projecta;
+     ssl_certificate /etc/ssl/xip.io/xip.io.crt;
+     ssl_certificate_key /etc/ssl/xip.io/xip.io.key;
+
+     # ... and the rest ...
+ }
+#+END_SRC
+
+* Multi-Server Environments
+** Load Balancing with Nginx
+*** Balancing Algorithms
+One consideration when load balancing is configuring how you’d like
+the traffic to be distributed.  Load balancers often provide a variety
+of algorithms for load balancing. Nginx offers the following
+
+strategies:
+- Round Robin - Nginx chooses which server will fulfill a request in
+  order they are defined.  This is the default, which is used if no
+  strategy is explicitly defined. Round Robin is a good “default” if
+  you’re unsure which suits your needs.
+
+- Least Connections - Request is assigned to the server with the least
+  connections (and presumably the lowest load). This is best for
+  applications with relatively long connections, perhaps those using
+  web sockets, server push, long-polling or HTTP request with long
+  keep- alive parameters.
+
+- Ip-Hash - The Client’s IP address is hashed. The resulting hash is
+  used to determine which server to send the request to. This also
+  effectively makes user sessions “sticky”. Subsequent requests from a
+  specific user always get routed to the same server. This is one way
+  to get around the issue of user sessions behaving as expected in a
+  distributed environment. Hashes are common if the load balancer is
+  used as a cache server - if there are multiple cache servers, this
+  can result in a higher cache hit rate.
+
+- Generic Hash - A user-defined key can be used to distribute requests
+  across upstream servers.
+
+IP-Hash is not the only way to accomplish
+session stickiness (“session affinity”). You can also use a sticky
+directive, which will tell Nginx what cookie to read to determine
+which server to use.
+
+**** Configuration
+Let’s say we have three NodeJS processes running, each listening for
+HTTP requests. If we want to distribute requests amongst them. We can
+configure our Nginx to proxy HTTP requests to the defined upstream
+servers (the NodeJS processes) like so:
+
+#+BEGIN_SRC nginx
+  # Define your "upstream" servers - the
+  # servers request will be sent to
+  upstream app_example {
+      least_conn;
+      server 127.0.0.1:9000 max_fails=3 fail_timeout=30s; # passive health check
+      server 127.0.0.1:9001 max_fails=3 fail_timeout=30s; # passive health check
+      server 127.0.0.1:9002 max_fails=3 fail_timeout=30s; # passive health check
+  }
+  # Define the Nginx server
+  # This will proxy any non-static directory
+  server {
+      listen 80;
+      listen 443 ssl;
+      server_name example.com www.example.com;
+      access_log /var/log/nginx/example.com-access.log;
+      error_log /var/log/nginx/example.com-error.log error;
+      # Browser and robot always look for these
+      # Turn off logging for them
+      location = /favicon.ico { log_not_found off; access_log off; }
+      location = /robots.txt { log_not_found off; access_log off; }
+      # You'll need to have your own certificate and key files
+      # This is not something to blindly copy and paste
+      ssl_certificate /etc/ssl/example.com/example.com.crt;
+      ssl_certificate_key /etc/ssl/example.com/example.com.key;
+      # Handle static files so they are not proxied to NodeJS
+      # You may want to also hand these requests to another upstream
+      # set of servers, as you can define more than one!
+      location / {
+          try_files $uri $uri/ @proxy;
+      }
+
+      # pass the request to the node.js server
+      # with some correct headers for proxy-awareness
+      location @proxy {
+          health_check;
+
+          include proxy_params;
+          # Sets the Host header to the original request
+          # Sets the X-Real-Ip header to the client’s IP address
+          # Sets the X-Forwarded-For header to the client IP’s address (same as above, but the two headers are often used differently)
+          # Sets the X-Forwarded-Proto header to the scheme used by the client (http or https)
+
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_pass http://app_example/;
+          # Handle Web Socket connections
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+      }
+  }
+#+END_SRC
+
+***** Using Active Health Checks
+#+BEGIN_SRC nginx
+  upstream app_example {
+      zone backend 64k;
+      least_conn;
+      server 127.0.0.1:9000 max_fails=3 fail_timeout=30s;
+      server 127.0.0.1:9001 max_fails=3 fail_timeout=30s;
+      server 127.0.0.1:9002 max_fails=3 fail_timeout=30s;
+  }
+  server {
+      # Other items omitted...
+      location @proxy {
+          health_check interval=5 fails=3 passes=2 uri=/some/path;
+          include proxy_params;
+          # Other items omitted...
+      }
+  }
+#+END_SRC
+
+***** Session Affinity
+Doesn't make sense here because all of the server is on the same machine.
+
+#+BEGIN_SRC nginx
+  upstream app_example {
+      zone backend 64k;
+      least_conn;
+      sticky cookie srv_id expires=1h;
+      server 127.0.0.1:9000 max_fails=3 fail_timeout=30s;
+      server 127.0.0.1:9001 max_fails=3 fail_timeout=30s;
+      server 127.0.0.1:9002 max_fails=3 fail_timeout=30s;
+  }
+#+END_SRC
+
+***** SSL-Termination
+The SSL request is decrypted at the Nginx server before the request is
+sent to the proxied servers.
+#+BEGIN_SRC nginx
+ ssl on;
+ ssl_certificate /etc/ssl/example.com/example.com.crt;
+ ssl_certificate_key /etc/ssl/example.com/example.com.key;
+ include h5bp/directive-only/ssl.conf # https://github.com/h5bp/server-configs-nginx/blob/master/h5bp/directive-only/ssl.conf
+#+END_SRC
+
+***** SSL-Pass thru
+Pass-through SSL traffic is encrypted all the way to the end web
+server. Conversely, with SSL- Termination, traffic between the load
+balancer and web servers is not encrypted. Pass-through therefore can
+be seen as more secure (although you can combine the two - terminate
+at the load balancer, and re-encyrpt the traffic before sending to the
+web servers).
+
+Edit /etc/nginx/nginx.conf. We’ll add an include statement outside of
+the http block. We do this because we need to include configuration
+for the stream block, which signals to Nginx to expect TCP traffic. We
+can’t use stream inside of an http block, which is where the include
+statement normally resides for including the /etc/nginx/conf.d/*.conf
+and /etc/nginx/sites-enabled/* files.
+
+1.
+#+BEGIN_SRC nginx
+include /etc/nginx/tcpconf.d/*;
+#+END_SRC
+2.
+#+BEGIN_SRC shell
+sudo mkdir -p /etc/nginx/tcpconf.d
+#+END_SRC
+We’ll create a new stream configuration in a new file at
+=/etc/nginx/tcpconf.d/lb=:
+
+#+BEGIN_SRC nginx
+  stream {
+      upstream web_server {
+          # Our web server, listening for SSL traffic
+          # Note the web server will expect traffic
+          # at this xip.io "domain", just for our
+          # example here
+          server 52.23.215.245.xip.io:443;
+      }
+      server {
+          listen 443;
+          proxy_pass web_server;
+      }
+  }
+#+END_SRC
+To reiterate: The reason we have to edit nginx.conf is because it
+includes items from conf.d and sites-available within the http
+block. However, with TCP traffic, we need configuration to be within
+the stream block. “Stream” tells Nginx to expect TCP traffic rather
+than HTTP traffic.
+
+** Load Balancing with HAProxy
+
+HAProxy configuration can be found at =/etc/haproxy/haproxy.cfg=
+
+*** Load Balancing Configuration
+- =frontend= - where HAProxy listens for incoming connections
+  #+BEGIN_SRC haproxy
+  frontend localnodes
+         bind *:80
+         mode http
+         default_backend nodes
+  #+END_SRC
+- =backend= - Where HAPoxy sends incoming connections to
+  #+BEGIN_SRC haproxy
+  backend nodes
+      mode http
+      balance roundrobin
+      option forwardfor
+      http-request set-header X-Forwarded-Port %[dst_port]
+      http-request add-header X-Forwarded-Proto https if { ssl_fc }
+      option httpchk HEAD / HTTP/1.1\r\nHost:localhost
+      # cookie SRV_ID prefix can be used for sticky session
+      server web01 172.0.0.1:9000 check
+      server web02 172.0.0.1:9001 check
+      server web03 172.0.0.1:9002 check
+  #+END_SRC
+
+  + =mode http= - This will pass HTTP requests to the servers listed
+
+  + =balance roundrobin= - Use the roundrobin strategy for
+    distributing load amongst the servers
+
+  + =option forwardfor= - Adds the X-Forwarded-For header so our applications can get the
+      client’s actual IP address. Without this, our application would
+      instead see every incoming request as coming from the load
+      balancer’s IP address
+
+  + =http-request set-header X-Forwarded-Port %[dst_port]= - We manually add the X-Forwarded-
+      Port header so that our applications knows what port to use when
+      redirecting/generating URLs.
+        * Note that we use the dst_port “destination port” variable, which is the destination
+        port of the client’s HTTP request, not of the upstream (NodeJS in
+      this example) servers.
+
+  + =http-request add-header X-Forwarded-Proto https if { ssl_fc }= - We add the X-Forwarded-
+    Proto header and set it to “https” if an SSL connection is
+    used. Similar to the forwarded-port header, this can help our web
+    applications determine which scheme to use when building URL’s and
+    sending redirects (Location headers).
+
+  + =option httpchk HEAD / HTTP/1.1\r\nHost:localhost= - Set the health check URI which
+      HAProxy uses to test if the web servers are still responding. If
+      these fail to respond, the server is removed from HAProxy as one to
+      load balance between. This sends a HEAD request with the HTTP/1.1
+      and Host header set, which might be needed if your web server uses
+      virtualhosts to detect which site to send traffic to.
+
+  + =server web[01-03] 172.0.0.0:[9000-9002] check= - These three lines add the web servers
+      for HAProxy to balance traffic between. It arbitrarily names each
+      one web01-web03, then set’s their IP address and port, and adds the
+      check directive to tell HAProxy to health check the server as
+      directed by option httpchk.
+
+- =stats= - Optionally, setup HAProxy web tool for monitoring the load
+  balancer and its nodes
+  #+BEGIN_SRC haproxy
+  listen stats *:1936
+      stats enable
+      stats uri /
+      stats hide-version
+      stats auth someuser:password
+  #+END_SRC
+
+*** SSL with HAProxy
+
+- *SSL Termination* is the practice of terminating/decrypting an SSL
+  connection at the load balancer, and sending unencrypted connections
+  to the backend servers.
+
+- This is the opposite of *SSL Pass-Through*, which sends SSL
+  connections directly to the proxied servers. The SSL connection is
+  terminated at each proxied server.  This means your application
+  servers will lose the ability to get the X-Forwarded-* headers,
+  which may include the client’s IP address, port and scheme used.
+
+- Lastly, you can use a combination of both strategies, where SSL
+  connections are terminated at the load balancer, adjusted as needed,
+  and then proxied off to the backend servers as a new SSL connection.
+
+#+BEGIN_SRC
+
+ $ sudo mkdir /etc/ssl/xip.io
+
+ $ sudo openssl genrsa -out /etc/ssl/xip.io/xip.io.key 2048
+
+ $ sudo openssl req -new -key /etc/ssl/xip.io/xip.io.key \
+ -out /etc/ssl/xip.io/xip.io.csr
+
+ Country Name (2 letter code) [AU]:US
+ State or Province Name (full name) [Some-State]:Connecticut
+ Locality Name (eg, city) []:New Haven
+ Organization Name (eg, company) [Internet Widgets Pty Ltd]:SFH
+ Organizational Unit Name (eg, section) []:
+ Common Name (e.g. server FQDN or YOUR name) []:*.xip.io
+ Email Address []:
+ Please enter the following 'extra' attributes to be sent with your certificate request
+ A challenge password []:
+ An optional company name []:
+
+ $ sudo openssl x509 -req -days 365 -in /etc/ssl/xip.io/xip.io.csr \
+ -signkey /etc/ssl/xip.io/xip.io.key \
+ -out /etc/ssl/xip.io/xip.io.crt
+#+END_SRC
+
+If you’re purchasing an SSL certificate, skip the last step, as you’ll
+receive certificate files from the registrar of your purchased SSL
+certificate.
+
+
+After the certificates are created, we need to create a .pem file. A
+.pem file is essentially just the certificate, the key and optionally
+the root and any intermediary certificate authorities concatenated
+into one file. Because we are generating a self-signed certificate,
+there are no certificate authorities in play, and so we’ll simply
+concatenate the certificate and key files together (in that order) to
+create a xip.io.pem file.
+
+Using one concatenated file for the SSL certificate information is
+HAProxy’s preferred way to read an SSL certificate:
+
+#+BEGIN_SRC
+sudo cat /etc/ssl/xip.io/xip.io.crt /etc/ssl/xip.io/xip.io.key > /etc/ssl/xip.io/xip.io.pem
+#+END_SRC
+
+When purchasing a real certificate, you might get a concatenated
+“bundle” file. If you do, it might not be a pem file, but instead be a
+bundle, cert, cert, key file or some similar name for the same
+concept. You’ll need t inspect the files or follow instructions
+provided for you to find out which you receive.  If you do not receive
+a bundled file, you may have to concatenate them yourself in the order
+of certificate, private key, any intermediaries certificate authority
+(CA) certificates and lastly the root CA certificate.
+
+To terminate an SSL connection in HAProxy, we can now add a binding to
+the standard SSL port 443, and let HAProxy know where the SSL
+certificates are:
+
+#+BEGIN_SRC haproxy
+ frontend localhost
+     bind *:80
+     bind *:443 ssl crt /etc/ssl/xip.io/xip.io.pem
+     mode http
+     default_backend nodes
+#+END_SRC
+
+**** SSL Only
+#+BEGIN_SRC haproxy
+frontend localhost
+     bind *:80
+     bind *:443 ssl crt /etc/ssl/xip.io/xip.io.pem
+     redirect scheme https if !{ ssl_fc }
+     mode http
+     default_backend nodes
+#+END_SRC
+Above, we added the redirect directive, which will redirect from
+“http” to “https” if the connection was not made with an SSL
+connection.
+
+*** HAProxy with SSL Pass-Through
+
+In this setup, we need to use TCP mode over HTTP mode in both the
+frontend and backend configurations. HAProxy will treat the connection
+as just a stream of information to proxy to a server, rather than use
+its functions available for HTTP requests.
+
+#+BEGIN_SRC haproxy
+ frontend localhost
+     bind *:80
+     bind *:443
+     option tcplog
+     mode tcp
+     default_backend nodes
+backend nodes
+     mode tcp
+     balance roundrobin
+     option ssl-hello-chk
+     server web01 127.0.0.1:9000 check
+     server web02 127.0.0.1:9001 check
+     server web02 127.0.0.1:9002 check
+#+END_SRC
+
+* Web Cache
+Article: https://www.mnot.net/cache_docs/
+
+Tool: https://redbot.org/
+
+1. Object (in-memory) Cache
+2. Web (HTTP) Cache
+
+   - The clients are responsible for implementing caching rules set by
+     an origin server. The origin server is responsible for setting the
+     rules.
+
+  - =Proxy= - A proxy cache is a public, shared cache often employed by an
+    ISP or large corporation.  Because they are employed at a
+    high-level, they can (and do) cache thousands of various websites.
+
+  - =Gateway (reverse-proxy)= - Similar to in-app caches, Gateway caches
+    are part of your infrastructure. They sit in front of your
+    web-server and act much in the same way of proxy cache. Private
+    caches, however, are for your application(s) only. Similar to a load
+    balancer, they are technically a reverse proxy. Varnish is a gateway
+    cache.
+
+  - =Private= - Private caches are unique to a specific user. They live on
+    the client-end. Your browser is a private cache; it will cache
+    responses unique to the sites you visit based on the rules set by
+    the origin server.
+
+** Types of HTTP Caches
+- *Validation Caching*: Validation caching requires that clients
+  validate if a resource has changed before serving it. This
+  potentially saves bandwidth, but still requires an HTTP request be
+  sent all the way to the origin serve. Accomplished with =if-*=
+  headers (=If-None-Match=, =If-Modified-Since=, etc)
+
+- *Expiration Caching*: Expiration headers tell HTTP clients how long a
+  resource (file) can be considered “fresh”. Rather than just
+  bandwidth, this saves any HTTP requests from having to be made to
+  the origin server. A cache (or client private cache) can serve a
+  response directly. This saves the origin server from processing
+  extra requests. Expiration rules are set with the =Age=, =Expires=,
+  =Cache-Control=, =Date= and related headers.
+
+*** An Origin Server
+Cache servers sit between a client and the origin servers. Origin
+servers are responsible for setting cache policy. They return
+validation and expiration cache information via HTTP response headers.
+
+For validation caching, the cache server will send a request to the
+origin server to check if the resource has changed. If it has not, the
+cache server will respond with its cached copy of the resource.
+
+For expiration caching, the cache server will store files for as long
+as it’s permitted. It will respond with its cached version of a
+resource until that resource becomes stale (expires).
+
+**** Validation Caching
+The response contains an ETag. ETags are generated based on the
+contents of a file. If a file changes, the ETag returned by the origin
+server will be changed
+
+#+BEGIN_SRC
+ $ curl -I http://localhost/static/css/styles.css
+
+ HTTP/1.1 200 OK
+ Server: nginx/1.6.2
+ Date: Fri, 24 Oct 2014 00:30:59 GMT
+ Content-Type: text/css
+ Content-Length: 11767
+ Last-Modified: Tue, 24 Dec 2013 16:37:55 GMT
+ Connection: keep-alive
+ ETag: "52b9b863-2df7"
+ Accept-Ranges: bytes
+#+END_SRC
+
+Passing the Content of Etag ad =If-None-Match=
+#+BEGIN_SRC
+ $ curl -I \
+     -H 'If-None-Match: "52b9b863-2df7"' \
+     http://localhost/static/css/styles.css
+
+ HTTP/1.1 304 Not Modified
+ Server: nginx/1.6.2
+ Date: Fri, 24 Oct 2014 00:31:44 GMT
+ Last-Modified: Tue, 24 Dec 2013 16:37:55 GMT
+ Connection: keep-alive
+ ETag: "52b9b863-2df7"
+#+END_SRC
+
+- date-based Validation Caching
+
+#+BEGIN_SRC shell
+ $ curl -I \
+     -H 'If-Modified-Since: Tue, 24 Dec 2013 16:37:55 GMT' \
+     http://localhost/static/css/styles.css
+
+ HTTP/1.1 304 Not Modified
+ Server: nginx/1.6.2
+ Date: Fri, 24 Oct 2014 00:37:06 GMT
+ Last-Modified: Tue, 24 Dec 2013 16:37:55 GMT
+ Connection: keep-alive
+ ETag: "52b9b863-2df7"
+#+END_SRC
+
+
+**** Expiration Caching
+
+We can’t test Expiration Caching in exactly the same way, as it’s up
+to the client to handle the expiration cache policy. The origin server
+only gives resource expiration information. We can, however, ensure
+that the origin server is sending us proper cache headers.
+
+from https://github.com/h5bp/server-configs-nginx
+#+BEGIN_SRC nginx
+
+# cache.appcache, your document html and data
+location ~* \.(?:manifest|appcache|html?|xml|json)$ {
+  add_header Cache-Control "max-age=0";
+}
+
+# Feed
+location ~* \.(?:rss|atom)$ {
+  add_header Cache-Control "max-age=3600";
+}
+
+# Media: images, icons, video, audio, HTC
+location ~* \.(?:jpg|jpeg|gif|png|ico|cur|gz|svg|mp4|ogg|ogv|webm|htc)$ {
+  access_log off;
+  add_header Cache-Control "max-age=2592000";
+}
+
+# Media: svgz files are already compressed.
+location ~* \.svgz$ {
+  access_log off;
+  gzip off;
+  add_header Cache-Control "max-age=2592000";
+}
+
+# CSS and Javascript
+location ~* \.(?:css|js)$ {
+  add_header Cache-Control "max-age=31536000";
+  access_log off;
+}
+#+END_SRC
+
+H5BP tends to cache static assets for a long time, assuming you’ll use
+some kind of cache busting mechanism, such as appending a query string
+at the end of the file. For example styles.css?1234567890 is cached as
+a separate file from styles.css?09876543221.
+
+** Nginx Web Caching
+Nginx can act as a static file server, a reverse proxy for web
+application and a load balancer. In addition to this, it can act as an
+HTTP cache server.
+
+Responsibilities of the Cache Server:
+ - Determine if HTTP request will accept a cached response
+ - Determine if there is a fresh item in the cache to respond with
+ - Send HTTP request to the origin server if a stale resource is requested
+ - Respond to a request from its cache or from the origin server as approprtiate
+
+*** Cache Server
+We need to implement a cache server to sit “in front of” the origin
+server. The Cache Server will be the web server receiving requests. It
+will pass HTTP requests off to the origin server if caching rules
+dictate so.
+
+#+BEGIN_SRC nginx
+ proxy_cache_path /tmp/nginx levels=1:2 keys_zone=my_zone:10m inactive=60m;
+ proxy_cache_key "$scheme$request_method$host$request_uri";
+
+ server {
+     listen 80 default_server;
+     server_name example.com www.example.com;
+     charset utf-8;
+     location / {
+         proxy_cache my_zone;
+         add_header X-Proxy-Cache $upstream_cache_status;
+         include proxy_params;
+         proxy_pass http://172.17.0.18:9000;
+     }
+ }
+#+END_SRC
+
+- =proxy_cache_path=
+  Sets the path to where cache files are saved.
+  + =levels=: The levels directive sets how cache files are saved to
+    the file system. If this is not defined, cache file are saved
+    directly in the path defined. If it is defined as such (1:2),
+    cache files are saved in sub-directories of the cache path based
+    on their md5 hashes.
+  + =keys_zone=: The keys_zone is simply an arbitrary name of the
+    “zone” which we refer to for this cache. Here it’s named =my_zone=
+    and is given 10MB of storage for cache keys and other meta data.
+    Note that this doesn’t limit the amount of files that can be
+    cached! It’s just for meta data. The documentation claims that a
+    1MB zone can store ∼8000 keys and meta data.
+  + =inactive=: This tells Nginx to clear the cache of any asset
+    that’s not accessed within 60 minutes. The inactive directive
+    defaults to 10 minutes if it is not explicitly set. The most
+    requested resources stay in the cache and follow HTTP cache rules
+    as directed by the Origin Server.
+- =proxy_cache_key=
+  This is the key we use to differentiate cached files. The default is
+  =$scheme$proxy_host$uri$is_args$args=, but we can change it if needed.
+
+- =proxy_cache=: Inside of the =location= block, we’re telling Nginx
+  to use the cache zone defined via the =proxy_cache my_zone=
+  directive. We also add a useful header which will inform us if the
+  resource was served from cache or not. This is done via the
+  =add_header X-Proxy-Cache $upstream_cache_status= directive. This sets
+  a response header named =X-Proxy-Cache= with a value of either =HIT=,
+  =MISS=, or =BYPASS=
+
+- =proxy_cache_bypass=: In order to properly bypass the cache when
+  requested to, we can add the =proxy_cache_bypass
+  $http_cache_control= directive to our Cache Server in the location
+  block. The proxy_cache_bypass directive will inform Nginx to honor
+  the Cache-Control header in HTTP requests.
+
+  #+BEGIN_SRC nginx
+  location / {
+    proxy_cache my_zone;
+    proxy_cache_bypass $http_cache_control;
+    add_header X-Proxy-Cache $upstream_cache_status;
+    include proxy_params;
+    proxy_pass http://172.17.0.18:9000;
+  }
+  #+END_SRC
+
+  #+BEGIN_SRC shell
+     $ curl -X GET -I 172.17.0.13/css/style.css
+     ...
+     X-Proxy-Cache: HIT
+     # A regular request which is normally a cache HIT ...
+     $ curl -X GET -I -H "Cache-Control: no-cache" 172.17.0.13/css/style.css
+     ...
+     X-Proxy-Cache: BYPASS # ... is now bypassed when told to
+  #+END_SRC
+
+**** Proxy Caching
+ Nginx can also cache the results of FastCGI and uWSGI proxied requests
+ and even the results of load balanced requests (requests sent
+ “upstream”). This means we can cache responses from dynamic
+ applications.
+
+
+ #+BEGIN_SRC nginx
+   fastcgi_cache_path /tmp/cache levels=1:2 keys_zone=voteshit:100m inactive=60m;
+   fastcgi_cache_key "$scheme$request_method$host$request_uri";
+
+   server {
+       # Boilerplay omitted, such as root, server_name, etc
+
+       set $no_cache 0;
+
+       # Example: Don't cache admin area
+       if ($request_uri ~* "/(admin/)")
+       {
+           set $no_cache 1;
+       }
+
+       # In Nginx 1.6.3+ you may edit this PHP
+       # block in snippets/fastcgi-php.conf
+       location ~ ^/(index)\.php(/|$) {
+           fastcgi_cache voteshit;
+
+           # Only cache 200  responses (200 is HTTP status code)
+           # Cache for 60 minutes
+           fastcgi_cache_valid 200 60m;
+
+           # Only GET and HEAD methods apply
+           fastcgi_cache_methods GET HEAD;
+
+           add_header X-Fastcgi-Cache $upstream_cache_status;
+
+           # Don't pull from cache based on $no_cache
+           fastcgi_cache_bypass $no_cache;
+
+           # Don't save to cache based on $no_cache
+           fastcgi_no_cache $no_cache;
+
+           # Regular PHP-FPM stuff
+           # include fastcgi_params for nginx < 1.6.1
+           include fastcgi.conf;
+           fastcgi_split_path_info ^(.+\.php)(/.+)$;
+           fastcgi_pass unix:/var/run/php5-fpm.sock;
+           fastcgi_index index.php;
+       }
+   }
+
+ #+END_SRC
+
+**** Example: Caching Specific URIs
+
+Attempting to cache the results of a dynamic request may result in
+unwanted behavior. If your site allows users to login, they may need
+to be presented different data, for example. Caching the results of
+URIs may end up showing User A the dashboard of User B if User B’s was
+cached.
+
+Making this possible requires a more sophisticated caching technique -
+perhaps using an object cache (memcache, redis), or using something
+like Varnish which supports caching only portions of the returned HTML
+(via ESI - Edge Server Includes).
+
+#+BEGIN_SRC nginx
+fastcgi_cache_path /tmp/cache levels=1:2 keys_zone=voteshit:100m inactive=60m;
+fastcgi_cache_key "$scheme$request_method$host$request_uri";
+
+server {
+    # Boilerplay omitted, root, server_name, try_files, etc
+    location = /expensive-widget {
+        fastcgi_cache voteshit;
+        fastcgi_cache_valid 200 60m; # Cache 200 responses, for 60 minutes
+        fastcgi_cache_methods GET HEAD; # Only GET and HEAD methods apply
+        add_header X-Fastcgi-Cache $upstream_cache_status;
+        # Here we ignore headers that may cause issues in caching
+        # if we want to cache this content no matter what
+        fastcgi_ignore_headers Set-Cookie Cache-Control Expires;
+        fastcgi_pass unix:/var/run/php7.2-fpm.sock;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        # Path to the php file to be used
+        fastcgi_param SCRIPT_FILENAME /var/www/index.php;
+        # Hardcode our URI
+        fastcgi_param PATH_INFO /widget/v1/faq;
+    }
+
+    # We can pass other PHP requests to
+    # PHP-FPM as normal
+    #
+    # In Nginx 1.6.3+ you may edit this PHP
+    # block in snippets/fastcgi-php.conf
+    location ~ ^/(index)\.php(/|$) {
+        # Regular PHP-FPM stuff
+        # include fastcgi_params for nginx < 1.6.1
+        include fastcgi.conf;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass unix:/var/run/php7.2-fpm.sock;
+        fastcgi_index index.php;
+    }
+}
+#+END_SRC
+**** Varnish
+Varnish is a fully-featured cache server with a good range of utility. It can act as a web cache and
+even as a load balancer.
+
+* Logs
+** Logrotate
+Logrotate helps to manage your log files. It can periodically read,
+minimize, back up, create new log files, and run custom scripts. This
+is usually used to to help prevent any single log file from getting
+unwieldy in size, as well as delete old log files.
+
+In stock Debian/Ubuntu, any config file you put into /etc/logrotate.d
+is going to run once per day. Logrotate configuration files can
+specify how often logs should be rotated (at a period of 1 day or more
+by default).
+
+Logrotate’s main configuration file is found in =/etc/logrotate.conf=.
+
+#+BEGIN_SRC shell
+ # see "man logrotate" for details
+ # rotate log files weekly
+ weekly
+
+ # Perform actions as user `root` and group `syslog` by default
+ # This is the user/group of /var/log/syslog.
+ su root syslog
+
+ # keep 4 weeks worth of backlogs
+ rotate 4
+
+ # create new (empty) log files after rotating old ones
+ create
+
+ # uncomment this if you want your log files compressed
+ #compress
+
+ # packages drop log rotation information into this directory
+ # by including any file found in this directory
+ include /etc/logrotate.d
+
+ # no packages own wtmp, or btmp -- we'll rotate them here
+ /var/log/wtmp {
+     missingok
+     monthly
+     create 0664 root utmp
+     rotate 1
+ }
+ /var/log/btmp {
+     missingok
+     monthly
+     create 0660 root utmp
+     rotate 1
+ }
+ # system-specific logs may be configured here
+#+END_SRC
+
+*** Example
+**** Apache's default logrotate file
+#+BEGIN_SRC shell
+  /var/log/apache2/*.log {
+      weekly # tells Logrotate to rotate these logs once per week.
+      missingok # If no *.log files are found, don’t raise an error.
+      rotate 52 # Keep 52 archived log file before deleting old log files (If rotating weekly, that’s 52 weeks, or one years worth of logs!)
+      compress # Compress (gzip) rotated log files.
+      delaycompress # Delays compression until 2nd time around rotating. As a result, you’ll have one current log file, one older log file which remains uncompressed, and then a series of compressed logs.
+      notifempty # Don’t rotate empty log files.
+      create 640 root adm # Create new log files with set permissions/owner/group,
+      sharedscripts # The sharedscripts means that the postrotate script will only be run once (after the old logs have been compressed), not once for each log which is rotated.
+      postrotate # Specify scripts to run after rotating is done. In this case, Apache is reloaded so it writes to the newly created log files. (Run a postrotate script after all logs are rotated. If this directive is not set, it will run postrotate scripts after each matching file is rotated.)
+          if /etc/init.d/apache2 status > /dev/null ; then \
+          /etc/init.d/apache2 reload > /dev/null; \
+      fi;
+      endscript
+      prerotate # Run scripts before log rotating begins.
+          if [ -d /etc/logrotate.d/httpd-prerotate ]; then \ # This directory may not exist. To use it, we can simply create the directory and add in any scripts we may need.
+              run-parts /etc/logrotate.d/httpd-prerotate; \  # run-parts - run scripts or programs in a directory
+          fi; \
+      endscript
+  }
+#+END_SRC
+This will rotate any files in the =/var/log/apache2= directory that end
+in =.log=.
+
+**** Example
+#+BEGIN_SRC shell
+ /var/www/some-app/app/storage/logs/*.log { # As usual, we specify the configuration based on the location of the log files.
+     daily
+     missingok
+     rotate 7 # Keep only the last 7 days of logs in the server.
+     compress
+     delaycompress
+     notifempty
+     create 660 www-data www-data
+     sharedscripts
+     dateext # Logs by default get a number appended to their filename. This option appends a date instead.
+     dateformat -web01-%Y-%m-%d-%s # This is the format of the date appended to the log filename.
+     postrotate
+         /usr/bin/aws s3 sync /var/www/some-app/app/storage/logs/*.gz s3://app_logs # Here we’re simply backing up the log files to an Amazon S3 bucket.
+     endscript
+     prerotate
+         if [ -d /etc/logrotate.d/httpd-prerotate ]; then \
+             run-parts /etc/logrotate.d/httpd-prerotate; \
+         fi; \
+     endscript
+ }
+#+END_SRC
+
+Taking this to the next level, we can look into automatically moving
+log files to a central location.  This can be done with rsyslog, a
+utility to centralize log locations, or with the plethora of open
+source and paid services used for managing and analyzing server and
+application log files.
+
+** Rsyslog
+The available facilities are:
+
+| Facility Number | Facility | Description                              |
+|-----------------+----------+------------------------------------------|
+|               0 | kern     | kernel messages                          |
+|               1 | user     | user-level messages                      |
+|               2 | mail     | mail system                              |
+|               3 | daemon   | system daemons                           |
+|               4 | auth     | security/authorization messages          |
+|               5 | syslog   | messages generated internally by syslogd |
+|               6 | lpr      | line printer subsystem                   |
+|               7 | news     | network news subsystem                   |
+|               8 | uucp     | UUCP subsystem                           |
+|               9 |          | clock daemon                             |
+|              10 | authpriv | security/authorization messages (old)    |
+|              11 | ftp      | FTP daemon                               |
+|              12 |          | NTP subsystem                            |
+|              13 |          | log audit                                |
+|              14 |          | log alert                                |
+|              15 | cron     | cron daemon                              |
+|              16 | local0   | local use 0 (local0)                     |
+|              17 | local1   | local use 1 (local1)                     |
+|              18 | local2   | local use 2 (local2)                     |
+|              19 | local3   | local use 3 (local3)                     |
+|              20 | local4   | local use 4 (local4)                     |
+|              21 | local5   | local use 5 (local5)                     |
+|              22 | local6   | local use 6 (local6)                     |
+|              23 | local7   | local use 7 (local7)                     |
+Priorities
+
+Facilities can be divvied by priorities.
+
+| Numerical Code | Severity | Description                       |
+|----------------+----------+-----------------------------------|
+|              0 | emerg    | system is unusable                |
+|              1 | alert    | action required immediately       |
+|              2 | crit     | critical condition                |
+|              3 | error    | error conditions                  |
+|              4 | warning  | warning conditions                |
+|              5 | notice   | normal but significant conditions |
+|              6 | info     | informational message             |
+|              7 | debug    | debug-level message               |
+
+The default configuration file in Debian-based dists can be found at
+=/etc/rsyslog.d/50-default.conf=.
+
+
+
+We can use the logger command to send a log message and see if it gets
+logged to the appropriate log file.
+
+#+BEGIN_SRC shell
+logger -p mail.notice 'this is my mail-related message'
+#+END_SRC
+
+*** Setting Up Custom Loggers
+Let’s create a rsyslog configuration file at
+=/etc/rsyslog.d/22-example.conf= for an application named “example”.
+
+#+BEGIN_SRC shell
+local0.* /var/log/example.log
+local0.err /var/log/example.err.log
+#+END_SRC
+
+This will log any facility’s “local0” messages to /var/log/example.log
+or error messages (and more critical) to /var/log/example.err.log.
+
+We need to restart =rsyslog= after adding the configuration file:
+#+BEGIN_SRC shell
+sudo service rsyslog restart
+#+END_SRC
+
+to test it
+
+#+BEGIN_SRC shell
+ $ logger -p local0.debug -t SFH[1234] 'a debug message'
+ $ logger -p local0.err -t SFH[1234] 'a err message'
+ $ logger -p local0.crit -t SFH[1234] 'a crit message'
+
+ $ sudo cat /var/log/example.log
+ Aug 5 00:53:54 vagrant-ubuntu-trusty-64 SFH[1234]: a debug message
+ Aug 5 00:53:57 vagrant-ubuntu-trusty-64 SFH[1234]: a err message
+ Aug 5 00:54:01 vagrant-ubuntu-trusty-64 SFH[1234]: a crit message
+
+
+ $ sudo cat /var/log/example.err.log
+ Aug 5 00:53:57 vagrant-ubuntu-trusty-64 SFH[1234]: a err message
+ Aug 5 00:54:01 vagrant-ubuntu-trusty-64 SFH[1234]: a crit message
+#+END_SRC
+
+*** Sending Logs to Remote Servers
+One thing rsyslog can do is send logs to a remote server. This is
+helpful for log aggregation - the receiving server can save the logs
+to a central location
+
+To do so, you must enable either your UDP or TCP based modules. TCP is
+“slower” because the protocol takes measure to ensure each data packet
+sent to a remote server is received, and re-sends them if not. UDP,
+however, is faster as it’s a “fire and forget” protocol. If it’s not
+important to get every single log in every case, using the UDP method
+may be preferred.

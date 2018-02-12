@@ -1,0 +1,21 @@
+*
+1) Confidentiality
+   Eve can't read your data.
+2) Integrity
+   Our data hasn't been modified
+3) Authenticity
+   The person who send the data is someone we trust
+*
+1. client Hello: Client saying hello and giving its supported methods.
+2. Server Hello: Server responding and choosing one of the methods.
+3. Server Key Exchange: Server sends its digital certificate.
+4. Server Hello Done:
+5. Client Key Exchange:
+6. Change Cipher Spec:
+7. Encrypted Handshake:
+
+* What's in a Cipher Suite?
+- Key Exchange (RSA, DHE, ECDHE, PSK,...)
+- Authentication (RSA, DSA, ECDSA,...)
+- Encryption (AES, Camellia,...)
+- MAC (MD5, SHA1, SHA256,...)

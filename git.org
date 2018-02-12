@@ -18,8 +18,7 @@ NOTE: =HEAD= refers to the last commit in the current branch.
     + That is to say: move the commit one before current HEAD, but
       don't touch the =index=, in other word =git status= will show them as unstaged.
 - To rest into unstaging, =git reset --mixed HEAD^= or just =git reset HEAD^=, it keeps the changes but it will put them into unstaging area
-- To undo the last commit and all the changes =git reset --hard
-  HEAD^=, *this modifies your working directory, note any
+- To undo the last commit and all the changes =git reset --hard HEAD^=, *this modifies your working directory, note any
   uncommitted changes you have, will be removed too*
 - To undo the last 2 commit and all the changes =git reset --hard HEAD^^=, *this modifies your working directory, note any uncommitted
   changes you have, will be removed too*
@@ -28,7 +27,6 @@ NOTE: =HEAD= refers to the last commit in the current branch.
      #+CAPTION: git tree movements visualized
      #+NAME:   fig:SED-HR4049
      [[./reset.jpg]]
-
 
 *** Remote
 - To add a remote: =git remote add <NORUO> remote-address=

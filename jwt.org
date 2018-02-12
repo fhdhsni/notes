@@ -1,0 +1,48 @@
+There has 3 parts in a jwt (which is encoded in base64 URI):
+
+* encodedHeader
+#+BEGIN_SRC json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+#+END_SRC
+* encodedPayload
+#+BEGIN_SRC json
+{
+    "iss": "auth-backend",
+    "sub": "foo",
+    "aud": "web-frontend",
+    "exp": 1518189701918,
+    "nbf": null,
+    "iat": 1518189700918,
+    "jti": "???????????",
+    "name": "FARHAD",
+    "permissions": "everything"
+}
+#+END_SRC
+  Informations in payload are called claims. Basically token claims
+  information and we use signature to verify it
+
+  1. iss (issuer): who signed the token
+  2. sub (subject):
+  3. aud (audience)
+  4. exp (expiration time)
+  5. nbf (not before)
+  6. iat (issued at)
+  7. jti (JWT id) unique to all the token we've generated
+  8.
+
+* signature
+
+*symmetric*
+shared secret
+
+*asymmetric*
+private key
+public key
+
+
+#+BEGIN_SRC shell
+hmacSha256(encodedHeader + '.' + encodedPayload, 'secret here')
+#+END_SRC
