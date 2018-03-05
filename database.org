@@ -1,0 +1,16 @@
+My notes from Stanford's intro to database course
+
+** Key Concepts
+- Data model
+- Schema versus data
+- Data definition language (DDL)
+- Data manipulation or query language (DML)
+
+** Key people
+- DBMS implementer
+- Database designer
+  + Establishes schema
+- Database application developer
+  + programs that operate on DB
+- Database Administrator
+  + keeps it running smoothly

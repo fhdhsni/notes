@@ -1,0 +1,179 @@
+* scripting
+=$?= exit code of last command
+=$1=, =$2= first argument, second argument and so on
+=$*= and $@ all arguments
+=echo -n= to print something without putting the newline at the end
+=read FOOBAR= to prompt for input and put the result in FOOBAR env variable
+=(some; stuff; exit 1;)= parenthesis makes the whole thing a subcommand, like a separate program
+=test= evaluate a condition
+#+BEGIN_SRC sh
+# Test if given variable is equal to given string:
+test $MY_VAR == '/bin/zsh'
+
+# Test if given variable is empty:
+test -z $GIT_BRANCH
+
+# Test if file exists:
+test -e filename
+
+# Test if directory not exists:
+test ! -d path/to/directory
+
+# If-else statement:
+test condition && echo "true" || echo "false"
+#+END_SRC
+
+
+while loop
+#+BEGIN_SRC sh
+#!/bin/sh
+while true
+    do date
+    sleep 1
+done
+#+END_SRC
+or
+#+BEGIN_SRC  sh
+#!/bin/sh
+
+/bin/ls -1 | while read LINE
+do
+    echo $LINE;
+done
+
+#+END_SRC
+
+
+for loop
+#+BEGIN_SRC sh
+#!/bin/sh
+for x in {1..10}
+do
+    echo $x;
+done
+#+END_SRC
+
+
+if
+#+BEGIN_SRC sh
+#!/bin/sh
+
+if test -f something.txt
+then
+    echo 'file exit'
+else
+    echo 'file does not exit'
+fi
+#+END_SRC
+
+* screen
+=screen -S foobar= create a named screen
+=^a d= to detach from a screen
+=screen -x foobar= to attach to foobar
+=^a c= to create a new window and use =^a n= and =^a p= to go to next ot previous window
+
+
+* regex
+read =perldoc perlreref=
+
+=.= any character. e.g =echo 'hello beep boop' | sed 's/b..p/whatever/g' # hello whatever whatever=
+** group
+*** =()= capture group
+#+BEGIN_SRC sh
+> echo 'cool <beans> zzz' | perl -ne 's/<([^>]+)>/"$1"/g; print;'
+> cool "beans" zzz
+
+#in sed
+> echo 'cool <beans> zzz' | sed -E 's/<([^>]+)>/"\1"/g'
+> cool "beans" zzz
+#+END_SRC
+**** back reference
+#+BEGIN_SRC sh
+> echo 'the the language is awesome' | sed -E 's/(\w+) \1/\1/g'
+> the language is awesome
+
+# in perl
+> echo 'the the language is awesome' | perl -ne 's/(\w+) \1/\1/g; print;' # also the same thing: echo 'the the language is awesome' | perl -ne 's/(\w+) \1/$1/g; print;'
+> the language is awesome
+#+END_SRC
+
+*** =(?:)= non capture group
+
+** quantifier
+  - =?= zero or more
+  - =+= one or more
+  - =*= zero or more
+  - ={2, 4}= between 2 and 4. e.g. =echo 'hello beep beeep beeeep' | sed -E 's/be{2,4}p/whatever/g' # hello whatever whatever whatever=
+  - ={2,}= more than two
+
+** character class
+=[]=
+#+BEGIN_SRC sh
+echo 'dog days cats' | sed -E  's/d[ao]/DA/g' # DAg DAys cats
+#+END_SRC
+
+you can negate a char class with =^=
+#+BEGIN_SRC  sh
+echo 'dog days dups' | sed -E  's/d[^ao]/DA/g' # dog days DAps
+#+END_SRC
+
+you can specify a range with =-=
+#+BEGIN_SRC sh
+echo hell123world | sed -E 's/[0-9]+/ /g' # hell world
+#+END_SRC
+
+** pre-defined character class sequences
+=\d= digit =[0-9]=
+=\D= non-digit =[^0-9]=
+
+=\w= word =[A-Za-z0-9_]=
+=\W= non-word =[^A-Za-z0-9_]=
+
+=\s= whitespace =[\t\r\n\f]=
+=\S= non-space =[^\t\r\n\f]=
+
+** Positive and Negative Lookahead
+- positive lookahead
+=o= only when it is followed by =b=, without including =b=
+#+BEGIN_SRC sh
+> echo 'fob mod' | perl -ne 's/o(?=b)/-/g; print;'
+> f-b mod
+#+END_SRC
+- negative lookahead
+
+=o= when it is not followed by =b=
+#+BEGIN_SRC sh
+> echo 'fob mod' | perl -ne 's/o(?!b)/-/g; print;'
+> fob m-d
+#+END_SRC
+
+** Positive and Negative Lookbehind
+- positive lookbehind
+
+=o= when it's after a =f=, not including the =f=
+#+BEGIN_SRC sh
+> echo 'fob mod' | perl -ne 's/(?<=f)o/-/g; print;'
+> f-b mod
+#+END_SRC
+
+- negative lookbehind
+=o= when it's not after a =f=
+#+BEGIN_SRC sh
+> echo 'fob mod' | perl -ne 's/(?<!f)o/-/g; print;'
+> fob m-d
+#+END_SRC
+** anchor
+=^= anchor to the beginning
+=$= anchor to the end
+=\b=  word boundary
+#+BEGIN_SRC sh
+> echo she sells seashells | perl -ne 's/s\b/-/g; print;'
+> she sell- seashell-
+#+END_SRC
+
+=\B=  not-word boundary
+
+#+BEGIN_SRC sh
+> echo she sells seashells | perl -ne 's/s\B/-/g; print;'
+> -he -ells -ea-hells
+#+END_SRC

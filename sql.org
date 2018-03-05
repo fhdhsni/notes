@@ -1,0 +1,228 @@
+* Anatomy of a Relational Database
+According to the relational model, data in a relational database is
+stored in /relations/, which are perceived by the user as tables. Each
+relation is composed of tuples (records or rows) and attributes
+(fields or columns).
+
+* Tables
+The logical order of records and fields within a table is of
+absolutely no importance.
+
+The subject that a given table represents can be either an *object* or
+an *event*. When the subject is an object, the table represents
+something that is tangible, such as a person, place, or
+thing. Regardless of its type, every object has characteristics that
+can be stored as data. Pilots, products, machines, students,
+buildings, and equipment are all examples of objects that can be
+represented by a table
+
+When the subject of a table is an *event*, the table represents
+something that occurs at a given point in time and has characteristics
+you wish to record. These characteristics can be stored as data and
+then processed as information in exactly the same manner as a table
+that represents some specific object. Examples of events you might
+need to record include judicial hearings, distributions of funds, lab
+test results, and geological surveys..
+
+
+** primary key
+A primary key is a field or group of fields that uniquely identifies
+each record within a table. (When a primary key is composed of two or
+more fields, it is known as a /composite primary key/.) The primary key
+is the most important for two reasons: Its value identifies a specific
+record throughout the entire database, and its field identifies a
+given table throughout the entire database. Primary keys also enforce
+table-level integrity and help establish relationships with other
+tables. Every table in your database should have a primary key.
+
+** foreign key
+When you determine that a pair of tables has a relationship to each
+other, you typically establish the relationship by taking a copy of
+the primary key from the first table and inserting it into the second
+table, where it becomes a foreign key. (The term foreign key is
+derived from the fact that the second table already has a primary key
+of its own, and the primary key you are introducing from the first
+table is foreign to the second table.)
+
+Foreign keys are important not only for the obvious reason that they
+help establish relationships between pairs of tables but also because
+they help ensure relationship- level integrity. This means that the
+records in both tables will always be properly related because the
+values of a foreign key must be drawn from the values of the primary
+key to which it refers. Foreign keys also help you avoid the dreaded
+“orphaned records,” a classic example of which is an order record
+without an associated customer.
+
+** Views
+A view is a virtual table composed of fields from one or more tables
+in the database.  The tables that comprise the view are known as base
+tables. The relational model refers to a view as virtual because it
+draws data from base tables rather than storing any data on its
+own. In fact, the only information about a view that is stored in the
+database is its structure
+
+In many RDBMS programs, a view is commonly implemented and referred to
+as a saved query or, more simply, a query.
+
+** Relationships
+Three types of relationships can exist between a pair of tables:
+one-to-one, one-to-many, or many- to-many.
+
+*** one-to-one
+A pair of tables has a one-to-one relationship when a single record in
+the first table is related to only one record in the second table, and
+a single record in the second table is related to only one record in
+the first table. In this type of relationship, one table is referred
+to as the primary table, and the other is referred to as the secondary
+table.  The relationship is established by taking the primary key of
+the primary table and inserting it into the secondary table, where it
+becomes a foreign key. This is a special type of relationship because
+in nearly all cases the foreign key also acts as the primary key of
+the secondary table.
+
+*** one-to-many
+When a pair of tables has a one-to-many relationship, a single record
+in the first table can be related to many records in the second table,
+but a single record in the second table can be related to only one
+record in the first table. This relationship is established by taking
+the primary key of the table on the “one” side and inserting it into
+the table on the “many” side, where it becomes a foreign key.
+
+*** many-to-many
+A pair of tables is in a many-to-many relationship when a single
+record in the first table can be related to many records in the second
+table, and a single record in the second table can be related to many
+records in the first table. In order to establish this relationship
+properly, you must create what is known as a linking table. This table
+provides an easy way to associate records from one table with those of
+the other and will help to ensure that you have no problems adding,
+deleting, or modifying any related data. You define a linking table by
+taking a copy of the primary key of each table in the relationship and
+using them to form the structure of the new table. These fields
+actually serve two distinct roles: Together they form the composite
+primary key of the linking table, and separately they each serve as a
+foreign key.
+
+* Sound Structures
+** Fine-Tuning Fields
+- Is the name descriptive and meaningful to your entire organization?
+- Is the field name clear and unambiguous?
+  + Make sure that each field in your database has a unique name and
+    that it appears only once in the entire database structure. The
+    only exception to this rule is when a field is being used to
+    establish a relationship between two tables.
+- Did you use an acronym or abbreviation as a field name? DON'T DO IT.
+- Did you use a name that implicitly or explicitly identifies more
+  than one characteristic?
+- Make sure the field represents a specific characteristic of the subject of the table.
+- Make certain that the field contains only a single value (Multivalued and multipart fields can wreak havoc in your database).
+- Make sure the field does not store the result of a calculation or concatenation.
+- Make certain the field appears only once in the entire database.
+** Fine-Tuning Tables
+- Is the name unique and descriptive enough to be meaningful to your
+  entire organization?
+- Does the name accurately, clearly, and unambiguously identify the
+  subject of the table?
+- Does the name contain words that convey physical characteristics?
+  Avoid using words such as File, Record, and Table in the table name
+  because they introduce a level of confusion that you don’t need.
+- Did you use an acronym or abbreviation as a table name? If the
+  answer to this question is “Yes,” change the name right now!
+- Did you use a name that implicitly or explicitly identifies more
+  than one subject?
+- Make certain you used the plural form of the name. You use the
+  plural form because a table stores a collection of instances of the
+  subject of the table. Using the plural form also helps you to
+  distinguish a table name from a field name.
+-  Make sure the table represents a single subject. Also remember that
+  the subject represented by the table can be an *object* or *event*. By
+  “object” we mean something that is tangible, such as employees,
+  vendors, machines, buildings, or departments, whereas an “event” is
+  something that happens at a given point in time that has
+  characteristics you want to record. The best example of an event
+  that everyone can relate to is a doctor’s appointment.
+- Make certain each table has a primary key.
+- Make sure the table does not contain any multipart or multivalued fields.
+- Make sure there are no calculated fields in the table.
+- Make certain the table is free of any unnecessary duplicate fields.
+
+*** sound primary key
+- Do the fields uniquely identify each record in the table?
+- Does this field or combination of fields contain unique values?
+- Will these fields ever contain unknown values?
+- Can the value of these fields ever be optional?
+- Is this a multipart field?
+- Can the value of these fields ever be modified?
+
+*** solid relationships
+
+**** one-to-one relationship
+     You establish a one-to-one relationship by taking the primary key
+     from the primary table and inserting it into the subordinate
+     table, where it becomes a foreign key. This is a special type of
+     relationship because in many cases the foreign key will also act
+     as the primary key of the subordinate table.
+
+**** one-to-many relationship
+     You establish a one-to-many relationship by taking the primary
+     key of the table on the “one” side and inserting it into the
+     table on the “many” side, where it becomes a foreign key.
+
+**** many-to-many relationship
+     You establish a many-to-many relationship by creating a linking
+     table.  Define the linking table by taking a copy of the primary
+     key of each table in the relationship and using them to form the
+     structure of the new table. These fields commonly serve two
+     distinct roles: Together, they form the composite primary key of
+     the linking table; separately, they each serve as a foreign key.
+
+***** Establishing a Deletion Rule
+A deletion rule dictates what happens when a user makes a request to
+delete a record in the primary table of a one-to-one relationship or
+in the table on the “one” side of a one-to-many relationship. You can
+guard against orphaned records by establishing this rule. (Orphaned
+records are those records in the subordinate table of a one-to- one
+relationship that don’t have related records in the primary table, or
+records in the table on the “many” side of a one-to-many relationship
+that don’t have related records in the table on the “one” side.)
+
+- restrict
+- cascade
+
+First, select a pair of tables, and then ask yourself the following
+question: “If a record in [name of primary or ‘one’ side table] is
+deleted, should related records in [name of subordinate or ‘many’ side
+table] be deleted as well?”
+
+***** Setting the Type of Participation
+When you establish a relationship between a pair of tables, each table
+participates in a particular manner. The type of participation
+assigned to a given table determines whether a record must exist in
+that table before you can enter a record into the other table. There
+are two types of participation:
+
+- Mandatory: At least one record must exist in this table before you
+  can enter any records into the other table.
+
+- Optional: There is no requirement for any records to exist in this
+  table before you enter any records in the other table.
+
+***** Setting the Degree of Participation
+This process is known as identifying a table’s degree of
+participation. The degree of participation for a given table is
+represented by two numbers that are separated with a comma and
+enclosed within parentheses. The first number indicates the minimum
+possible number of related records, and the second number indicates
+the maximum possible number of related records.
+
+You must figure out to what degree each table will participate. You do
+this by determining the minimum and maximum number of records in one
+table that can be related to a single record in the other table.
+
+* select
+
+The =SELECT= operation in SQL can be broken down into three smaller
+operations:
+1.the SELECT statement
+2.the SELECT expression
+3.the SELECT query: a SELECT query as a SELECT statement with an ORDER BY clause.

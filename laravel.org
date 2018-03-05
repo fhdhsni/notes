@@ -98,3 +98,278 @@ In a Laravel application, a facade is a class that provides access to
 an object from the container. The machinery that makes this work is in
 the =Facade= class. Laravel's facades, and any custom facades you
 create, will extend the base =Illuminate\Support\Facades\Facade= class.
+
+** Eloquent relationships
+*** One To One
+
+hasOne <-> belongsTo
+hasMany <-> belongsTo
+
+#+BEGIN_SRC php
+<?php
+
+namespace App;
+
+use Illuminate\Database\Eloquent\Model;
+
+class User extends Model
+{
+    /**
+     * Get the phone record associated with the user.
+     */
+    public function phone()
+    {
+        return $this->hasOne('App\Phone');
+    }
+}
+#+END_SRC
+Eloquent determines the foreign key of the relationship based on the
+model name. In this case, the =Phone= model is automatically assumed to
+have a =user_id= foreign key.
+
+Additionally, Eloquent assumes that the foreign key should have a
+value matching the =id= (or the custom =$primaryKey=) column of the
+parent. In other words, Eloquent will look for the value of the user's
+=id= column in the =user_id= column of the =Phone= record.
+
+**** Defining The Inverse Of The Relationship
+#+BEGIN_SRC php
+<?php
+
+namespace App;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Phone extends Model
+{
+    /**
+     * Get the user that owns the phone.
+     */
+    public function user()
+    {
+        return $this->belongsTo('App\User');
+    }
+}
+#+END_SRC
+
+In the example above, Eloquent will try to match the =user_id= from the
+=Phone= model to an =id= on the =User= model. Eloquent determines the
+default foreign key name by examining the name of the relationship
+method and suffixing the method name with =_id=
+
+*** One To Many
+#+BEGIN_SRC php
+<?php
+
+namespace App;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Post extends Model
+{
+    /**
+     * Get the comments for the blog post.
+     */
+    public function comments()
+    {
+        return $this->hasMany('App\Comment');
+    }
+}
+#+END_SRC
+Remember, Eloquent will automatically determine the proper foreign key
+column on the =Comment= model. By convention, Eloquent will take the
+"snake case" name of the *owning model* and suffix it with =_id=. So, for
+this example, Eloquent will assume the foreign key on the =Comment=
+model is =post_id=.
+**** inverse
+To define the inverse of a =hasMany= relationship, define a relationship
+function on the child model which calls the =belongsTo= method:
+
+*** Many To Many
+belongsToMany <-> belongsToMany
+#+BEGIN_SRC php
+<?php
+
+namespace App;
+
+use Illuminate\Database\Eloquent\Model;
+
+class User extends Model
+{
+    /**
+     * The roles that belong to the user.
+     */
+    public function roles()
+    {
+        return $this->belongsToMany('App\Role');
+    }
+}
+#+END_SRC
+
+**** Retrieving Intermediate Table Columns
+We may access the intermediate table using the =pivot= attribute on the models:
+#+BEGIN_SRC php
+$user = App\User::find(1);
+
+foreach ($user->roles as $role) {
+    echo $role->pivot->created_at;
+}
+#+END_SRC
+
+*** Has Many Through
+#+BEGIN_SRC php
+<?php
+
+namespace App;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Country extends Model
+{
+    /**
+     * Get all of the posts for the country.
+     */
+    public function posts()
+    {
+        return $this->hasManyThrough('App\Post', 'App\User');
+    }
+}
+#+END_SRC
+Though =posts= does not contain a =country_id= column, the =hasManyThrough=
+relation provides access to a country's =posts= via =$country->posts=. To
+perform this query, Eloquent inspects the =country_id= on the
+intermediate =users= table. After finding the matching user IDs, they
+are used to query the =posts= table.
+
+The first argument passed to the hasManyThrough method is the name of
+the final model we wish to access, while the second argument is the
+name of the intermediate model.
+
+*** Polymorphic Relations
+Polymorphic relations allow a model to belong to more than one other
+model on a single association
+#+BEGIN_SRC yaml
+posts
+    id - integer
+    title - string
+    body - text
+
+videos
+    id - integer
+    title - string
+    url - string
+
+comments
+    id - integer
+    body - text
+    commentable_id - integer # contains the ID value of the post or video
+    commentable_type - string # contains the class name of the owning model.
+#+END_SRC
+
+#+BEGIN_SRC php
+  <?php
+
+  namespace App;
+
+  use Illuminate\Database\Eloquent\Model;
+
+  class Comment extends Model
+  {
+      /**
+       ,* Get all of the owning commentable models.
+       ,*/
+      public function commentable()
+      {
+          return $this->morphTo(); //  return either a Post or Video
+      }
+  }
+
+  class Post extends Model
+  {
+      /**
+       ,* Get all of the post's comments.
+       ,*/
+      public function comments()
+      {
+          return $this->morphMany('App\Comment', 'commentable');
+      }
+  }
+
+  class Video extends Model
+  {
+      /**
+       ,* Get all of the video's comments.
+       ,*/
+      public function comments()
+      {
+          return $this->morphMany('App\Comment', 'commentable');
+      }
+  }
+#+END_SRC
+
+*** Many To Many Polymorphic Relations
+
+#+BEGIN_SRC bash
+posts
+    id - integer
+    name - string
+
+videos
+    id - integer
+    name - string
+
+tags
+    id - integer
+    name - string
+
+taggables
+    tag_id - integer
+    taggable_id - integer
+    taggable_type - string
+#+END_SRC
+
+#+BEGIN_SRC php
+<?php
+
+namespace App;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Post extends Model
+{
+    /**
+     * Get all of the tags for the post.
+     */
+    public function tags()
+    {
+        return $this->morphToMany('App\Tag', 'taggable');
+    }
+}
+#+END_SRC
+
+#+BEGIN_SRC php
+<?php
+
+namespace App;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Tag extends Model
+{
+    /**
+     * Get all of the posts that are assigned this tag.
+     */
+    public function posts()
+    {
+        return $this->morphedByMany('App\Post', 'taggable');
+    }
+
+    /**
+     * Get all of the videos that are assigned this tag.
+     */
+    public function videos()
+    {
+        return $this->morphedByMany('App\Video', 'taggable');
+    }
+}
+#+END_SRC
