@@ -14,3 +14,65 @@ My notes from Stanford's intro to database course
   + programs that operate on DB
 - Database Administrator
   + keeps it running smoothly
+** Relational Model
+*** query languages
+
+Query (expression) on set of relations produces relation as a result.
+
+- Relational Algebra
+  relational algebra, entirely it's a formal language. It's based on
+  sets, set operators and other operators that combine data from
+  multiple relations. It takes relations as input, it produces relations
+  as answers and it does form the formal foundation of implemented
+  relational database management.
+
+  Duplicates are eliminated, because relational algebra is based on sets.
+
+  + =𝞂= *Select operator* to select certain rows (conditions as subscript) on any expression. (it's equivalent to =WHERE= in SQL)
+  + =𝞹= *Project operator* to select certain columns (name of columns as subscript) on any expression. (it's equivalent to =SELECT= in SQL)
+  + =❌= *Cartesian product* (cross-product): It takes two relations
+    and kinda glues them together so that their schema of the result
+    is the union of the schemas of the two relations and the contents
+    of the result are every combination of tuples from those
+    relations.
+  + =⋈= *Natural join*
+    - Enforces equality on all attributes with same name (shared attributes)
+    - Eliminate one copy of duplicate attributes
+
+      we can rewrite natural join with cross product.
+
+  + *Theta Join*: It's like natural join with a condition
+    - The term =join= often means Theta Join
+
+  + set opertaors
+    1. =⋃= *Union Operator*: to combine vertically (versus horizontally which is the case for =❌= and =⋈=)
+    2. =−= *Difference Operator*
+    3. =⋂= *Intersection Operator*
+       Intersection doesn't add expressive power:
+       =E1 ⋂ E2= is the same as =E1 - (E1 - E2)=
+       =E1 ⋂ E2= is the same as =E1 ⋈ E2=
+  + =𝞀= *rename operator*
+    =𝞀R(A1...AN) (E)
+    what the rename operator does is it reassigns the schema in the
+    result of E. So we compute E, we get a relation as a result, and
+    it says that I'm going to call the result of that, relation R with
+    attributes A1 through An. /R(A1...AN) is subscript BTW/
+    - Short hand syntax
+      + =𝞀_R (E)= use same attribute name but different relation name
+      + =𝞀_(A1...AN) (E)= use same relation name but different attribute names
+    - Disambiguation in self-join
+
+- SQL
+Duplicates are not eliminated, because SQL is based on multisets (or bags). Duplicates can be eliminated by =DISTINCT= keyword.
+SQL is an unordered model. If you need the result relation to be ordered some sort you can use =ORDER BY= clause.
+
+    + Data Definition Language (DDL)
+      create table, drop table and such
+    + Data Manipulation Language (DML)
+      - SELECT
+        =SELECT A1,A2,...An FROM R1, R2, ...Rm WHERE condition=: In relation algebra:  =𝞹_A1,...An (𝞂_condition (R1 ❌ R2 ... ❌ Rm))=
+      - INSERT
+      - UPDATE
+      - DELETE
+    + Others commands
+      indexes, constraint, views, triggers, transactions, authorization,...

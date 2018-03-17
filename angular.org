@@ -451,6 +451,9 @@ export class InputFormatDirective {
   =app.module.ts= the same instance of that service will be available
   application-wide.
 
+- The @Injectable() decorator tells Angular that this service might
+  itself have injected dependencies.
+
 - @Injectable() marks a class as available to an injector for
   instantiation. Generally speaking, an injector reports an error when
   trying to instantiate a class that is not marked as @Injectable().
@@ -3536,3 +3539,32 @@ ngOnInit() {
   this.renderer.setProperty(this.el.nativeElement, 'value', 'Cute alligator');
 }
 #+END_SRC
+** DOM
+|----------------------+-----------------------+-----------------------------------------------+-----------------------|
+| *DOM Operations*     | *Methods*             | *Tools*                                       | *Built-in Directives* |
+|----------------------+-----------------------+-----------------------------------------------+-----------------------|
+| Change/Read DOM      | =classList.add()=,    | Sandboxed DOM access through =Renderer2=,     | NgClass,              |
+| element properties   | =setAttribute()=,     | Don't use =Renderer2= to change DOM hierarchy | NgStyle               |
+|                      | =style.setProperty()= |                                               |                       |
+|----------------------+-----------------------+-----------------------------------------------+-----------------------|
+| Modify DOM Hierarchy | =createElement()=,    | Templating through =ViewContainerRef=         | ngIf,                 |
+|                      | =remove()=,           |                                               | ngFor,                |
+|                      | =appendChild()=,      |                                               | ngSwitch              |
+|                      | =removeChild()=       |                                               |                       |
+|----------------------+-----------------------+-----------------------------------------------+-----------------------|
+** From Documentation
+- Expression guidelines
+  + No visible side effects
+    A template expression should not change any application state
+    other than the value of the target property.
+  + Quick execution
+    Angular executes template expressions after every change detection cycle.
+  + Simplicity
+  + Idempotence
+    In Angular terms, an idempotent expression always returns exactly
+    the same thing until one of its dependent values changes.
+    Dependent values should not change during a single turn of the
+    event loop. If an idempotent expression returns a string or a
+    number, it returns the same string or number when called twice in
+    a row. If the expression returns an object (including an array),
+    it returns the same object reference when called twice in a row.

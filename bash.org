@@ -72,7 +72,6 @@ fi
 =screen -x foobar= to attach to foobar
 =^a c= to create a new window and use =^a n= and =^a p= to go to next ot previous window
 
-
 * regex
 read =perldoc perlreref=
 
@@ -176,4 +175,19 @@ echo hell123world | sed -E 's/[0-9]+/ /g' # hell world
 #+BEGIN_SRC sh
 > echo she sells seashells | perl -ne 's/s\B/-/g; print;'
 > -he -ells -ea-hells
+#+END_SRC
+* nc
+** listening on a port
+#+BEGIN_SRC bash
+nc -lvp 4444  < foo.txt
+#+END_SRC
+
+somewhere else
+#+BEGIN_SRC bash
+nc 192.168.1.108 4444
+#+END_SRC
+
+** port scan
+#+BEGIN_SRC
+nc -vnzw 1 127.0.0.1 1-8889
 #+END_SRC

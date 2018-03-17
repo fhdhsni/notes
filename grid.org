@@ -1,24 +1,30 @@
 - fit-content
-   fit-content(argument) => min(max-content, max(min-content, argument))
+  fit-content(argument) => min(max-content, max(min-content, argument))
 
 - Explicitly creating a grid area implicitly creates the named -start
   and -end grid lines that surround it.
+
+  #+BEGIN_SRC css
+  .box {
+    display: grid;
+    grid-template-columns: 1fr 500px 1fr;
+    grid-template-rows: 150px 150px 100px;
+
+    grid-template-areas:
+    "sidebar-1  content  sidebar-2"
+    "sidebar-1  content  sidebar-2"
+    "footer     footer   footer";
+  }
+
+  .footer {
+    grid-column: footer-start / footer-end;
+  }
+  #+END_SRC
 
 - =spans= have to start counting within the explicit grid. Once they
   start, they can continue on into the implicit grid but they cannot
   start counting within the implicit grid.
   + span counting must start in the explicit grid. It doesn’t have to end there.
-
-| Property        | Aligns                                               | Applied to     |
-|-----------------+------------------------------------------------------+----------------|
-| justify-self    | A grid item in the inline (horizontal) direction     | Grid items     |
-| justify-items   | All grid items in the inline (horizontal) direction  | Grid container |
-| justify-content | The entire grid in the inline (horizontal) direction | Grid container |
-| align-self      | A grid item in the block (vertical) direction        | Grid items     |
-| align-items     | All grid items in the block (vertical) direction     | Grid container |
-| align-content   | The entire grid in the block (vertical) direction    | Grid container |
-|                 |                                                      |                |
-
 
 - What happens when flex items wrap onto a new row (or column, if you
   are working with columns) is that the new row becomes its own flex
@@ -48,16 +54,29 @@ GRID PROPERTIES
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
-    grid-gap: 5px; /* => shorthand for grid-column-gap and grid-row-gap */
+    grid-gap: 5px; /* shorthand for grid-column-gap and grid-row-gap */
     grid-template-areas:
       "a a b"
       ". d d"
-      "c e e";
+      "c e e";                    /* now you can use grid-area on grid childs. like .foo { grid-area: e } */
+
     align-items: center;
     justify-items: end;           /* doesn't work with flexbox */
 
     align-content: foo            /* affect the grid tracks, you need additional space(no fr) */
     justify-content: foo          /* affect the grid tracks, you need additional space(no fr) */
+
+
+    /* --------------- named-lines >> ---------------------- */
+    .box {
+        display: grid;
+
+        grid-template-columns: [foo another-name] 1fr [bar] 2fr [baz] 3fr [bak];
+    }
+
+    .item3 {
+        grid-column: foo / baz;
+    }
 
 
     /* --------------- auto-fill >> ---------------------- */
@@ -87,6 +106,11 @@ GRID PROPERTIES
     -------------------------------------------------------- */
 
     /* --------------- auto-fill vs auto-fit >> ----------------------
+
+      The difference between auto-fill and auto-fit for sizing columns is
+      only noticeable when the row is wide enough to fit more columns in
+      it.
+
       There are two possible keywords to use in repeat(): auto-fill
       and auto-fit. They do the same thing insofar as they add as
       many column tracks as will fit into the container. The difference
@@ -101,6 +125,40 @@ GRID PROPERTIES
       Use auto-fill if you want to maintain the tracks; use auto-
       fit if you want the content to fill the container (in case there are
       fewer items than tracks).
+
+
+      ,*SARA SOUEIDAN*:
+      auto-fill behavior: "fill that row up! Add as many columns as
+      you can. I don't care if they're empty — they should all still
+      show up. If you have enough space to add a column, add it. I
+      don't care if it's empty or not, it's still occupying space in
+      the row as if it were filled (as in: filled with content/grid
+      items)."
+
+      While auto-fill fills the row with as many columns as it can, even
+      if those columns are empty, auto-fit behaves a little differently.
+
+      auto-fit does, too, fill the row with more columns are the
+      viewport width increases, but the only difference is that the
+      newly added columns (and any column gaps associated with them) are
+      collapsed. The Grid inspector is a fantastic way to visualize
+      this. You'll notice that columns are being added when you keep
+      your eye on the Grid line numbers, which will increase as the
+      viewport width increases.
+
+      auto-fit behavior: "make whatever columns you have fit into the
+      available space. Expand them as much as you need to fit the row
+      size. Empty columns must not occupy any space. Put that space to
+      better use by expanding the filled (as in: filled with
+      content/grid items) columns to fit the available row space."
+
+      A useful tip to remember here is that the columns added in both
+      cases (whether collapsed or not) are not implicit columns — that
+      has specific meaning in the spec. In our case, we are
+      adding/creating columns in the explicit grid in the same way as if
+      we declared you wanted 12 columns, for example. So column number
+      -1 will work to target the end of this grid, which it doesn't if
+      you are creating columns in the implicit grid.
       ----------------------------------------------------------------*/
 
       /* ------------ The behavior of auto in Grid Layout >> -------------*/
@@ -131,25 +189,93 @@ GRID PROPERTIES
       tain the content.
       ----------------------------------------------------------------*/
 
-      /* ------------ GRID AUTO-PLACEMENT >> ---------*/
-      grid-column: auto / span 2;
-      /*
-        using auto-placement, causing them to start on line `auto` , but end
-        on line `span 2`. So auto-placement will decide where
-        to put them, but they will always span two tracks.
-      ----------------------------------------------------------------*/
-
       grid-auto-flow: dense;        /* Something like flex-direction, default is row */
 
+      grid-auto-columns: 50px;    /* implicit columns */
+      grid-auto-rows: 50px 100px; /* implicit rows. currently giving two values doesn't work in firefox 57 */
     }
 
-  /* on child */
-  .child {
-    grid-column: 1 / -1;
-    grid-row: 1 / span 2;
+    /* on child */
+    .child {
+
+    /* shorthand for
+    grid-column-start: 1,
+    grid-column-end: 5,
+    means start at line 1 and end before line 5 */
+    grid-column: 1 / 5;
+
+    grid-column: span 2 / 5       /* span two columns but remember you have to end before 5 */
+
+    grid-column: 2 / span 3;      /* start at 2 and span 3 columns before you end*/
+
+
+    grid-column: 1 / -1;          /* start at 1 and go all the way to the end */
+
+
+    grid-column: span 2;           /* span two columns */
+
+    grid-row: span 2;           /* span two rows */
+
+    grid-row: 1 / span 2;         /* start at row 1 and span for 2 rows*/
+
+
+    /* ------------ GRID AUTO-PLACEMENT >> ---------*/
+    grid-column: auto / span 2;
+
+    /*
+     using auto-placement, causing them to start on line `auto` , but end
+     on line `span 2`. So auto-placement will decide where
+     to put them, but they will always span two tracks.
+    ----------------------------------------------------------------*/
+
     grid-area: foobar;
     align-self: center;
     justify-self: center;         /* doesn't work with flexbox */
-    order: 2;
+
+    order: 2;                     /* Remember it fucks with a11y and selection. Default order is 0 */
   }
 #+end_src
+
+
+* Alignment Properties:
+
+=justify-*= is row axis
+=align-*= is column axis
+
+|-----------------+------------------------------------------------------+----------------|
+| Property        | Aligns                                               | Applied to     |
+|-----------------+------------------------------------------------------+----------------|
+| justify-self    | A grid item in the inline (horizontal) direction     | Grid items     |
+| align-self      | A grid item in the block (vertical) direction        | Grid items     |
+|                 |                                                      |                |
+| justify-items   | All grid items in the inline (horizontal) direction  | Grid container |
+| align-items     | All grid items in the block (vertical) direction     | Grid container |
+|                 |                                                      |                |
+| justify-content | The entire grid in the inline (horizontal) direction | Grid container |
+| align-content   | The entire grid in the block (vertical) direction    | Grid container |
+|-----------------+------------------------------------------------------+----------------|
+
+#+BEGIN_SRC css
+  .container {
+    justify-items: start | end | center | stretch;                /* position of each grid child inside its grid cell horizontally */
+    align-items: start | end | center | stretch;                  /* position of each grid child inside its grid cell vertically */
+
+
+    /* doesn't do anything when entire container is filled with column tracks. works only when there's free space (like when we don't use fr) */
+    /* position the entire grid system horizontally */
+    justify-content: start | end | center | stretch | space-around | space-between | space-evenly;
+
+
+    /* doesn't do anything when entire container is filled with rwo tracks. works only when there's free space (like when we don't use fr) */
+    /* position the entire grid system vertically */
+    /* Verticall free space is not that common (we usually don't set height) */
+    align-content: start | end | center | stretch | space-around | space-between | space-evenly;
+  }
+
+  .child {
+
+    justify-self: start | end | center | stretch; /* to override justify-items */
+
+    align-self: start | end | center | stretch; /* to override align-items */
+  }
+#+END_SRC

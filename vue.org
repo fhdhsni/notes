@@ -722,6 +722,14 @@ We have different hooks for binding like =v-bind=, =v-inserted=,
 =v-updated=, and
 [more](https://s3.amazonaws.com/media-p.slid.es/uploads/75854/images/3909041/custom-directives-flat.svg)
 
+=el=, as you might expect, is the element the binding sits on. =binding=
+is an object which contains arguments that are passed into the
+hooks. There are many available arguments, including =name=, =value=,
+=oldValue=, =expression=, =arg=, and =modifiers=. =vnode= has a more unusual
+use-case, it's available in case you need to refer directly to the
+node in the virtual DOM. Both =binding= and =vnode= should be treated as
+read-only.
+
 example
 #+BEGIN_SRC html
   <div id="app">
@@ -750,7 +758,9 @@ and its implementation
 Vue.directive('tack', {
   bind(el, binding, vnode) {
     el.style.position = 'fixed';
+
     const s = (binding.arg == 'left' ? 'left' : 'top');
+
     el.style[s] = binding.value + 'px';
   }
 });
@@ -810,12 +820,14 @@ new Vue({
 to use it
 
 #+BEGIN_SRC html
-<div class="box" v-scroll="handleScroll">
-  <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit. A atque amet harum aut ab veritatis earum porro praesentium ut corporis. Quasi provident dolorem officia iure fugiat, eius mollitia sequi quisquam.</p>
-</div>
+  <div class="box" v-scroll="handleScroll">
+    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit. A atque
+    sequi quisquam.</p>
+  </div>
 #+END_SRC
 
 live [example](https://codepen.io/sdras/pen/5ca1e0c724d7d900603d8898b5551189)
+
 
 ** vuex
 

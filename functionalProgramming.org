@@ -441,3 +441,5 @@ const First  = x =>
 const result = First('blah').concat(First(true)).concat('meow');
 console.log(result);
 #+END_SRC
+
+* Frontend Masters Functional Programming

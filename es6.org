@@ -1,4 +1,4 @@
-* ES2015  
+* ES2015
 ** Default Parameters
    #+BEGIN_SRC js
   function foo(name = "Farhad") {
@@ -177,7 +177,7 @@
   console.log(last);              // Hasani
   console.log(fullname);          // Farhad Hasani
    #+END_SRC
-   
+
    #+BEGIN_SRC js
      function buildUser(first, last) {
     let fullname = `${first} ${last}`;
@@ -209,13 +209,13 @@ To assign an extracted variable to a new variable name you can do the following:
   const {"some property": someProperty} = obj;
   console.log(someProperty === "some value"); // true
 #+END_SRC
-   
+
 Additionally you can get deep data out of a structure using destructuring. This is shown in the following example:
 
 #+BEGIN_SRC js
   const foo = { bar: { bas: 123 } };
   const {bar: {bas}} = foo; // Effectively `var bas = foo.bar.bas;`
-  // another example => 
+  // another example =>
   const person = {
     name: {
       firstName: {
@@ -339,7 +339,7 @@ console.log(`hi
 ** for...of
    #+BEGIN_SRC js
   let users = ["Farhad", "Pouri", "Jack"];
-  
+
   for(let name of users) {
     console.log(name);
   }
@@ -469,19 +469,40 @@ sum(10, 20, 30);                // 60
    1) The =WeakMap= is a type of =Map= where *only objects* can be passed as
       keys. Primitive data types such as strings, numbers, booleans,
       etc. are not allowed.
-   2) WeakMaps are *not iterable*, therefore they can't be used with for...of
+   2) WeakMaps are *not iterable*, therefore they can't be used with =for...of=
    3) WeakMaps are better with memory. Individual entries in a WeakMap
       can be garbage collected while weakmap itself still exists.
+   4) Unlike =Map=, the keys can get garbage collected
    :END:
    #+BEGIN_SRC js
-let user = { name: "Farhad" };
+     let user = { name: "Farhad" };
 
-let mapSettings = new WeakMap();
-mapSettings.set(user, "AWESOME");
+     let mapSettings = new WeakMap();
+     mapSettings.set(user, "AWESOME");
 
-console.log(mapSettings.get(user));
-
+     console.log(mapSettings.get(user));
    #+END_SRC
+
+Jake Archibald example
+#+BEGIN_SRC js
+const el = document.querySelector('.whatever');
+// To associate data with el, we used to do:
+el._something = {foo: 'bar'};
+el._handled = true;
+// But this is messing with objects we don't own.
+// Instead we can do:
+const data = new WeakMap();
+const handled = new WeakSet();
+data.set(el, {foo: 'bar'});
+handled.add(el);
+// Now:
+console.log(data.get(el).foo); // 'bar'
+console.log(handled.has(el)); // true
+// And once el is garbage collected, so will the data
+// in the WeakMap/WeakSet (unless there are other
+// references to it).
+
+#+END_SRC
 ** Using Set
    :NOTE:
    1) The =Set= object stores *unique* values of any type, whether primitive
@@ -504,7 +525,7 @@ console.log(mapSettings.get(user));
       from collecting entries that are no longer used in other parts of
       the system
    3) We can't read values from weakset
-   :END: 
+   :END:
    #+BEGIN_SRC js
   let tags = new WeakSet();
   let farhad = {
@@ -521,7 +542,7 @@ console.log(mapSettings.get(user));
    shorthand in objects.
 3) The =constructor= method is a special method for creating and
    initializing an object, which runs every time a new instance is
-   created with the =new= operator. 
+   created with the =new= operator.
 :END:
 *** good old constructor function
 [[file:ObjectOrientedJS.org][More info]]
@@ -815,7 +836,7 @@ giveMyPromise(randomNumber)
   .catch((error) => console.log(error))
 
 console.log(`
-Although this log is written 
+Although this log is written
 after promise but it will
 be excuted before promise`
 );
@@ -938,7 +959,7 @@ current position within the sequence.
 5) =done= will be =true= if the iterator is past the end of the collection
 :END:
 
-*** Making a plain JS object iterable 
+*** Making a plain JS object iterable
 :PROPERTIES:
 :CUSTOM_ID: iterable
 :END:
@@ -1002,7 +1023,7 @@ function *nameList() {
 }
 /************************************************************************/
 let anIterableObject = nameList();
-let me = anIterableObject.next(); 
+let me = anIterableObject.next();
 console.log(me);                 // { value: 'Farhad', done: false }
 let her = anIterableObject.next();
 console.log(her);               // { value: 'Pouri', done: false }
@@ -1020,7 +1041,7 @@ console.log(I, she);            // Farhad Pouri
 
 #+RESULTS:
 
-Refactoring to the example in previous section [[#iterable][Making a plain JS object iterable]] 
+Refactoring to the example in previous section [[#iterable][Making a plain JS object iterable]]
 
 #+BEGIN_SRC js
 const post = {
@@ -1106,14 +1127,14 @@ console.log(foo.findIndex(item => typeof item == "number"));
 *** =Array.prototype.keys=
 *** =Array.prototype.values=
 *** =Array.prototype.entries=
-** Async Await 
+** Async Await
 Yet another way of dealing with asynchronous stuff
 #+BEGIN_SRC js
   function findMovie(movie) {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         resolve(`${movie} is awesome.`);
-      });    
+      });
     })
 
   }
