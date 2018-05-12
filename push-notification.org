@@ -1,0 +1,67 @@
+* The three key steps to implementing push are:
+
+1. Adding the client side logic to subscribe a user to push (i.e. the
+   JavaScript and UI in your web app that registers a user to push
+   messages).
+
+2. The API call from your back-end / application that triggers a push
+   message to a user's device.
+
+3. The service worker JavaScript file that will receive a "push event"
+   when the push arrives on the device. It's in this JavaScript that
+   you'll be able to show a notification.
+ 
+* *applicationServerKey* Option
+
+We briefly mentioned "application server keys" in the previous
+section. "Application server keys" are used by a push service to
+identify the application subscribing a user and ensure that the same
+application is messaging that user.
+
+Application server keys are a public and private key pair that are
+unique to your application. The private key should be kept a secret to
+your application and the public key can be shared freely.
+
+The applicationServerKey option passed into the subscribe() call is
+the application's public key. The browser passes this onto a push
+service when subscribing the user, meaning the push service can tie
+your application's public key to the user's PushSubscription
+
+
+How to Create Application Server Keys
+https://web-push-codelab.glitch.me/
+
+* Permissions and subscribe()
+
+There is one side effect of calling subscribe(). If your web app
+doesn't have permissions for showing notifications at the time of
+calling subscribe(), the browser will request the permissions for
+you. This is useful if your UI works with this flow, but if you want
+more control (and I think most developers will), stick to the
+Notification.requestPermission() API that we used earlier.
+
+* What is a PushSubscription?
+
+We call subscribe(), pass in some options, and in return we get a
+promise that resolves to a =PushSubscription= resulting in some code
+like so:
+
+#+BEGIN_SRC js
+function subscribeUserToPush() {
+  return navigator.serviceWorker.register('service-worker.js')
+  .then(function(registration) {
+    const subscribeOptions = {
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(
+        'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U'
+      )
+    };
+
+    return registration.pushManager.subscribe(subscribeOptions);
+  })
+  .then(function(pushSubscription) {
+    console.log('Received PushSubscription: ', JSON.stringify(pushSubscription));
+    return pushSubscription;
+  });
+}
+#+END_SRC

@@ -1,0 +1,15 @@
+* The idea is to compose a number of two main parts:
+
+- A significand that contains the number’s digits. Negative
+  significands represent negative numbers.
+- An exponent that says where the decimal (or binary) point is placed
+  relative to the beginning of the significand. Negative exponents
+  represent numbers that are very small (i.e. close to zero).
+- Scientific Notation: has a single digit to the left of the decimal point. 
+- Can also represent binary numbers in scientific notation: 1.0 × 2-3 
+- Computer arithmetic that supports such numbers is called Floating Point. 
+
+Useful Links: 
+1. https://www.h-schmidt.net/FloatConverter/IEEE754.html
+2. http://kipirvine.com/asm/workbook/floating_tut.htm
+3. https://www.doc.ic.ac.uk/~eedwards/compsys/float/

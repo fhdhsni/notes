@@ -128,7 +128,7 @@ for (let x of foo) {
 - =throttleTime=: Throttling ignores values from an observable sequence that are
   followed by another value before a certain time. “execute a function at most once every period”
 
-- =merge= and =concatn= It’s important to note that a merge differs
+- =merge= and =concat= It’s important to note that a merge differs
   from a concatenation on one key behavior: whereas the merge()
   operator will allow you to immediately subscribe to all of the
   source observables, concat() will subscribe to only one observable
@@ -165,4 +165,127 @@ for (let x of foo) {
   will be implementation dependent, if your observable pipeline
   remains pure, then you can guarantee that all subscribers will
   receive the same events for the same input produced.
-  
+
+
+
+ * Snippets
+
+Cold
+#+BEGIN_SRC js
+let obs = Rx.Observable.create(observer => observer.next(1));
+
+obs.subscribe(v => console.log("1st subscriber: " + v));
+obs.subscribe(v => console.log("2nd subscriber: " + v));
+#+END_SRC
+
+semi-hot
+#+BEGIN_SRC js
+let obs = Rx.Observable
+            .create(observer => observer.next(Date.now()))
+            .publish();
+
+obs.subscribe(v => console.log("1st subscriber: " + v)); // 1st subscriber: 1465994477014
+obs.subscribe(v => console.log("2nd subscriber: " + v)); // 2nd subscriber: 1465994477014
+
+obs.connect();
+#+END_SRC
+
+
+Really hot
+#+BEGIN_SRC js
+  let obs = Rx.Observable
+              .create(observer => observer.next(Date.now()))
+              .publish();
+
+  obs.connect();
+
+  obs.subscribe(v => console.log("1st subscriber: " + v)); // nothing because it's hot
+  obs.subscribe(v => console.log("2nd subscriber: " + v)); // nothing because it's hot
+#+END_SRC
+
+
+worm
+#+BEGIN_SRC js
+    let obs = Observable.interval(1000)
+      .publish() // We use publish to share the value producer across several subscriptions (one indicator of being hot!)
+      .refCount();
+
+    obs.subscribe(v => console.log("1st subscriber:" + v));
+
+    setTimeout(() => obs.subscribe(v => console.log("2nd subscriber:" + v)), 1100);
+
+  // LOGS
+  // 1st subscriber:0
+  // 1st subscriber:1
+  // 2nd subscriber:1
+  // 1st subscriber:2
+  // 2nd subscriber:2
+  // ...
+#+END_SRC
+
+
+#+BEGIN_SRC js
+let obs = Observable.interval(1000)
+  .publish()
+  .refCount();
+
+setTimeout(() => {
+  obs.subscribe(v => console.log("1st subscriber:" + v));
+
+  setTimeout(
+    () => obs.subscribe(v => console.log("2nd subscriber:" + v)),
+    1100
+  );
+}, 2000);
+
+  // LOGS same as prevous
+  // 1st subscriber:0
+  // 1st subscriber:1
+  // 2nd subscriber:1
+  // 1st subscriber:2
+  // 2nd subscriber:2
+  // ...
+#+END_SRC
+
+Interestingly we see exactly the same output as in the previous
+experiment which means we are dealing with an Observable that is
+rather warm than really hot. And that’s because of the way refCount
+works. The publish operator creates an ConnectableObservable which
+means it creates an Observable that shares one single subscription to
+the underlying source. However, the publish operator doesn’t subscribe
+to the underlying source just yet. It’s more like a gatekeeper that
+makes sure that subscriptions aren’t made to the underlying source but
+to the ConnectableObservable instead.
+
+It’s the job of the connect operator to actually cause the
+ConnectableObservable to subscribe to the underlying source (the thing
+that produces values). In our case we’re using refCount which is an
+operator that builds up on connect and causes the
+ConnectableObservable to subscribe to the underlying source as soon as
+there is a first subscriber and to unsubscribe from it as soon as
+there’s no subscriber anymore. It simply keeps track of how many
+subscriptions are made to the ConnectableObservable.
+
+
+
+#+BEGIN_SRC js
+    let obs = Rx.Observable
+                .interval(1000)
+                .publish();
+    obs.connect();                  // make it hot
+
+    setTimeout(() => {
+      obs.subscribe(v => console.log("1st subscriber:" + v));
+      setTimeout(
+        () => obs.subscribe(v => console.log("2nd subscriber:" + v)), 1000);
+
+    },2000);
+
+  // logs
+  // 1st subscriber:1
+  // 1st subscriber:2
+  // 1st subscriber:3
+  // 2nd subscriber:3
+  // 1st subscriber:4
+  // 2nd subscriber:4
+#+END_SRC

@@ -1,0 +1,272 @@
+* decimal to binay
+
+|--------------------------------------------------+-----+-----+-----+-----+-----+-----+-----|
+|                                              2^8 | 2^7 | 2^6 | 2^5 | 2^4 | 2^3 | 2^2 | 2^1 |
+|--------------------------------------------------+-----+-----+-----+-----+-----+-----+-----|
+| the sign bit, 0 means positive, 1 means negetive | 128 |  64 |  32 |  16 |   8 |   4 |   1 |
+
+converting 123 to binary
+
+64|123|1
+32|59 |1
+16|27 |1
+8 |11 |1
+4 |3  |0
+2 |3  |1
+1 |1  |1
+
+
+123 -> 01111011
+
+* negative numbers via 2's compliment
+A youtube comments: 2's compliment is just flip the bits plus 1.﻿ :)
+
+binary represention of -123
+
+|  123 | /0/1111011 |
+| -123 | /1/??????? |
+
+1111011 --> invert the bits --> 0000100 --> add +1 --> 0000101
+
+|  123 | /0/1111011 |
+| -123 | /1/0000101 |
+
+
+* shifting
+** logical and arithmetic shifting
+lets work with 23;
+
+decimal: 23
+binary:
+| /0/ | 0 | 0 | 1 | 0 | 1 | 1 | 1 |
+
+- *LEFT SHIFT*: move everything by one to the left. has the effect of multiplying that number by 2.
+
+| /0/ | 0 | 1 | 0 | 1 | 1 | 1 | 0 |
+decimal: 46
+
+NOTE: the original most left bit (sign bit) went to the hell and we
+added a 0 to the right.
+
+- *RIGHT SHIFT*: move everything by one to the right. has the effect of
+  dividing by two (with some truncation)
+
+| 0 | 0 | 0 | 0 | 1 | 0 | 1 | 1 |
+decimal: 11
+
+in logical right shift we move everything including the sign bit. we
+add a 0 for the sign bit.
+
+in arithmetic right shift we move everything including the sign
+bit. but dont preserve whatever the original sign bit was. that is to
+say if it was a 0 we add a 0. if it was a 1 we add a 1.
+
+-23
+| 1 | 1 | 1 | 0 | 1 | 0 | 0 | 1 |
+
+*Logical*
+| 0 | 1 | 1 | 1 | 0 | 1 | 0 | 0 |
+DECIMAL: 116
+
+*ARITHMETIC*
+| 1 | 1 | 1 | 1 | 0 | 1 | 0 | 0 |
+decimal: -12
+
+* bit manipulation
+** & (bitwise AND)
+| DIGIT 1 | DIGIT 2 | RESULT |
+|---------+---------+--------|
+|       1 |       1 |      1 |
+|       0 |       1 |      0 |
+|       1 |       0 |      0 |
+|       0 |       0 |      0 |
+
+  use case example
+  #+BEGIN_SRC js
+    const num = parseInt(Math.random() * 1000);
+
+    if(num & 1) {                   // returns either 1 or 0
+      console.log('odd')
+    } else {
+      console.log('even')
+    }
+  #+END_SRC
+
+** | (bitwise OR)
+| DIGIT 1 | DIGIT 2 | RESULT |
+|---------+---------+--------|
+|       1 |       1 |      1 |
+|       0 |       1 |      1 |
+|       1 |       0 |      1 |
+|       0 |       0 |      0 |
+
+
+
+*Flags: A Use of the & and | Operators*
+
+without & and |
+#+BEGIN_SRC java
+public class PopupWindow extends Sprite
+{
+    // Variables, Constructor, etc...
+
+
+    public static void showPopup(yesButton:Boolean, noButton:Boolean, okayButton:Boolean, cancelButton:Boolean)
+    {
+        if(yesButton)
+        {
+            // add YES button
+        }
+
+        if(noButton)
+        {
+            // add NO Button
+        }
+        // and so on for the rest of the buttons
+    }
+}
+#+END_SRC
+
+with & and |
+#+BEGIN_SRC java
+public class PopupWindow extends Sprite
+{
+    public static const YES:int = 1;
+    public static const NO:int = 2;
+    public static const OKAY:int = 4;
+    public static const CANCEL:int = 8;
+
+    public static void showPopup(buttons:int)
+    {
+        if(buttons & YES)
+        {
+            // add YES button
+        }
+
+        if(buttons & NO)
+        {
+            // add NO button
+        }
+    }
+}
+#+END_SRC
+
+to use that
+#+BEGIN_SRC java
+PopupWindow.show(PopupWindow.YES | Popup Window.NO | PopupWindow.CANCEL);
+#+END_SRC
+
+** ~ (bitwise NOT)
+the ~ operator reverses each binary digit in an integer: from 0 to 1
+and 1 to 0:
+
+Say we have the integer 37, or 00100101. ~37 is then 11011010. What's
+the base 10 value of this? Well...
+
+
+To find the two's complement of a binary number, we simply flip all
+the bits (i.e. do what the ~ operator does) and add one to the
+result. Let's try this out once: Two's Complement of 37
+
+|                     | two's complement of 37 |
+|---------------------+------------------------|
+| starting value (37) |               00100101 |
+| flip bits           |               11011010 |
+| add one             |               11011011 |
+
+We then define our result as the value -37. Why do this complicated
+process and not just flip the very first bit and call that -37?
+
+Well, let's take a simple expression 37 + -37. We all know this should
+equal 0, and when we add the 37 to its two's complement, that's what
+we get:
+
+#+BEGIN_SRC
+ 00100101
++11011011
+---------
+100000000
+#+END_SRC
+
+Notice that since our integers only hold eight binary digits, the 1 in
+our result is dropped, and we end up with 0, as we should.
+
+There is also a little shortcut to do this by hand: starting from the
+right, work to the left until you reach a 1. Flip all the bits to the
+left of this first 1.  Two's Complement of 37 Shortcut
+
+When we're looking at a signed binary number (in other words, one that
+can be negative, an int not a uint), we can look at the leftmost digit
+to tell whether it's negative or positive. If it's a 0, then the
+number is positive and we can convert to base 10 simply by calculating
+its base 10 value. If the leftmost bit is a 1, then the number is
+negative, so we take the two's complement of the number to get its
+positive value and then simply add a negative sign.
+
+For example, if we have 11110010, we know it is a negative number. We
+can find it's two's complement by flipping all the digits to the left
+of the rightmost 1, giving us 00001110. This equals 13, so we know
+11110010 equals -13.
+
+
+
+** example
+https://code.tutsplus.com/articles/understanding-bitwise-operators--active-11301
+
+** ^ (bitwise XOR)
+ If one or the other is a 1, it will insert a 1 in to the result,
+ otherwise it will insert a 0. This is where the name XOR, or
+ "exclusive or" comes from.
+
+ ^ operator truth tab
+|---------+---------+--------|
+| digit 1 | digit 2 | result |
+|---------+---------+--------|
+|       0 |       0 |      0 |
+|       1 |       0 |      1 |
+|       0 |       1 |      1 |
+|       1 |       1 |      0 |
+
+** << (bitwise left shift)
+On the left side of the operator is the integer that is being shifted,
+and on the right is how much to shift by. So, for example, 37 << 3 is
+shifting the number 37 to the left by 3 places.
+
+An interesting feature of the left bitshift is that it is the same as
+multiplying a number by two to the shiftAmount-th power. So:
+#+BEGIN_SRC
+37 << 3 == 37 * Math.pow(2,3) == 37 * 8
+#+END_SRC
+If you can use the left shift instead
+of Math.pow, you'll see a huge performance increase.
+
+** >> (bitwise right shift)
+If we're starting with a negative number (a binary number where the
+leftmost bit is a 1), all the empty spaces are filled with a 1. If
+we're starting with a positive number (where the leftmost bit, or most
+significant bit, is a 0), then all the empty spaces are filled with
+a 0. Again, this all goes back to two's complement.
+
+While this sounds complicated, it basically just preserves the sign of
+the number we start with. So -8 >> 2 == -2 while 8 >> 2 == 2. I'd
+recommend trying those out on paper yourself.
+
+Since >> is the opposite of <<, it's not surprising that shifting a
+number to the right is the same as dividing it by 2 to the power of
+shiftAmount. You may have noticed this from the example above. Again,
+if you can use this to avoid calling Math.pow, you'll get a
+significant performance boost.
+
+** >>> (bitwise unsigned right shift)
+
+This is very similar to the regular bitwise right shift, except that
+all empty bits on the left are filled with 0s. This means the result
+of this operator is always a positive integer and it always treats the
+integer being shifted as an unsigned integer.
+
+** &= (bitwise AND assignment)
+** |= (bitwise OR assignment)
+** ^= (bitwise XOR assignment)
+** <<= (bitwise left shift and assignment)
+** >>= (bitwise right shift and assignment)
+** >>>= (bitwise unsigned right shift and assignment)

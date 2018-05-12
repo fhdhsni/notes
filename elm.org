@@ -1,7 +1,7 @@
 ** types
 - Type names start with capital letter. e.g. Int
 - Generic param names start with lowercase (e.g. List a)
-- You can only declare types at the top-level. 
+- You can only declare types at the top-level.
 #+BEGIN_SRC elm
   square : Int -> Int
   square n = n^2
@@ -58,9 +58,109 @@
 
 ** functions
 
-- Anonymous functions 
+- Anonymous functions
 #+BEGIN_SRC elm
 List.map (\n -> n * 2) [1, 2, 3]
 #+END_SRC
 
 
+** Front-end masters ELM course
+#+BEGIN_SRC html
+  <ul class="highway">
+    <li>danger</li>
+    <li>zone</li>
+  </ul>
+#+END_SRC
+It's ELM equivalent
+
+#+BEGIN_SRC elm
+ul [ class "highway" ]
+        [ li [] [ text "danger" ]
+        , li [] [ text "zone" ]
+        ]
+#+END_SRC
+
+| *Records*     | *Tuples*      | *Lists*         |
+|---------------+---------------+-----------------|
+| fixed length  | fixed length  | variable length |
+|---------------+---------------+-----------------|
+| mixed content | mixed content | uniform content |
+
+*** decoding
+#+BEGIN_SRC elm
+import Json.Decode exposing (..) -- gives us int, string, float (notice they're lowercase) decoders
+import Json.Decode.Pipeline exposing (..) -- gives us required and decode
+
+GameState : Float -> Bool -> GameState
+type alias GameState = { score : Float, playing : Bool }
+
+
+makeGameScore : Float -> Bool -> GameState
+makeGameScore score playing =
+    { score = score, playing = playing }
+
+{-
+decoder =
+    decode makeGameScore
+        |> required "score" float
+        |> required "playing" bool
+-}
+
+decoder =
+    decode GameState
+        |> required "score" float
+        |> required "playing" bool
+
+decodeString decoder """{ "score": 5.5, "playing": true }""" -- == Ok {score = 5.5, playing = True }
+
+GameState 2.3 True == makeGameScore 2.3 True
+#+END_SRC
+
+So the way pipeline decoders work is you give =decode= an /n/ argument
+function and then you pipe it to /n/ sub decoders
+
+#+BEGIN_SRC elm
+  decode (\a b c -> doSomethingWithABC a b c)
+  |> required "fieldA" string
+  |> required "fieldB" string
+  |> required "fieldC" string
+#+END_SRC
+
+#+BEGIN_SRC elm
+  decode identity
+  |> required "items" (list searchResultDecoder)
+#+END_SRC
+
+Is the same as:
+
+#+BEGIN_SRC elm
+  decode (\items -> items)
+  |> required "items" list (searchResultDecoder)
+#+END_SRC
+
+that says "decode a single field items as a list of search results and
+then just return that value"
+
+#+BEGIN_SRC elm
+    decode SearchResult
+    |> required "id" int
+    |> required "full_name" string
+    |> required "stargazers_count" int
+#+END_SRC
+
+
+is equivalent to:
+
+#+BEGIN_SRC elm
+    decode (\id name count -> SearchResult id name count)
+    |> required "id" int
+    |> required "full_name" string
+    |> required "stargazers_count" int
+
+#+END_SRC
+
+which says "decode the id full name and stargazer fields and then pass
+those three decoded values to this lambda"
+
+
+Elm functions don't have side effect

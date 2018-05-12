@@ -211,6 +211,9 @@ NOTE: reflog is local and only local.
 - To create a new branch but pointing its HEAD to a commit that we found in reflog =git branch <branch-name> <commit-SHA>=
 
 
+*** Helpful commands
+git diff --diff-filter=M  // get diff of modified files
+
 *** Helpful
 http://gitimmersion.com/
 

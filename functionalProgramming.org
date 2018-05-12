@@ -124,24 +124,24 @@ However, this can be avoided with tail call optimisation.
 * Professor Frisby egghead course
 ** E.g
 #+BEGIN_SRC js
-const Box = x =>
-      ({
-        map: f => Box(f(x)),
-        fold: f => f(x),
-        inspect: () => `Box(${x})`,
-      });
+  const Box = x =>
+        ({
+          map: f => Box(f(x)),    // just to be able to keep chaining
+          fold: f => f(x),
+          inspect: () => `Box(${x})`,
+        });
 
-const nextCharForNumberString = str =>
-      Box(str)
-      .map(s => s.trim())
-      .map(r => new Number(r))
-      .map(i => i + 1)
-      .map(i => String.fromCharCode(i))
-      .fold(c => c.toLowerCase());
+  const nextCharForNumberString = str =>
+        Box(str)
+        .map(s => s.trim())
+        .map(r => new Number(r))
+        .map(i => i + 1)
+        .map(i => String.fromCharCode(i))
+        .fold(c => c.toLowerCase());
 
-const result = nextCharForNumberString(' 64');
+  const result = nextCharForNumberString(' 64');
 
-console.log(result);
+  console.log(result);
 #+END_SRC
 
 #+RESULTS:
@@ -162,7 +162,7 @@ const moneyToFloat = str =>
       .map(s => s.replace(/\$/g, ''))
       .map(r => parseFloat(r));
 
-const percentToFload = str =>
+const percentToFloat = str =>
       Box(str.replace(/\%/g, ''))
       .map(replaced => parseFloat(replaced))
       .map(number => number * 0.01);
@@ -170,7 +170,7 @@ const percentToFload = str =>
 const applyDiscount = (price, discount) =>
       moneyToFloat(price)
       .fold(cost =>
-            percentToFload(discount)
+            percentToFloa(discount)
             .fold(savings =>
                   cost - cost * savings));
 
@@ -367,7 +367,7 @@ console.log(result);
   }
   // declarative
   const concatUniq (x, ys) =>
-        fromNullable(ys.filter(y => y===x)[0])
+        fromNullable(ys.filter(y => y === x)[0])
         .fold(() => ys.concat(x), y => ys)
 #+END_SRC
 *** e.g 5
@@ -441,5 +441,105 @@ const First  = x =>
 const result = First('blah').concat(First(true)).concat('meow');
 console.log(result);
 #+END_SRC
+** A collection of Monoids and their uses
+1.
+#+BEGIN_SRC js
+const Sum = x =>
+    ({
+        x,
+        concat: o =>
+            Sum(x + o.x),
+    });
+Sum.empty = () => Sum(0);
+#+END_SRC
 
-* Frontend Masters Functional Programming
+2.
+#+BEGIN_SRC js
+const Product = x => ({
+    x,
+    concat: ({ x: y }) => Product(x * y)
+})
+Product.empty = () => Product(1)
+#+END_SRC
+
+3.
+#+BEGIN_SRC js
+const Any = x => ({
+    x,
+    concat: ({ x: y }) => Any(x || y)
+})
+
+Any.empty = () => Any(false)
+#+END_SRC
+
+4.
+#+BEGIN_SRC js
+const All = x => ({
+    x,
+    concat: ({ x: y }) => All(x && y)
+})
+
+All.empty = () => All(true)
+#+END_SRC
+
+5.
+#+BEGIN_SRC js
+const Max = x => ({
+    x,
+    concat: ({ x: y }) => Max(x > y ? x : y)
+})
+
+Max.empty = () => Max(-Infinity)
+#+END_SRC
+
+6.
+#+BEGIN_SRC js
+const Min = x => ({
+    x,
+    concat: ({ x: y }) => Min(x < y ? x : y)
+})
+
+Min.empty = () => Min(Infinity)
+#+END_SRC
+
+7.
+#+BEGIN_SRC js
+const Right = x => ({
+    fold: (f, g) => g(x),
+    map: f => Right(f(x)),
+    concat: o => o.fold(e => Left(e),
+        r => Right(x.concat(r)))
+});
+
+const Left = x => ({
+    fold: (f, g) => f(x),
+    map: _f => Left(x),
+    concat: o => Left(x),
+})
+#+END_SRC
+
+** A LazyBox
+#+BEGIN_SRC javascript
+const LazyBox = g => ({
+    fold: f => f(g()),
+    map: f => LazyBox(() => f(g())),
+})
+
+LazyBox(() => '  65 ')
+  .map(x => x.trim())
+  .map(trimmed => new Number(trimmed))
+  .map(number => number + 1)
+  .fold(x => console.log(x))
+#+END_SRC
+
+** functor
+*** Rule 1
+#+BEGIN_SRC
+fx.map(f).map(g) == fx.map(x => g(f(x)))
+#+END_SRC
+
+*** Rule 2
+#+BEGIN_SRC
+fx.map(id) == id(fx)
+#+END_SRC
+** Monad

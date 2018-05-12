@@ -1,0 +1,52 @@
+* Eight primitive types
+
+1) int
+    | type  | storage requirement | range                                                   |
+    |-------+---------------------+---------------------------------------------------------|
+    | int   | 4 bytes             | –2,147,483,648 to 2,147,483, 647 (just over 2 billion)  |
+    | short | 2 bytes             | –32,768 to 32,767                                       |
+    | long  | 8 bytes             | –9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 |
+    | byte  | 1 byte              | –128 to 127                                             |
+
+    Note that Java does not have any unsigned versions of the int , long , short , or byte
+    types.
+5) float
+    | Type   | Storage Requirement | Range                                                                   |
+    |--------+---------------------+-------------------------------------------------------------------------|
+    | float  | 4 bytes             | Approximately ±3.40282347E+38F (6–7 significant decimal digits)         |
+    | double | 8 bytes             | Approximately ±1.79769313486231570E+308 (15 significant decimal digits) |
+7) char
+8) boolean
+
+* char
+Java was designed from the ground up to use 16-bit Unicode
+characters. How they solved this issue when unicode grew beyond 65,536
+characters?
+
+** Code Point
+ - A code point is a code value that is associated with a character in
+   an encoding scheme. In the Unicode standard, code points are
+   written in hexadecimal and prefixed with U+, such as U+0041 for the
+   code point of the Latin letter A. Unicode has code points that are
+   grouped into 17 code planes.  The first code plane, called the
+   basic multilingual plane, consists of the “classic” Unicode
+   characters with code points U+0000 to U+FFFF . Sixteen additional
+   planes, with code points U+10000 to U+10FFFF , hold the
+   supplementary characters.
+
+
+* Bitwise Operators
+
+-  & (bitwise AND)
+-  | (bitwise OR)
+-  ~ (bitwise NOT)
+-  ^ (bitwise XOR)
+-  << (bitwise left shift)
+-  >> (bitwise right shift)
+-  >>> (bitwise unsigned right shift)
+-  &= (bitwise AND assignment)
+-  |= (bitwise OR assignment)
+-  ^= (bitwise XOR assignment)
+-  <<= (bitwise left shift and assignment)
+-  >>= (bitwise right shift and assignment)
+-  >>>= (bitwise unsigned right shift and assignment)
