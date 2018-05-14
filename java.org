@@ -34,7 +34,6 @@ characters?
    planes, with code points U+10000 to U+10FFFF , hold the
    supplementary characters.
 
-
 * Bitwise Operators
 
 -  & (bitwise AND)
@@ -50,3 +49,118 @@ characters?
 -  <<= (bitwise left shift and assignment)
 -  >>= (bitwise right shift and assignment)
 -  >>>= (bitwise unsigned right shift and assignment)
+
+* Parentheses and Operator Hierarchy
+
+| Operators                                   | Associativity |
+|---------------------------------------------+---------------|
+| [] . () (method call)                       | Left to right |
+| ! ~ ++ -- + (unary) - (unary) () (cast) new | Right to left |
+| * / %                                       | Left to right |
+| + -                                         | Left to right |
+| << >> >>>                                   | Left to right |
+| < <= > >= instanceof                        | Left to right |
+| == !=                                       | Left to right |
+| &                                           | Left to right |
+| ^                                           | Left to right |
+| ǀ                                           | Left to right |
+| &&                                          | Left to right |
+| ‖                                           | Left to right |
+| ?:                                          | Right to left |
+| = += -= *= /= %= &=  ^= <<= >>= >>>=        | Right to left |
+
+e.g.
+
+Since += associates right to left, the expression
+#+BEGIN_SRC
+a += b += c
+
+#+END_SRC
+means
+#+BEGIN_SRC
+a += (b += c)
+#+END_SRC
+That is, the value of b += c (which is the value of b after the addition) is added to a .
+* Strings
+
+Do not use the == operator to test whether two strings are equal! It
+only determines whether or not the strings are stored in the same
+location. Sure, if strings are in the same location, they must be
+equal. But it is entirely possible to store multiple copies of
+identical strings in different places.
+
+** Code Points and Code Units
+
+The =length= method yields the number of code units required for a given
+string in the UTF-16 encoding
+
+#+BEGIN_SRC java
+String greeting = "Hello";
+int n = greeting.length(); // is 5.
+#+END_SRC
+
+
+To get the true length—that is, the number of code points—call
+#+BEGIN_SRC java
+int cpCount = greeting.codePointCount(0, greeting.length());
+#+END_SRC
+
+The call =s.charAt(n)= returns the code unit at position n , where n
+is between 0 and s.length() – 1 . For example:
+
+#+BEGIN_SRC java
+char first = greeting.charAt(0); // first is 'H'
+char last = greeting.charAt(4); // last is 'o'
+#+END_SRC
+
+To get at the ith code point, use the statements
+
+#+BEGIN_SRC java
+int index = greeting.offsetByCodePoints(0, i);
+int cp = greeting.codePointAt(index);
+#+END_SRC
+
+Why are we making a fuss about code units? Consider the sentence
+
+#+BEGIN_SRC
+🤷 is the shrug emoji
+#+END_SRC
+
+The character (U+1F937) requires two code units in the UTF-16 encoding. Calling
+
+#+BEGIN_SRC
+char ch = sentence.charAt(1)
+#+END_SRC
+
+doesn’t return a space but the second code unit of 🤷. To avoid this problem, you
+should not use the char type. It is too low-level.
+If your code traverses a string, and you want to look at each code point in turn,
+you can use these statements:
+
+#+BEGIN_SRC
+int cp = sentence.codePointAt(i);
+if (Character.isSupplementaryCodePoint(cp)) i += 2;
+else i++;
+#+END_SRC
+
+You can move backwards with the following statements:
+#+BEGIN_SRC
+i--;
+if (Character.isSurrogate(sentence.charAt(i))) i--;
+int cp = sentence.codePointAt(i);
+#+END_SRC
+
+Obviously, that is quite painful. An easier way is to use the
+codePoints method that yields a “stream” of int values, one for each
+code point. You can just turn it into an array and traverse that.
+
+#+BEGIN_SRC
+int[] codePoints = str.codePoints().toArray();
+#+END_SRC
+
+Conversely, to turn an array of code points to a string, use a
+constructor.
+
+#+BEGIN_SRC
+String str = new String(codePoints, 0, codePoints.length);
+#+END_SRC
