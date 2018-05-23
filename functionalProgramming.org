@@ -56,7 +56,7 @@ Currying is the process of translating a function that takes multiple arguments 
 Currying and partial application are conceptually similar (and you’ll probably never need both), but still distinct. The main difference is that currying will always produce a nested chain of functions that each accept only one argument, whereas partial application can return functions that accept more than one argument. This distinction is clearer when you compare their effects on functions that accept at least three arguments:
 #+BEGIN_SRC js2
   const multiply = function ( x, y, z ) {
-	  return x * y * z;
+      return x * y * z;
   };
 
   const curry = function ( fn ) {
@@ -543,3 +543,161 @@ fx.map(f).map(g) == fx.map(x => g(f(x)))
 fx.map(id) == id(fx)
 #+END_SRC
 ** Monad
+law 1.
+#+BEGIN_SRC
+const m = Box(Box(Box(3)))
+
+join(m.map(join)) == join(join(m))
+#+END_SRC
+
+law 2.
+
+#+BEGIN_SRC
+const m = Box('foo')
+
+join(Box.of(m)) == join(m.map(Box.of))
+#+END_SRC
+** Applicative Functor
+
+law 1.
+#+BEGIN_SRC javascript
+F(x).map(f) === F(f).ap(F(x))
+#+END_SRC
+
+#+BEGIN_SRC javascript
+const Box = x => ({
+  ap: b2 => b2.map(x),
+  chain: f => f(x),
+  map: f => Box(f(x)),
+  fold: f => f(x),
+  inspect: () => `Box(${x})`
+});
+
+Box(x => x + 1).ap(Box(2)); // Box(3)
+
+Box(x => y => x + y).ap(Box(2)).ap(Box(9)); // Box(11)
+#+END_SRC
+
+
+#+BEGIN_SRC javascript
+liftA3 = (f, fx, fy, fz) => fx.map(f).ap(fy).ap(fz);
+liftA2 = (f, fx, fy) => fx.map(f).ap(fy);
+
+liftA2(x => y => x + y, Box(1), Box(2)); // Box(3)
+#+END_SRC
+
+
+Another example:
+
+in the following example we have to get the =header= THEN get the =footer= THEN do our thing
+#+BEGIN_SRC javascript
+const $ = selector => Either.of({ selector, height: 10 });
+
+const getScreenSize = screen => head => foot =>
+  screen - (head.height + foot.height);
+
+$("header").chain(head =>
+  $("footer").map(footer => getScreenSize(800, head, footer))
+);
+#+END_SRC
+
+but with =ap= we don't have to wait
+#+BEGIN_SRC javascript
+const $ = selector => Either.of({ selector, height: 10 });
+
+const getScreenSize = screen => head => foot =>
+  screen - (head.height + foot.height);
+
+const res = Either.of(getScreenSize(800))
+  .ap($("header"))
+  .ap($("footer"));
+#+END_SRC
+
+Which is the same as
+#+BEGIN_SRC javascript
+liftA2 = (f, fx, fy) => fx.map(f).ap(fy);
+
+const $ = selector => Either.of({ selector, height: 10 });
+
+const getScreenSize = screen => head => foot =>
+  screen - (head.height + foot.height);
+
+const res = liftA2(getScreenSize(800), $("header"), $("footer"));
+#+END_SRC
+
+Another example: doing same as nested loops with applicatives
+
+#+BEGIN_SRC javascript
+List.of(x => y => `${x}-${y}`)
+ .ap(List([1, 2, 3, 4]))
+ .ap(List([10, 0]));  // List [ "1-10", "1-0", "2-10", "2-0", "3-10", "3-0", "4-10", "4-0" ]
+#+END_SRC
+
+Another example: sequential tasks with applicatives
+
+instead of
+#+BEGIN_SRC javascript
+const Db = {
+  find: id =>
+    new Task((rej, res) =>
+      setTimeout(() => res({ id, title: `Project ${id}` }), 100)
+    )
+};
+
+const reportHeader = (p1, p2) => `Report: ${p1.title} compared to ${p2.title}`;
+
+const t = Db.find(20).chain(p1 => Db.find(8).map(p2 => reportHeader(p1, p2)));
+
+t.fork(console.error, console.log);
+#+END_SRC
+
+we can do
+
+#+BEGIN_SRC js
+const reportHeader = (p1, p2) => `Report: ${p1.title} compared to ${p2.title}`;
+
+const t = Task.of(p1 => p2 => reportHeader(p1, p2))
+  .ap(Db.find(20))
+  .ap(Db.find(8));
+
+t.fork(console.error, console.log);
+
+#+END_SRC
+
+
+** traverse
+=traverse= expects you to return an applicative functor from the function (second arg).
+
+
+instead of
+#+BEGIN_SRC js
+  const Task = require("data.task");
+  const { List } = require("immutable-ext");
+  const futurize = require("futurize").futurize(Task);
+  const fs = require("fs");
+
+  const readFile = futurize(fs.readFile);
+
+  const files = List(["1.txt", "config.json"]);
+
+  const res = files.map(f => readFile(f, "utf-8")); // [Task, Task]
+
+  res.map(t => t.fork(console.error, console.log)); // too much work
+#+END_SRC
+
+we can do
+#+BEGIN_SRC js
+  const Task = require("data.task");
+  const { List } = require("immutable-ext");
+  const futurize = require("futurize").futurize(Task);
+  const fs = require("fs");
+
+  const readFile = futurize(fs.readFile);
+
+  const files = List(["1.txt", "config.json"]);
+
+  files.traverse(Task.of, readFile, files).fork(console.error, console.log);
+#+END_SRC
+
+
+WATCH 23

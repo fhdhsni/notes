@@ -1,3 +1,29 @@
+https://developers.google.com/web/ilt/pwa/introduction-to-push-notifications
+
+
+The following summarizes the process of sending and receiving a push
+message and then displaying a push notification.
+
+On the client:
+
+    Subscribe to the push service
+    Send the subscription object to the server
+
+On the server:
+
+    Generate the data that we want to send to the user
+    Encrypt the data with the user public key
+    Send the data to the endpoint URL with a payload of encrypted data.
+
+The message is routed to the user's device. This wakes up the browser,
+which finds the correct service worker and invokes a "push"
+event. Now, on the client:
+
+    Receive the message data (if there is any) in the "push" event
+    Perform some custom logic in the push event
+    Show a notification
+
+
 * The three key steps to implementing push are:
 
 1. Adding the client side logic to subscribe a user to push (i.e. the
@@ -10,7 +36,7 @@
 3. The service worker JavaScript file that will receive a "push event"
    when the push arrives on the device. It's in this JavaScript that
    you'll be able to show a notification.
- 
+
 * *applicationServerKey* Option
 
 We briefly mentioned "application server keys" in the previous
@@ -65,3 +91,8 @@ function subscribeUserToPush() {
   });
 }
 #+END_SRC
+
+
+to send a message using VAPID, you make a normal Web Push Protocol
+request with two additional HTTP headers: an Authorization header and
+a Crypto-Key header.

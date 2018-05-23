@@ -1,0 +1,4 @@
+1. character encoding
+2. floating point numbers
+3. push notification
+4. algebraic data types

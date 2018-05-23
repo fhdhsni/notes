@@ -94,28 +94,28 @@ identical strings in different places.
 The =length= method yields the number of code units required for a given
 string in the UTF-16 encoding
 
-#+BEGIN_SRC java
+#+BEGIN_SRC
 String greeting = "Hello";
 int n = greeting.length(); // is 5.
 #+END_SRC
 
 
 To get the true length—that is, the number of code points—call
-#+BEGIN_SRC java
+#+BEGIN_SRC
 int cpCount = greeting.codePointCount(0, greeting.length());
 #+END_SRC
 
 The call =s.charAt(n)= returns the code unit at position n , where n
 is between 0 and s.length() – 1 . For example:
 
-#+BEGIN_SRC java
+#+BEGIN_SRC
 char first = greeting.charAt(0); // first is 'H'
 char last = greeting.charAt(4); // last is 'o'
 #+END_SRC
 
 To get at the ith code point, use the statements
 
-#+BEGIN_SRC java
+#+BEGIN_SRC
 int index = greeting.offsetByCodePoints(0, i);
 int cp = greeting.codePointAt(index);
 #+END_SRC
@@ -164,3 +164,22 @@ constructor.
 #+BEGIN_SRC
 String str = new String(codePoints, 0, codePoints.length);
 #+END_SRC
+* Arrays
+C++ NOTE: A Java array is quite different from a C++ array on the
+stack. It is, however, essentially the same as a pointer to an array
+allocated on the heap.  That is,
+#+BEGIN_SRC
+int[] a = new int[100]; // Java
+
+#+END_SRC
+is not the same as
+#+BEGIN_SRC
+int a[100]; // C++
+#+END_SRC
+but rather
+#+BEGIN_SRC
+int* a = new int[100]; // C++
+#+END_SRC
+In Java, the [] operator is predefined to perform bounds
+checking. Furthermore, there is no pointer arithmetic—you can’t
+increment a to point to the next element in the array.
