@@ -1,0 +1,268 @@
+Notes from  http://learnyouahaskell.com/
+
+Beginning of joy <2018-05-24 Thu 15:01>
+
+- In Haskell =*= and =+= and... are also function. We call them infix
+  function (normal functions are prefix functions)
+
+- Function application (calling a function by putting a space after it
+  and then typing out the parameters) has the highest precedence
+
+- If a function takes two parameters, we can also call it as an infix
+  function by surrounding it with backticks. For instance, =div 10 2=
+  becomes =10 `div` 2=
+
+* Lists
+- Strings are list.
+
+- In Haskell, lists are a homogenous data structure.
+
+- to append to a list =++= (heavy operation if list is larg). both
+  operands should be list
+  #+BEGIN_SRC haskell
+  [1, 2, 3] ++ [4]
+  #+END_SRC
+
+- to the prepend to a list use cons operator, that is =:=, e.g
+  #+BEGIN_SRC haskell
+  'A':" SMALL CAT"  -- "A SMALL CAT"
+  #+END_SRC
+
+- =[1,2,3]= is actually just syntactic sugar for =1:2:3:[]=
+
+- If you want to get an element out of a list by index, use =!!=
+
+- The lists within a list can be of different lengths but they can't
+  be of different types.
+
+- =head=
+- =tail=
+- =last=
+- =init= takes a list and returns everything except its last element.
+  #+BEGIN_SRC
+  ghci> init [5,4,3,2,1]
+  [5,4,3,2]
+  #+END_SRC
+- =length=
+- =null= checks if a list is empty. If it is, it returns True, otherwise it returns False
+- =reverse=
+- =take= takes a number and a list. It extracts that many elements from the beginning of the list
+- =drop= works in a similar way, only it drops the number of elements from the beginning of a list.
+  #+BEGIN_SRC
+  ghci> drop 3 [8,4,2,1,5,6]
+  [1,5,6]
+  #+END_SRC
+- =maximum=
+- =minimum=
+- =sum=
+- =product= takes a list of numbers and returns their product.
+  #+BEGIN_SRC
+  ghci> product [6,2,1,2]
+  24
+  #+END_SRC
+- =zip=
+    #+BEGIN_SRC
+    *Main> zip [1,3] [2, 4]
+    [(1,2),(3,4)]
+    *Main> zip [1,3] [2, 4, 5]
+    [(1,2),(3,4)]
+    #+END_SRC
+
+- =elem= takes a thing and a list of things and tells us if that thing
+  is an element of the list. It's usually called as an infix function
+  because it's easier to read that way.
+  #+BEGIN_SRC
+  ghci> 4 `elem` [3,4,5,6]
+  True
+  ghci> 10 `elem` [3,4,5,6]
+  False
+  #+END_SRC
+
+- ranges:
+  =take 24 [13,26..]=
+
+- =cycle= takes a list and cycles it into an *infinite* list
+  #+BEGIN_SRC
+  ghci> take 10 (cycle [1,2,3])
+  [1,2,3,1,2,3,1,2,3,1]
+  #+END_SRC
+- =repeat= takes an element and produces an *infinite* list of just that element.
+  #+BEGIN_SRC
+  ghci> take 10 (repeat 5)
+  [5,5,5,5,5,5,5,5,5,5]
+  #+END_SRC
+- =replicate=
+  #+BEGIN_SRC
+  ghci> replicate 3 5
+  [5,5,5]
+  #+END_SRC
+
+- List comprehension
+  +
+         #+BEGIN_SRC
+         ghci> [x*2 | x <- [1..10]]
+         [2,4,6,8,10,12,14,16,18,20]
+         #+END_SRC
+  +
+        #+BEGIN_SRC
+         ghci> [ x | x <- [50..100], x `mod` 7 == 3]
+         [52,59,66,73,80,87,94]
+        #+END_SRC
+
+  +
+        a comprehension that replaces each odd number greater than 10
+        with "BANG!" and each odd number that's less than 10 with
+        "BOOM!". If a number isn't odd, we throw it out of our list.
+        #+BEGIN_SRC
+        boomBangs xs = [ if x < 10 then "BOOM!" else "BANG!" | x <- xs, odd x]
+        #+END_SRC
+
+  +
+         We can include several predicates. If we wanted all numbers from 10
+         to 20 that are not 13, 15 or 19, we'd do:
+
+           #+BEGIN_SRC
+           ghci> [ x | x <- [10..20], x /= 13, x /= 15, x /= 19]
+           [10,11,12,14,16,17,18,20]
+           #+END_SRC
+  + using multiple input list
+      #+BEGIN_SRC
+      ghci> [ x*y | x <- [2,5,10], y <- [8,10,11]]
+      [16,20,22,40,50,55,80,100,110]
+      #+END_SRC
+  + when we don't care
+      #+BEGIN_SRC
+      length' xs = sum [1 | _ <- xs]
+      #+END_SRC
+  + Since strings are just lists
+    #+BEGIN_SRC haskell
+    removeNonUppercase st = [ c | c <- st, c `elem` ['A'..'Z']]
+
+    removeNonUppercase "Hahaha! Ahahaha!" -- "HA"
+    #+END_SRC
+  + List of lists
+    Let's remove all odd numbers without flattening the list.
+    #+BEGIN_SRC
+    ghci> let xxs = [[1,3,5,2,3,1,2,4,5],[1,2,3,4,5,6,7,8,9],[1,2,4,2,1,6,3,1,3,2,3,6]]
+    ghci> [ [ x | x <- xs, even x ] | xs <- xxs]
+    [[2,2,4],[2,4,6,8],[2,4,2,6,2,6]]
+    #+END_SRC
+
+- Tuples
+  + they don't have to be homogenous.
+  + =fst= takes a pair and returns its first component.
+    #+BEGIN_SRC
+    ghci> fst (8,11)
+    8
+    #+END_SRC
+  + =snd= takes a pair and returns its second component.
+    #+BEGIN_SRC
+    ghci> snd (8,11)
+    11
+    #+END_SRC
+    Note: these functions operate only on pairs.
+  + example:
+
+    Which right triangle that has integers for all sides and
+    all sides equal to or smaller than 10 has a perimeter of 24?
+
+    #+BEGIN_SRC haskell
+    rightTriangles = [ (a,b,c) | c <- [1..10], b <- [1..c], a <- [1..b], a^2 + b^2 == c^2, a+b+c == 24]
+
+    rightTriangles --  [(6,8,10)]
+    #+END_SRC
+
+<2018-05-25 Fri>
+
+- Types
+  + The type of every expression is known at compile time.
+  +
+
+     #+BEGIN_SRC
+     ghci> :t 'a'
+     'a' :: Char
+     #+END_SRC
+     Here we see that doing :t on an expression prints out the
+     expression followed by :: and its type. :: is read as "has type
+     of". Explicit types are always denoted with the first letter in
+     capital case. 'a', as it would seem, has a type of Char.
+  + explicit type declaration.
+    e.g. 1
+    #+BEGIN_SRC
+    removeNonUppercase :: [Char] -> [Char]
+    removeNonUppercase st = [ c | c <- st, c `elem` ['A'..'Z']]
+    #+END_SRC
+    e.g. 3
+    #+BEGIN_SRC
+    addThree :: Int -> Int -> Int -> Int
+    addThree x y z = x + y + z
+    #+END_SRC
+  + =Int= stands for integer. It's used for whole numbers. 7 can be an
+    Int but 7.2 cannot. Int is bounded, which means that it has a
+    minimum and a maximum value. Usually on 32-bit machines the
+    maximum possible Int is 2147483647 and the minimum is -2147483648.
+
+  + =Integer= stands for, er … also integer. The main difference is
+    that it's not bounded so it can be used to represent really
+    really big numbers. I mean like really big. Int, however, is more
+    efficient.
+    #+BEGIN_SRC
+    factorial :: Integer -> Integer
+    factorial n = product [1..n]
+    ghci> factorial 50
+    30414093201713378043612608166064768844377641568960512000000000000
+    #+END_SRC
+
+  + =Float= is a real floating point with single precision.
+    #+BEGIN_SRC
+    circumference :: Float -> Float
+    circumference r = 2 * pi * r
+    ghci> circumference 4.0
+    25.132742
+    #+END_SRC
+
+
+  + =Double= is a real floating point with double the precision!
+    #+BEGIN_SRC
+    circumference' :: Double -> Double
+    circumference' r = 2 * pi * r
+    ghci> circumference' 4.0
+    25.132741228718345
+    #+END_SRC
+
+  + =Bool= is a boolean type. It can have only two values: True and
+    False.
+
+  + =Char= represents a character. It's denoted by single quotes. A
+    list of characters is a string.
+  + type variables
+    #+BEGIN_SRC
+    ghci> :t head
+    head :: [a] -> a
+    #+END_SRC
+    What is this a? Is it a type? Remember that we previously stated
+    that types are written in capital case, so it can't exactly be a
+    type. Because it's not in capital case it's actually a type
+    variable. That means that a can be of any type.
+  + *typeclass*: A typeclass is a sort of interface that defines some
+    behavior. If a type is a part of a typeclass, that means that it
+    supports and implements the behavior the typeclass describes.
+    #+BEGIN_SRC
+    ghci> :t (==)
+    (==) :: (Eq a) => a -> a -> Bool
+    #+END_SRC
+    Everything before the => symbol is called a class constraint. We
+    can read the previous type declaration like this: the equality
+    function takes any two values that are of the same type and
+    returns a Bool. The type of those two values must be a member of
+    the Eq class (this was the class constraint).
+    - some basic typeclasses
+      1) Eq
+
+      2) Ord
+
+      3) Show
+
+      4) Read
+
+      5)

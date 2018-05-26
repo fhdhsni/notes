@@ -699,5 +699,159 @@ we can do
   files.traverse(Task.of, readFile, files).fork(console.error, console.log);
 #+END_SRC
 
+Another example
 
-WATCH 23
+instead of
+#+BEGIN_SRC js
+const httpGet = (path, params) => Task.of(`${path}: result`);
+
+Map({ home: "/", about: "/about-us", blog: "/blog" }).map(route =>
+  httpGet(route, {})
+);
+#+END_SRC
+which we end up having =Map { "home": Task, "about": Task, "blog": Task }=
+
+we can do
+#+BEGIN_SRC js
+const httpGet = (path, params) => Task.of(`${path}: result`);
+
+= Map({ home: "/", about: "/about-us", blog: "/blog" })
+  .traverse(Task.of, route => httpGet(route, {}))
+  .fork(console.error, console.log);
+#+END_SRC
+
+
+** Natural Transformation
+
+- naively put it's just a type conversion
+- taking one functor to another
+
+law 1:
+#+BEGIN_SRC
+nt(x).map(f) == nt(x.map(f))
+
+F(a) --- map(f) --- F(b)
+|                    |
+|                    |
+nt                  nt
+|                    |
+|                    |
+G(a) --- map(f) --- G (b)
+#+END_SRC
+
+
+example 1
+#+BEGIN_SRC js
+const Right = x => ({
+  map: f => Right(f(x)),
+  chain: f => f(x),
+  fold: (f, g) => g(x),
+  inspect: () => console.log(`Right(${x}`)
+});
+
+const Left = x => ({
+  map: f => Left(x),
+  chain: f => Left(x),
+  fold: (f, g) => f(x),
+  inspect: () => console.log(`Left(${x}`)
+});
+
+const eitherToTask = e => e.fold(Task.rejected, Task.of);
+
+eitherToTask(Left("nightingale")).fork(
+  e => console.error(`err: ${e}`),
+  res => console.log(`result: ${res}`)
+);
+#+END_SRC
+
+example 2
+
+#+BEGIN_SRC js
+const Right = x => ({
+  map: f => Right(f(x)),
+  chain: f => f(x),
+  fold: (f, g) => g(x),
+  inspect: () => console.log(`Right(${x}`)
+});
+
+const Left = x => ({
+  map: f => Left(x),
+  chain: f => Left(x),
+  fold: (f, g) => f(x),
+  inspect: () => console.log(`Left(${x}`)
+});
+
+const Box = x => ({
+  ap: b2 => b2.map(x),
+  chain: f => f(x),
+  map: f => Box(f(x)),
+  fold: f => f(x),
+  inspect: () => `Box(${x})`
+});
+
+const boxToEither = b => b.fold(Right);
+
+boxToEither(Box(100)).fold(e => console.error("err", e), console.log);
+#+END_SRC
+
+Example 3
+#+BEGIN_SRC js
+const boxToEither = b => b.fold(Right);
+
+const fake = id => ({ id, name: "user1", best_friend_id: id + 1 });
+
+const Db = {
+  find: id =>
+    new Task((rej, res) => res(id > 2 ? Right(fake(id)) : Left("Not found")))
+};
+
+Db.find(3)
+  .chain(eitherToTask)
+  .chain(user => Db.find(user.best_friend_id))
+  .chain(eitherToTask)
+  .fork(e => console.error("err", e), r => console.log(("res", r)));
+#+END_SRC
+
+** Isomorphism
+
+law
+#+BEGIN_SRC
+from(to(x)) = x;
+to(from(y)) = y;
+#+END_SRC
+
+example 1
+#+BEGIN_SRC
+const Iso = (to, from) => ({
+  to,
+  from
+});
+
+const chars = Iso(s => s.split(""), c => c.join(""));
+
+chars.from(chars.to("hello world")); // hello world
+
+//
+const truncate = str => chars.from(chars.to(str).slice(0, 3)).concat("...");
+
+truncate("hello world"); // hel...
+#+END_SRC
+
+example 2
+#+BEGIN_SRC js
+const Iso = (to, from) => ({
+  to,
+  from
+});
+
+const singleton = Iso(
+  e => e.fold(() => [], x => [x]),
+  ([x]) => (x ? Right(x) : Left())
+);
+
+const filterEither = (e, pred) => singleton.from(singleton.to(e).filter(pred));
+
+filterEither(Right("hello"), x => x.match(/h/gi)).map(x =>
+  x.toUpperCase()
+);
+#+END_SRC
