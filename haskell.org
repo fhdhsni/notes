@@ -257,12 +257,323 @@ Beginning of joy <2018-05-24 Thu 15:01>
     returns a Bool. The type of those two values must be a member of
     the Eq class (this was the class constraint).
     - some basic typeclasses
-      1) Eq
+      1) =Eq=: is used for types that support equality testing.
+      2) =Ord=: is for types that have an ordering.
 
-      2) Ord
+         The =compare= function takes two Ord members of the same type
+         and returns an ordering. Ordering is a type that can be GT,
+         LT or EQ, meaning greater than, lesser than and equal,
+         respectively.
+         #+BEGIN_SRC
+         ghci> :t compare
+         compare :: Ord a => a -> a -> Ordering
+         ghci> 5 `compare` 3
+         GT
+         #+END_SRC
+      3) =Show=: Members of =Show= can be presented as strings. The
+         most used function that deals with the =Show= typeclass is
+         =show=. It takes a value whose type is a member of Show and
+         presents it to us as a string.
+      4) =Read= is sort of the opposite typeclass of =Show=. The
+         =read= function takes a string and returns a type which is a
+         member of =Read=
+         #+BEGIN_SRC
+         ghci> read "True" || False
+         True
+         ghci> read "8.2" + 3.8
+         12.0
+         ghci> read "5" - 2
+         3
+         ghci> read "[1,2,3,4]" ++ [3]
+         [1,2,3,4,3]
+         #+END_SRC
+      5) =Enum= members are sequentially ordered types. Types in this
+         class: (), Bool, Char, Ordering, Int, Integer, Float and
+         Double.
 
-      3) Show
+         #+BEGIN_SRC
+         ghci> ['a'..'e']
+         "abcde"
+         ghci> [LT .. GT]
+         [LT,EQ,GT]
+         ghci> [3 .. 5]
+         [3,4,5]
+         ghci> succ 'B'
+         'C'
+         ghci> pred 'B'
+         'A'
+         #+END_SRC
+      6) =Bounded= members have an upper and a lower bound.
+         #+BEGIN_SRC
+         ghci> minBound :: Int
+         -2147483648
+         ghci> maxBound :: Char
+         '\1114111'
+         ghci> maxBound :: Bool
+         True
+         ghci> minBound :: Bool
+         False
+         ghci> maxBound :: (Bool, Int, Char)
+         (True,2147483647,'\1114111')
+         #+END_SRC
+      7) =Num= is a numeric typeclass. Its members have the property of
+         being able to act like numbers. Let's examine the type of a
+         number.
+         #+BEGIN_SRC
+         ghci> 20 :: Int
+         20
+         ghci> 20 :: Integer
+         20
+         ghci> 20 :: Float
+         20.0
+         ghci> 20 :: Double
+         20.0
+         ghci> :t (*)
+         (*) :: (Num a) => a -> a -> a
+         #+END_SRC
+      8) =Integral= is also a numeric typeclass. =Num= includes all
+         numbers, including real numbers and integral numbers,
+         Integral includes only integral (whole) numbers.
 
-      4) Read
+      9) =Floating= includes only floating point numbers, so =Float= and
+         =Double=.
 
-      5)
+
+
+
+    - explicit type annotations: are a way of explicitly saying what
+      the type of an expression should be. We do that by adding =::= at
+      the end of the expression and then specifying a type.
+      #+BEGIN_SRC
+      ghci> read "5" :: Int
+      5
+      ghci> read "5" :: Float
+      5.0
+      ghci> (read "5" :: Float) * 4
+      20.0
+      #+END_SRC
+    - A very useful function for dealing with numbers is
+      =fromIntegral=. It has a type declaration of:
+      #+BEGIN_SRC
+      ghci> :t fromIntegral
+      fromIntegral :: (Num b, Integral a) => a -> b
+      #+END_SRC
+      From its type signature we see that it takes an integral number
+      and turns it into a more general number. That's useful when you
+      want integral and floating point types to work together
+      nicely. For instance, the =length= function has a type declaration
+      of =length :: [a] -> Int= instead of having a more general type of:
+      #+BEGIN_SRC
+      (Num b) => length :: [a] -> b.
+      #+END_SRC
+      If we try to get a length of a list and then add it to 3.2,
+      we'll get an error because we tried to add together an Int and a
+      floating point number. So to get around this, we do =fromIntegral=
+      =(length [1,2,3,4]) + 3.2= and it all works out.
+
+* pattern matching
+e.g.1
+#+BEGIN_SRC haskell
+factorial :: (Integral a) => a -> a
+factorial 0 = 1
+factorial n = n * factorial (n - 1)
+#+END_SRC
+
+e.g.2
+#+BEGIN_SRC haskell
+first :: (a, b, c) -> a
+first (x, _, _) = x
+
+second :: (a, b, c) -> b
+second (_, y, _) = y
+
+third :: (a, b, c) -> c
+third (_, _, z) = z
+#+END_SRC
+
+you can also pattern match in list comprehensions. Check this out:
+e.g.3
+#+BEGIN_SRC
+ghci> let xs = [(1,3), (4,3), (2,4), (5,3), (5,6), (3,1)]
+ghci> [a+b | (a,b) <- xs]
+[4,7,6,8,11,4]
+#+END_SRC
+
+e.g.4
+#+BEGIN_SRC haskell
+head' :: [a] -> a
+head' [] = error "Can't call head on an empty list, dummy!"
+head' (x:_) = x  -- note the parentheses
+#+END_SRC
+
+e.g.5
+#+BEGIN_SRC
+length' :: (Num b) => [a] -> b
+length' [] = 0
+length' (_:xs) = 1 + length' xs
+#+END_SRC
+
+e.g.6
+#+BEGIN_SRC haskell
+tell :: (Show a) => [a] -> String
+tell [] = "The list is empty"
+tell (x:[]) = "The list has one element: " ++ show x
+tell (x:y:[]) = "The list has two elements: " ++ show x ++ " and " ++ show y
+tell (x:y:_) = "This list is long. The first two elements are: " ++ show x ++ " and " ++ show y
+#+END_SRC
+
+** pattern
+a handy way of breaking something up according to a pattern and
+binding it to names whilst still keeping a reference to the whole
+thing.
+#+BEGIN_SRC
+capital :: String -> String
+capital "" = "Empty string, whoops!"
+capital all@(x:xs) = "The first letter of " ++ all ++ " is " ++ [x]
+#+END_SRC
+
+** Guards
+Note that there's no = right after the function name and its
+parameters, before the first guard.
+
+e.g.1
+#+BEGIN_SRC haskell
+bmiTell :: (RealFloat a) => a -> a -> String
+bmiTell weight height
+    | weight / height ^ 2 <= 18.5 = "You're underweight, you emo, you!"
+    | weight / height ^ 2 <= 25.0 = "You're supposedly normal. Pffft, I bet you're ugly!"
+    | weight / height ^ 2 <= 30.0 = "You're fat! Lose some weight, fatty!"
+    | otherwise                 = "You're a whale, congratulations!" -- otherwise is a keywoard, you can't say foo instead
+#+END_SRC
+
+Note: Not only can we call functions as infix with backticks, we can
+also define them using backticks. Sometimes it's easier to read that
+way.
+
+e.g.2
+#+BEGIN_SRC haskell
+myCompare :: (Ord a) => a -> a -> Ordering
+a `myCompare` b
+    | a > b     = GT
+    | a == b    = EQ
+    | otherwise = LT
+#+END_SRC
+
+** where
+=where= bindings are a *syntactic construct* (not expression) that let you bind to
+variables at the end of a function and the whole function can see
+them, including all the guards.
+
+#+BEGIN_SRC haskell
+bmiTell :: (RealFloat a) => a -> a -> String
+bmiTell weight height
+    | bmi <= skinny = "You're underweight, you emo, you!"
+    | bmi <= normal = "You're supposedly normal. Pffft, I bet you're ugly!"
+    | bmi <= fat    = "You're fat! Lose some weight, fatty!"
+    | otherwise     = "You're a whale, congratulations!"
+    where bmi = weight / height ^ 2
+          (skinny, normal, fat) = (18.5, 25.0, 30.0)
+#+END_SRC
+or
+#+BEGIN_SRC haskell
+calcBmis :: (RealFloat a) => [(a, a)] -> [a]
+calcBmis xs = [bmi w h | (w, h) <- xs]
+    where bmi weight height = weight / height ^ 2
+#+END_SRC
+
+** let
+#+BEGIN_SRC
+let <bindings> in <expression>
+#+END_SRC
+=let= bindings let you bind to variables anywhere and are expressions
+themselves, but are very local, so they don't span across guards. Just
+like any construct in Haskell that is used to bind values to names,
+let bindings can be used for pattern matching.
+
+#+BEGIN_SRC haskell
+cylinder :: (RealFloat a) => a -> a -> a
+cylinder r h =
+    let sideArea = 2 * pi * r * h
+        topArea = pi * r ^2
+    in  sideArea + 2 * topArea
+#+END_SRC
+
+=let= bindings are expressions themselves. =where= bindings are just
+syntactic constructs.
+#+BEGIN_SRC
+ghci> 4 * (let a = 9 in a + 1) + 2
+42
+
+ghci> (let a = 100; b = 200; c = 300 in a*b*c, let foo="Hey "; bar = "there!" in foo ++ bar)
+(6000000,"Hey there!")
+
+ghci> (let (a,b,c) = (1,2,3) in a+b+c) * 100
+600
+#+END_SRC
+
+*** let in list comprehensions
+ You can also put =let= bindings inside list comprehensions.
+
+ #+BEGIN_SRC haskell
+ calcBmis :: (RealFloat a) => [(a, a)] -> [a]
+ calcBmis xs = [bmi | (w, h) <- xs, let bmi = w / h ^ 2]
+ #+END_SRC
+
+ We include a =let= inside a list comprehension much like we would a
+ predicate, only it doesn't filter the list, it only binds to
+ names. The names defined in a let inside a list comprehension are
+ visible to the output function (the part before the |) and all
+ predicates and sections that come after of the binding. So we could
+ make our function return only the BMIs of fat people:
+
+ #+BEGIN_SRC
+ calcBmis :: (RealFloat a) => [(a, a)] -> [a]
+ calcBmis xs = [bmi | (w, h) <- xs, let bmi = w / h ^ 2, bmi >= 25.0]
+ #+END_SRC
+
+ We can't use the bmi name in the =(w, h) <- xs= part because it's
+ defined prior to the let binding.
+
+ We omitted the in part of the =let= binding when we used them in list
+ comprehensions because the visibility of the names is already
+ predefined there. However, we could use a =let= in binding in a
+ predicate and the names defined would only be visible to that
+ predicate.
+
+** Case expressions
+#+BEGIN_SRC
+case expression of pattern -> result
+                   pattern -> result
+                   pattern -> result
+                   ...
+#+END_SRC
+
+These two are equivalent
+#+BEGIN_SRC haskell
+head' :: [a] -> a
+head' [] = error "No head for empty lists!"
+head' (x:_) = x
+#+END_SRC
+
+#+BEGIN_SRC haskell
+head' :: [a] -> a
+head' xs = case xs of [] -> error "No head for empty lists!"
+                      (x:_) -> x
+#+END_SRC
+
+example
+#+BEGIN_SRC haskell
+describeList :: [a] -> String
+describeList xs = "The list is " ++ case xs of [] -> "empty."
+                                               [x] -> "a singleton list."
+                                               xs -> "a longer list."
+
+#+END_SRC
+is equivalent of
+#+BEGIN_SRC haskell
+describeList :: [a] -> String
+describeList xs = "The list is " ++ what xs
+    where what [] = "empty."
+          what [x] = "a singleton list."
+          what xs = "a longer list."
+#+END_SRC

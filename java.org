@@ -183,3 +183,83 @@ int* a = new int[100]; // C++
 In Java, the [] operator is predefined to perform bounds
 checking. Furthermore, there is no pointer arithmetic—you can’t
 increment a to point to the next element in the array.
+
+* OO in java
+- A constructor has the same name as the class.
+- A class can have more than one constructor.
+- A constructor can take zero, one, or more parameters.
+- A constructor has no return value.
+- A constructor is always called with the new operator.
+- Class-Based Access Privileges: a method can access the private data
+  of all objects of its class
+- Final Instance Fields: You can define an instance field as
+  final. Such a field must be initialized when the object is
+  constructed.The final modifier is particularly useful for fields
+  whose type is primitive or an immutable class. (A class is immutable
+  if none of its methods ever mutate its objects.  For example, the
+  String class is immutable.). For mutable classes, the final modifier
+  can be confusing. The final keyword merely means that the object
+  reference stored in the variable will never again refer to a
+  different object. But the object can be mutated:
+** Static field
+If you define a field as static, then there is only one such field per
+class. In contrast, each object has its own copy of all instance
+fields.
+
+In some object-oriented programming languages, static fields are
+called class fields. The term “static” is a meaningless holdover from
+C++.
+** Static Methods
+
+Use static methods in two situations:
+
+- When a method doesn’t need to access the object state because all
+  needed parameters are supplied as explicit parameters (example:
+  =Math.pow=).
+
+- When a method only needs to access static fields of the class
+
+** Call By copy of reference
+
+Many programming languages (in particular, C++ and Pascal) have two
+mecha- nisms for parameter passing: call by value and call by
+reference. Some program- mers (and unfortunately even some book
+authors) claim that Java uses call by reference for objects. That is
+false. Java programming language does not use call by reference for
+objects. Instead, object references are passed by value.
+
+Here is a summary of what you can and cannot do with method parameters
+in Java:
+
+- A method cannot modify a parameter of a primitive type (that is,
+  numbers or boolean values).
+- A method can change the state of an object parameter.
+- A method cannot make an object parameter refer to a new object.
+
+** Overloading
+Some classes have more than one constructor.
+
+NOTE: Java allows you to overload any method—not just constructor
+methods.  Thus, to completely describe a method, you need to specify
+its name together with its parameter types. This is called the
+signature of the method. For example, the String class has four public
+methods called indexOf . They have signatures
+
+=indexOf(int)=
+=indexOf(int, int)=
+=indexOf(String)=
+=indexOf(String, int)=
+
+The return type is not part of the method signature. That is, you
+cannot have two meth
+
+** Default Field Initialization
+
+If you don’t set a field explicitly in a constructor, it is
+automatically set to a default value: numbers to 0 , boolean values to
+false , and object references to null.
+
+NOTE: This is an important difference between fields and local
+variables. You must always explicitly initialize local variables in a
+method. But in a class, if you don’t initialize a field, it is
+automatically initialized to a default (0 , false, or null).
