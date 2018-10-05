@@ -1,0 +1,79 @@
+- =scale=
+#+BEGIN_SRC js
+const newRamp = d3.scaleLinear().domain([500000,13000000]).range(["blue", "red"]);
+newRamp(1000000);
+newRamp(9000000);
+#+END_SRC
+
+- =.enter= and =.exit=
+#+BEGIN_SRC js
+const cities = d3.csvParse(`"label","population","country","x","y"
+"San Francisco", 750000,"USA",122,-37
+"Fresno", 500000,"USA",119,-36
+"Lahore",12500000,"Pakistan",74,31
+"Karachi",13000000,"Pakistan",67,24
+"Rome",2500000,"Italy",12,41
+"Naples",1000000,"Italy",14,40
+"Rio",12300000,"Brazil",-43,-22
+"Sao Paolo",12300000,"Brazil",-46,-23`);
+
+d3
+  .select("body")
+  .selectAll("div.cities")
+  .data(cities)
+  .enter()
+  .append("div")
+  .attr("class", "cities")
+  .html(d => d.label);
+#+END_SRC
+When binding data to selections, there will be either more, less, or
+the same number of DOM elements as there are data values. When you
+have more data values than DOM elements in the selection, you trigger
+the =.enter()= function, which allows you to define behavior to perform
+for every value that doesn’t have a corresponding DOM element in the
+selection. In our case, =.enter()= fires eight times, because no DOM
+ele- ments correspond to "=div.cities=" and our incomingData array
+contains eight val- ues. When fewer data elements exist, then =.exit()=
+behavior is triggered, and when data values and DOM elements are equal
+in a selection, then neither =.exit()= nor =.enter()= is fired.
+
+=d3.mean= => the average of values
+
+A =polylinear= scale is a linear scale with multiple points in the =domain= and =range=.
+e.g
+
+#+BEGIN_SRC js
+d3.scaleLinear().domain([0,100,500]).range([0,50,100]);
+#+END_SRC
+
+
+By default, a D3 scale continues to extrapolate values greater than
+the maximum domain value and less than the minimum domain value. If we
+want it to set all such values to the maximum (for greater) or minimum
+(for lesser) range value, we need to use the =.clamp()= function:
+
+#+BEGIN_SRC js
+var yScale = d3.scaleLinear()
+.domain([0,100,500])
+.range([0,50,100])
+.clamp(true);
+#+END_SRC
+
+*Infoviz term*: channels When you represent data using graphics, you
+need to consider the best visual meth- ods to represent the types of
+data you’re working with. Each graphical object, as well as the whole
+display, can be broken down into component channels that relay infor-
+mation visually. These channels, such as height, width, area, color,
+position, and shape, are particularly well suited to represent
+different classes of information. For instance, if you represent
+magnitude by changing the size of a circle, and if you create a direct
+correspondence between radius and magnitude, then your readers will be
+confused, because we tend to recognize the area of a circle rather
+than its radius.  Channels also exist at multiple levels, and several
+techniques use hue, saturation, and value to represent three different
+pieces of information, rather than using color more generically.  The
+important thing here is to avoid using too many channels, and instead
+focus on us- ing the channels most suitable to your data. If you
+aren’t varying shape, for instance, if you’re using a bar chart where
+all the shapes are rectangles, then you can use color for category and
+value (lightness) to represent magnitude.

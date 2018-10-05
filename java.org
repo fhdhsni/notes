@@ -1,4 +1,17 @@
+* A few thing about java
+  - Simple
+  - OO
+  - Distributed
+  - Robust
+  - Secure
+  - Architecture neutral
+  - Portable
+  - Originally interpreted (nowadays GIT)
+  - Multithreaded
 * Eight primitive types
+
+  - Note taken on [2018-09-01 Sat 10:05] \\
+    *not perimitive but there's a =BigInteger= and a =BigDecimal=*
 
 1) int
     | type  | storage requirement | range                                                   |
@@ -8,16 +21,16 @@
     | long  | 8 bytes             | –9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 |
     | byte  | 1 byte              | –128 to 127                                             |
 
-    Note that Java does not have any unsigned versions of the int , long , short , or byte
-    types.
+    Note that Java does not have any unsigned versions of the =int=,
+   =long=, =short= or =byte= types.
 5) float
     | Type   | Storage Requirement | Range                                                                   |
     |--------+---------------------+-------------------------------------------------------------------------|
     | float  | 4 bytes             | Approximately ±3.40282347E+38F (6–7 significant decimal digits)         |
     | double | 8 bytes             | Approximately ±1.79769313486231570E+308 (15 significant decimal digits) |
 7) char
+   16 bit value
 8) boolean
-
 * char
 Java was designed from the ground up to use 16-bit Unicode
 characters. How they solved this issue when unicode grew beyond 65,536
@@ -36,19 +49,48 @@ characters?
 
 * Bitwise Operators
 
--  & (bitwise AND)
--  | (bitwise OR)
--  ~ (bitwise NOT)
--  ^ (bitwise XOR)
--  << (bitwise left shift)
--  >> (bitwise right shift)
--  >>> (bitwise unsigned right shift)
--  &= (bitwise AND assignment)
--  |= (bitwise OR assignment)
--  ^= (bitwise XOR assignment)
--  <<= (bitwise left shift and assignment)
--  >>= (bitwise right shift and assignment)
--  >>>= (bitwise unsigned right shift and assignment)
+- & (bitwise AND)
+- | (bitwise OR)
+- ~ (bitwise NOT)
+- ^ (bitwise XOR)
+- << (bitwise left shift)
+- >> (bitwise right shift)
+- >>> (bitwise unsigned right shift)
+- &= (bitwise AND assignment)
+- |= (bitwise OR assignment)
+- ^= (bitwise XOR assignment)
+- <<= (bitwise left shift and assignment)
+- >>= (bitwise right shift and assignment)
+- >>>= (bitwise unsigned right shift and assignment)
+
+* Enum
+  a type with a restricted set of values
+#+BEGIN_SRC java
+enum Size { SMALL, MEDIUM, LARGE };
+
+Size s = Size.SMALL;
+#+END_SRC
+
+you also can add constructors, methods, fields
+#+BEGIN_SRC java
+  enum Size {
+    SMALL("S"), MEDIUM("M"), LARGE("L"), EXTRA_LARGE("XL");
+
+    private String abbreviation;
+
+    private Size(String abbreviation) { this.abbreviation = abbreviation; }
+
+    public String getAbbreviation() { return this.abbreviation; }
+  }
+#+END_SRC
+
+All enumeration classes are subclasses of Enum and inherit methods:
+- =toString= - yields the name "SMALL", "MEDIUM",...
+- =ordinal= yields the position 0, 1,...
+
+Useful static methods:
+- =Enum.valueOf(Size.Class, "SMALL")= // yields Size.SMALL
+- =Size.values()= yields all the values in a array of type =Size[]=
 
 * Parentheses and Operator Hierarchy
 
@@ -164,6 +206,7 @@ constructor.
 #+BEGIN_SRC
 String str = new String(codePoints, 0, codePoints.length);
 #+END_SRC
+* input
 * Arrays
 C++ NOTE: A Java array is quite different from a C++ array on the
 stack. It is, however, essentially the same as a pointer to an array
@@ -184,6 +227,33 @@ In Java, the [] operator is predefined to perform bounds
 checking. Furthermore, there is no pointer arithmetic—you can’t
 increment a to point to the next element in the array.
 
+- Array initializer
+#+BEGIN_SRC java
+int[] smallPrimes = { 2, 3, 5, 7, 11, 13 };
+#+END_SRC
+- Anonymous array
+#+BEGIN_SRC java
+new int[] {17, 19, 23, 29, 31, 37}
+#+END_SRC
+- use =Arrays.copyOf= to make a true copy
+
+- Multidimensional Array
+#+BEGIN_SRC java
+  int[][] magicSquare =
+  {
+    {16, 3, 2, 13},
+    {5, 10, 11, 8},
+    {9, 6, 7, 12},
+    {4, 15, 14, 1},
+  }
+    // without initializer
+int[][] magicSquare = int[ROWS][COLUMNS]
+#+END_SRC
+- if the rows have different lengths, the array is "ragged"
+#+BEGIN_SRC java
+int [][] triangle = new int[ROWS][];
+for (int i = 0; i < ROWS; i++) triangle[i] = new int[i + 1];
+#+END_SRC
 * OO in java
 - A constructor has the same name as the class.
 - A class can have more than one constructor.
@@ -219,11 +289,13 @@ Use static methods in two situations:
 
 - When a method only needs to access static fields of the class
 
+- the =main= method is =static= because no object have been constructed when the program starts.
+
 ** Call By copy of reference
 
 Many programming languages (in particular, C++ and Pascal) have two
-mecha- nisms for parameter passing: call by value and call by
-reference. Some program- mers (and unfortunately even some book
+mechanisms for parameter passing: call by value and call by
+reference. Some programmers (and unfortunately even some book
 authors) claim that Java uses call by reference for objects. That is
 false. Java programming language does not use call by reference for
 objects. Instead, object references are passed by value.
@@ -263,3 +335,304 @@ NOTE: This is an important difference between fields and local
 variables. You must always explicitly initialize local variables in a
 method. But in a class, if you don’t initialize a field, it is
 automatically initialized to a default (0 , false, or null).
+** Calling Another Constructor
+If the first statement of a constructor has the form this(. . .) ,
+then the constructor calls another constructor of the same class. Here
+is a typical example:
+
+#+BEGIN_SRC java
+public Employee(double s)
+{
+    // calls Employee(String, double)
+    this("Employee #" + nextId, s);
+    nextId++;
+}
+#+END_SRC
+
+** Initialization Blocks
+Class declarations can contain arbitrary blocks of code. These blocks
+are executed whenever an object of that class is constructed. For
+example:
+#+BEGIN_SRC java
+  class Employee
+  {
+    private static int nextId;
+    private int id;
+    private String name;
+    private double salary;
+    // object initialization block
+    {
+      id = nextId;
+      nextId++;
+    }
+    static {
+    }
+    public Employee(String n, double s)
+    {
+      name = n;
+      salary = s;
+    }
+    public Employee()
+    {
+      name = "";
+      salary = 0;
+    }
+    . . .
+  }
+#+END_SRC
+The initialization block runs first, and then the body of the
+constructor is executed.
+** package
+- Java allows you to group classes in a collection called a =package=.
+
+C++ NOTE: C++ programmers sometimes confuse import with #include . The
+two have nothing in common. In C++, you must use #include to include
+the declarations of external features because the C++ compiler does
+not look inside any files except the one that it is compiling and its
+explicitly included header files. The Java compiler will happily look
+inside other files provided you tell it where to look.  In Java, you
+can entirely avoid the import mechanism by explicitly naming all
+classes, such as java.util.Date . In C++, you cannot avoid the
+#include directives.  The only benefit of the import statement is
+convenience. You can refer to a class by a name shorter than the full
+package name. For example, after an import java.util.* (or import
+java.util.Date) statement, you can refer to the java.util.Date class
+simply as Date.  In C++, the construction analogous to the package
+mechanism is the namespace feature. Think of the package and import
+statements in Java as the analogs of the namespace and using
+directives in C++.
+
+- packages do not nest. No relationship between =java.util= and =java.util.jar=
+
+*** Static Imports
+A form of the =import= statement permits the importing of static methods
+and fields, not just classes.
+#+BEGIN_SRC java
+import static java.lang.System.*;
+// ...stuff
+out.println("Goodbye, World!"); // i.e., System.out
+exit(0); // i.e., System.exit
+#+END_SRC
+
+*** Addition of a Class into a Package
+
+  To place classes inside a package, you must put the name of the
+  package at the top of your source file, before the code that defines
+  the classes in the package. For example, the file Employee.java starts
+  out like this:
+  #+BEGIN_SRC java
+  package com.horstmann.corejava;
+
+  public class Employee
+  {
+  // . . .
+  }
+  #+END_SRC
+
+  If you don’t put a package statement in the source file, then the
+  classes in that source file belong to the default package. The default
+  package has no package name. Up to now, all our example classes were
+  located in the default package.  Place source files into a
+  subdirectory that matches the full package name. For example, all
+  source files in the =com.horstmann.corejava= package should be in a
+  subdirectory =com/horstmann/corejava=. The compiler places the class
+  files into the same directory structure.
+  #+BEGIN_SRC
+  .
+  ├── com
+  │  └── horstmann
+  │     └── corejava
+  │        └── Employee.java // it has package com.horstmann.corejava;
+  └── PackageTest.java // it has import com.horstmann.corejava.*;
+  #+END_SRC
+*** package scope
+If you don’t specify either =public= or =private=, the feature (that is,
+the class, method, or variable) can be accessed by all methods in the
+same package.
+*** class path
+As you have seen, classes are stored in subdirectories of the file
+system. The path to the class must match the package name.
+
+Class files can also be stored in a JAR (Java archive) file. A JAR
+file contains multiple class files and subdirectories in a compressed
+format, saving space and improving performance.
+
+The class path is the collection of all locations that can
+contain class files.
+
+To share classes among programs, you need to do the following:
+
+1. Place your class files inside a directory, for example,
+   =/home/user/classdir=. Note that this directory is the base
+   directory for the package tree. If you add the class
+   =com.horstmann.corejava.Employee=, then the =Employee.class= file must
+   be located in the subdirectory =/home/user/classdir/com/horstmann/corejava=.
+2. Place any JAR files inside a directory, for example, =/home/user/archives=.
+3. Set the class path. The class path is the collection of all
+   locations that can contain class files.
+
+In UNIX, the elements on the class path are separated by colons:
+=/home/user/classdir:.:/home/user/archives/archive.jar=
+the period denotes the current directory.
+
+This class path contains
+- The base directory =/home/user/classdir=
+- The current directory (.); and
+- The JAR file =/home/user/archives/archive.jar=
+
+The runtime library files (rt.jar and the other JAR files in the
+jre/lib and jre/lib/ext directories) are always searched for classes;
+don’t include them explicitly in the class path.
+
+The class path lists all directories and archive files that are
+starting points for locating classes. Let’s consider our sample class
+path: =/home/user/classdir:.:/home/user/archives/archive.jar=
+
+Suppose the virtual machine searches for the class file of the
+=com.horstmann.corejava.Employee= class.  It first looks in the system
+class files that are stored in archives in the =jre/lib= and =jre/lib/ext=
+directories. It won’t find the class file there, so it turns to the
+class path. It then looks for the following files:
+
+- =/home/user/classdir/com/horstmann/corejava/Employee.class=
+- =com/horstmann/corejava/Employee.class= starting from the current directory
+- =com/horstmann/corejava/Employee.class= inside =/home/user/archives/archive.jar=
+
+you can import nonpublic classes from the current package. These
+classes may be defined in source files with different names. If you
+import a class from the current package, the compiler searches all
+source files of the current package to see which one defines the
+class.
+
+**** Setting the Class Path
+It is best to specify the class path with the =-classpath= (or =-cp= ) option:
+=java -classpath /home/user/classdir:.:/home/user/archives/archive.jar MyProg=
+*** Object: The Cosmic Superclass
+- Only primitive types are not object
+- =Object= has useful methods: =equals=, =hashCode=, =toString=
+*** To implement =equals= the parameter has to have the type =Object=
+
+- Remember to override =hashCode= when you override =equals=
+
+#+BEGIN_SRC java
+  public boolean equals(Object otherObject) {
+    if(this == otherObject) return true;
+    if(otherObject == null) return false;
+    if(this.getClass() != otherObject.getClass()) return false;
+
+    Employee other = (Employee) otherObject;
+
+    return this.getId() == other.getId();
+  }
+#+END_SRC
+
+**** The =equals= method needs to be
+- Reflexive, =x.equals(x)=
+- Symmetric, if =x.equals(y)= then =y.equals(x)=
+- Transitive, if =x.equals(y)= and =y.equals(z)= then =x.equals(z)=
+** ArrayList
+   :CAUTION:
+   - Don't use == for Integer comparison
+   - =Integer= can be =null= but =int= can't
+   :END:
+Manages an =Object[]= array that grows and shrinks on demand
+#+BEGIN_SRC java
+ArrayList<Employee> staff = new ArrayList<>();
+#+END_SRC
+
+- It can only hold objects not permitives but we can do the following
+  because of wrapper classes
+#+BEGIN_SRC java
+ArrayList<Integer> list = new ArrayList<>();
+list.add(3); // same as list.add(Integer.valueOf(3))
+int n = list.get(i); // same as list.get(i).intValue()
+#+END_SRC
+** Methods with variable number of parameters
+#+BEGIN_SRC java
+
+#+END_SRC
+* Interfaces and Lambda expressions
+
+** Interfaces
+- set of requirements for classes
+- A class choose to =implement= one or more interfaces
+    #+BEGIN_SRC java
+      public interface Comparable<T> {
+        int compareTo(T other); // automatically public
+      }
+
+
+      public class Employee implements Comparable<Employee> {
+        public int compareTo(Employee other) {
+          return Double.compare(this.salary, otherSalary);
+        }
+      }
+
+      // now we can sort an array of Employee objects
+      Employee[] staff = getAlltheStaff();
+      Array.sort(staff);
+    #+END_SRC
+- in java 8 you're allowed to put static methods in interfaces
+  #+BEGIN_SRC java
+    public interface Path {
+      public static Path get(String first, String... more) {
+        return FileSystems.getDefault().getPath(first, more);
+      }
+      // ...
+    }
+  #+END_SRC
+- you can also supply a =default= implemention for any interface method
+  #+BEGIN_SRC java
+    public interace Comparable<T> {
+      default compareTo(T other) {
+        return 0;
+      }
+    }
+  #+END_SRC
+- a =default= interface can call and abstract method
+  #+BEGIN_SRC java
+    public interface Collection {
+
+      int size(); // an abstract method
+
+      default boolean isEmpty() { return size() == 0; }
+    }
+  #+END_SRC
+- in java 9 you can have =private= and =private static= methods. They
+  can not be called by any class that implements the interface.
+** Lambda
+- Functional interface: an interface with a single abstract method. e.g. =Comparator=
+- Lambda expressions can be used wherever a functional interface value is expected
+#+BEGIN_SRC java
+Arrays.sort(words, (first, second) -> first.length() - second.length())
+#+END_SRC
+- =java.util.function= package defines generic functional interfaces
+  #+BEGIN_SRC java
+    public interface predicate<T> {
+      boolean test(T t);
+    }
+
+    public interface BiFunction<T, U, R> {
+      R apply(T t, U u);
+    }
+  #+END_SRC
+- method reference
+  consider a lambda expression that calls a single method
+  #+BEGIN_SRC java
+    Timer t = new Timer(1000, event -> System.out.println(event));
+  #+END_SRC
+  can become
+  #+BEGIN_SRC java
+    Timer t = new Timer(1000, System.out::println);
+  #+END_SRC
+  we can use the following
+  - object::instanceMethod
+  - Class::staticMethod
+  - Class::instanceMethod
+
+- constructor reference
+  #+BEGIN_SRC java
+  Person::new
+  // same as
+  s -> new Person(s)
+  #+END_SRC

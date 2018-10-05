@@ -1,19 +1,53 @@
+* Generics
+|------------------------------+-----------+--------------|
+| Job                          | Key       | Note         |
+|------------------------------+-----------+--------------|
+| Insert a link                | C-c C-l   |              |
+| Open a link                  | C-c C-o   |              |
+| Store a link                 | C-c l     |              |
+| Export                       | C-c C-e   |              |
+| Tile of document             | #+TITILE  |              |
+| Setting options for document | #+OPTIONS | e.g. toc:nil |
+| Evaluate a block of code     | C-c C-c   |              |
+|------------------------------+-----------+--------------|
 
-|-------------------------------------+-------------+---------------------|
-| Job                                 | Key         | Note                |
-|-------------------------------------+-------------+---------------------|
-| Insert a link                       | C-c C-l     |                     |
-| Open a link                         | C-c C-o     |                     |
-| Store a link                        | C-c l       |                     |
-| Org-agend                           | C-c a       |                     |
-| Export                              | C-c C-e     |                     |
-| Tile of document                    | #+TITILE    |                     |
-| Setting options for document        | #+OPTIONS   | e.g. toc:nil        |
-| Evaluate a block of code            | C-c C-c     |                     |
-|-------------------------------------+-------------+---------------------|
-| Make a TODO list                    | S-M-enter   | or S-right / S-left |
-| Cycle through TODO states           | C-c C-t     |                     |
-| Modify time stap of done TODO lists | S-arrowKeys |                     |
-| Atach a deadline to a TODO list     | C-c C-d     |                     |
-| Agenda                              | C-c C-a     |                     |
-|-------------------------------------+-------------+---------------------|
+
+
+* Todo and Agenda
+
+|----------------------------------------------------------------------------------+-------------+---------------------------------------------|
+| Job                                                                              | Key         | Note                                        |
+|----------------------------------------------------------------------------------+-------------+---------------------------------------------|
+| Make a TODO list                                                                 | C-S-enter   | or S-right / S-left                         |
+| Make a checklist                                                                 | M-S-enter   |                                             |
+| update checklist tracker (to add the tracker type [/] in front of their parents) | C-c #       |                                             |
+| Cycle through TODO states                                                        | C-c C-t     |                                             |
+| Add Tag                                                                          | C-c C-q     |                                             |
+| Modify time stap of done TODO lists                                              | S-arrowKeys |                                             |
+| org-agenda                                                                       | C-c a       |                                             |
+| follow mode                                                                      | S-f         |                                             |
+| Atach a deadline to a TODO list                                                  | C-c C-d     |                                             |
+| Schedule                                                                         | C-c C-s     | e.g <2018-09-08 Sat 16:00-17:00>            |
+| Deadline                                                                         | C-c C-d     |                                             |
+| move forward                                                                     | f           | in Org-Agenda mode                          |
+| move backward                                                                    | b           |                                             |
+| next occurrence in one week                                                      |             | +1w, e.g <2018-09-08 Sat 16:00-17:00 +1w>   |
+| next occurrence in one week but definitely in future                             |             | ++1w, e.g <2018-09-08 Sat 16:00-17:00 +1w>  |
+| next occurrence in one week after it is marked as done                           |             | .+1w, e.g <2018-09-08 Sat 16:00-17:00 .+1w> |
+|----------------------------------------------------------------------------------+-------------+---------------------------------------------|
+
+* Drawer
+|---------+---------+-------------------------------------|
+| Job     | Key     | Note                                |
+|---------+---------+-------------------------------------|
+| LOGBOOK | C-c C-z | insert a note into a LOGBOOK drawer |
+|---------+---------+-------------------------------------|
+
+  :LOGBOOK:
+  - Note taken on [2018-09-09 Sun 11:21] \\
+    foobar
+  :END:
+
+:FOO:
+  blah blah blah
+:END:

@@ -166,7 +166,7 @@ to =use= (actually draw) later.
 
   <!-- use it -->
   <svg class="icon">
-    <use xlink:href="#two"></use>
+  <use xlink:href="#two"></use>
   </svg>
 #+END_SRC
 
@@ -379,7 +379,8 @@ capable of hiding parts of an image. But the distinction between them
 can be confusing, so let’s clear that up right now:
 
 - Clipping is created from vector paths. Anything outside the path is
-  hidden; anything inside is shown.
+   hidden; anything inside is shown.
+http://output.jsbin.com/hotaloz
 
 - Masking is created from images. Black parts of the image mask hide;
   white parts show through. Shades of gray force partial transparency

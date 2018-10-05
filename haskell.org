@@ -172,7 +172,6 @@ Beginning of joy <2018-05-24 Thu 15:01>
     rightTriangles --  [(6,8,10)]
     #+END_SRC
 
-<2018-05-25 Fri>
 
 - Types
   + The type of every expression is known at compile time.
@@ -576,4 +575,180 @@ describeList xs = "The list is " ++ what xs
     where what [] = "empty."
           what [x] = "a singleton list."
           what xs = "a longer list."
+#+END_SRC
+* recursion
+#+BEGIN_SRC haskell
+maximum' :: (Ord a) => [a] -> a
+maximum' [] = error "maximum of empty list"
+maximum' [x] = x
+maximum' (x:xs)
+    | x > maxTail = x
+    | otherwise = maxTail
+    where maxTail = maximum' xs
+#+END_SRC
+or yet better
+#+BEGIN_SRC haskell
+maximum' :: (Ord a) => [a] -> a
+maximum' [] = error "maximum of empty list"
+maximum' [x] = x
+maximum' (x:xs) = max x (maximum' xs)
+#+END_SRC
+
+#+BEGIN_SRC haskell
+replicate' :: (Num i, Ord i) => i -> a -> [a]
+replicate' n x
+    | n <= 0    = []
+    | otherwise = x:replicate' (n-1) x
+#+END_SRC
+Note: =Num= is not a subclass of =Ord=. That means that what constitutes
+for a number doesn't really have to adhere to an ordering. So that's
+why we have to specify both the =Num= and =Ord= class constraints when
+doing addition or subtraction and also comparison.
+
+#+BEGIN_SRC haskell
+take' :: (Num i, Ord i) => i -> [a] -> [a]
+take' n _
+    | n <= 0   = []
+take' _ []     = []
+take' n (x:xs) = x : take' (n-1) xs
+#+END_SRC
+
+#+BEGIN_SRC haskell
+reverse' :: [a] -> [a]
+reverse' [] = []
+reverse' (x:xs) = reverse' xs ++ [x]
+#+END_SRC
+
+#+BEGIN_SRC haskell
+repeat' :: a -> [a]
+repeat' x = x:repeat' x
+#+END_SRC
+
+#+BEGIN_SRC haskell
+zip' :: [a] -> [b] -> [(a,b)]
+zip' _ [] = []
+zip' [] _ = []
+zip' (x:xs) (y:ys) = (x,y):zip' xs ys
+#+END_SRC
+
+
+#+BEGIN_SRC haskell
+elem' :: (Eq a) => a -> [a] -> Bool
+elem' a [] = False
+elem' a (x:xs)
+    | a == x    = True
+    | otherwise = a `elem'` xs
+#+END_SRC
+
+
+#+BEGIN_SRC haskell
+quicksort :: (Ord a) => [a] -> [a]
+quicksort [] = []
+quicksort (x:xs) =
+    let smallerSorted = quicksort [a | a <- xs, a <= x]
+        biggerSorted = quicksort [a | a <- xs, a > x]
+    in  smallerSorted ++ [x] ++ biggerSorted
+#+END_SRC
+* HOF
+** sections
+Infix functions can also be partially applied by using sections. To
+section an infix function, simply surround it with parentheses and
+only supply a parameter on one side.
+
+#+BEGIN_SRC haskell
+divideByTen :: (Floating a) => a -> a
+divideByTen = (/10)
+#+END_SRC
+Calling, say, =divideByTen 200= is equivalent to doing =200 / 10=, as
+is doing =(/10) 200=
+
+#+BEGIN_SRC haskell
+isUpperAlphanum :: Char -> Bool
+isUpperAlphanum = (`elem` ['A'..'Z'])
+#+END_SRC
+The only special thing about sections is using -. From the definition
+of sections, (-4) would result in a function that takes a number and
+subtracts 4 from it. However, for convenience, (-4) means minus
+four. So if you want to make a function that subtracts 4 from the
+number it gets as a parameter, partially apply the subtract function
+like so: (subtract 4).
+
+#+BEGIN_SRC haskell
+hasNine :: (Foldable t, Eq a, Num a) => t a -> Bool
+hasNine = (elem 9) -- same as hasNine = (9 `elem`)
+hasNine [3,4] -- False
+hasNine [3,4,9] -- True
+#+END_SRC
+
+#+BEGIN_SRC
+ghci> f = (1:)
+ghci> f [2]
+[1,2]
+#+END_SRC
+
+#+BEGIN_SRC
+ghci> f = (:[2])
+ghci> f 1
+[1,2]
+#+END_SRC
+
+** Some higher-orderism is in order
+
+#+BEGIN_SRC haskell
+applyTwice :: (a -> a) -> a -> a
+applyTwice f x = f (f x)
+
+applyTwice (3:) [1]  -- [3,3,1]
+#+END_SRC
+
+#+BEGIN_SRC haskell
+zipWith' :: (a -> b -> c) -> [a] -> [b] -> [c]
+zipWith' _ [] _ = []
+zipWith' _ _ [] = []
+zipWith' f (x:xs) (y:ys) = f x y : zipWith' f xs ys
+#+END_SRC
+
+If the type declaration of a function says it accepts an =a -> b -> c=
+function as a parameter, it will also accept an =a -> a -> a=
+
+#+BEGIN_SRC haskell
+flip' :: (a -> b -> c) -> b -> a -> c
+flip' f y x = f x y
+#+END_SRC
+
+#+BEGIN_SRC
+ghci> flip' zip [1,2,3,4,5] "hello"
+[('h',1),('e',2),('l',3),('l',4),('o',5)]
+ghci> zipWith (flip' div) [2,2..] [10,8,6,4,2]
+[5,4,3,2,1]
+#+END_SRC
+
+#+BEGIN_SRC haskell
+map :: (a -> b) -> [a] -> [b]
+map _ [] = []
+map f (x:xs) = f x : map f xs
+#+END_SRC
+
+
+#+BEGIN_SRC haskell
+filter :: (a -> Bool) -> [a] -> [a]
+filter _ [] = []
+filter p (x:xs)
+    | p x       = x : filter p xs
+    | otherwise = filter p xs
+#+END_SRC
+
+#+BEGIN_SRC
+ghci> filter (>3) [1,5,3,2,1,6,4,3,2,1]
+[5,6,4]
+ghci> filter (==3) [1,2,3,4,5]
+[3]
+ghci> filter even [1..10]
+[2,4,6,8,10]
+ghci> let notNull x = not (null x) in filter notNull [[1,2,3],[],[3,4,5],[2,2],[],[],[]]
+[[1,2,3],[3,4,5],[2,2]]
+ghci> filter (`elem` ['a'..'z']) "u LaUgH aT mE BeCaUsE I aM diFfeRent"
+"uagameasadifeent"
+ghci> filter (`elem` ['A'..'Z']) "i lauGh At You BecAuse u r aLL the Same"
+"GAYBALLS"
 #+END_SRC
