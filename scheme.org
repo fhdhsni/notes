@@ -1,0 +1,21 @@
++ =atom=
+  - all atoms are S-expression
+  - lists are not atom
++ =car=
+  - takes any non-empty list
+  - return the first S-expression of the give list
++ =cdr=
+  - takes any non-empty list
+  - return the give list except for =(car l)= part
++ =cons=
+  - adds an atom to the front of a list
+  - =cons= takes two arguments: the first one is any S-expression; the second one is any list.
++ null list is
+  - =()=
++ =null?=
+  - defined only for lists
+  - =null?= asks if the given argument is the null list.
++ =eq?=
+  - takes two argument, both non-numeric atoms
++ =lat?=
+  - Every lat is a list of atoms

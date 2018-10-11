@@ -73,6 +73,7 @@ fi
 =^a c= to create a new window and use =^a n= and =^a p= to go to next ot previous window
 
 * regex
+https://jex.im/regulex/
 read =perldoc perlreref=
 
 =.= any character. e.g =echo 'hello beep boop' | sed 's/b..p/whatever/g' # hello whatever whatever=

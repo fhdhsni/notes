@@ -1,0 +1,84 @@
+* [[http://2ality.com/2012/09/expressions-vs-statements.html][Expressions versus statements in JavaScript]]
+  - An expression produces a value and can be written wherever a value is expected
+  - Roughly, a statement performs an action. Loops and if statements
+    are examples of statements. A program is basically a sequence of
+    statements (we’re ignoring declarations here)
+* new not as an operator but a method
+    #+BEGIN_SRC javascript
+
+    Function.prototype.new = function() {
+      const that = Object.create(this.prototype);
+      const result = this.apply(that, arguments);
+      return (
+        typeof result === 'object' && result !== null
+      ) ? result : that;
+    }
+
+
+    function Person(name) {
+      this.name = name;
+    }
+
+
+    const me = Person.new('Farhad')
+    console.log(me.name);
+
+    #+END_SRC
+* functional inheritance
+    #+BEGIN_SRC js
+      function gizmo(id) {
+        return {
+          toString: function() {
+            return "gizmo " + id // id is private
+          }
+        }
+      }
+
+      function hoozit(id) {
+        var that = gizmo(id)
+
+        that.test = function(testid) {
+          return id === testid // id is private
+        }
+
+        return that;
+      }
+    #+END_SRC
+* Two kinds of properties
+  - Data properties
+    + =value=
+    + =writable=
+    + =enumerable=
+    + =configurable= // you can delete it
+  - Accessor properties
+    + =enumerable=
+    + =configurable=
+    + =get=
+    + =set=
+
+* constructor
+
+#+BEGIN_SRC javascript
+  const constructor = init => {
+    const that = otherConstructor(init); // inheritance
+    let sampleMember; // private filed
+    sampleMethod = function() {}; // public method
+
+    that.method = method;
+
+    return that;
+  };
+
+  // or more modern
+  const constructor = spec => {
+    const { memeber } = spec;
+    const { other } = otherConstructor(spec); // thing that we want to inherit from, also solving banana problem
+    const sampleMethod = function() {};
+
+    return Object.freeze({
+      method,
+      other
+    });
+  };
+
+#+END_SRC

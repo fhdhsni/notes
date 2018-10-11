@@ -2,3 +2,38 @@
 2. floating point numbers
 3. push notification
 4. algebraic data types
+5.
+      #+BEGIN_SRC javascript
+      return
+      {
+          ok: true
+      }
+      #+END_SRC
+6. dynamic scoping vs lexical scoping
+7. function expression vs function declaration
+8. addEventListener third argument
+9. write about this
+   #+BEGIN_SRC javascript
+     const addg = x => {
+       if (x === undefined) {
+         return undefined;
+       }
+
+       let sofar = liftF(add)(x);
+
+       return function foo(y) {
+         if (y === undefined) {
+           return sofar(0);
+         }
+
+         sofar = liftF(add)(sofar(y));
+
+         return foo;
+       };
+     };
+
+     const res = addg(4)(3)();
+
+     console.log(res);
+
+   #+END_SRC

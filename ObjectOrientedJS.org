@@ -74,5 +74,5 @@
    - Which class was used to instantiate an object? we use /instanceof/ to acheive the answer.
    - /instanceof/ compares /prototype/ property of constuctor with /__proto__/ of object. If those are the same it returns true.
    - Remembre that /instanceof/ walks through prototype chain so an instance of a subclass is also instance of original class, becuase __proto__ of Mysubclass.prototype point to Myclass.prototype so that's what it is.
-** Object Oriented in ES6 
+** Object Oriented in ES6
    [[file:es6.org][ES6.org]]

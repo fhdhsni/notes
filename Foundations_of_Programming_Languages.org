@@ -1,0 +1,35 @@
+*Most notes from /Foundations Of Programming Languages/ course by Goethe Univesity of Frankfurt*
+
+- 64bit little-endian two's complement
+  + little-endian: the left most byte has the least significant
+    + significant: in number 123, 1 has the greatest significant and 3
+      has the least significant
+  + two's complement is related to how we represent negative numbers. [[file:bits.org][look at how bits work]]
+
+* 2OPM register
+| name                         | purpose             |
+|------------------------------+---------------------|
+| $v0                          | Return Value        |
+| $a0, $a1, $a2, $a3, $a4, $a5 | Arguments           |
+| $s0, $s1, $s2, $s3           | Saved registers     |
+| $t0, $t1                     | Temporary registers |
+| $sp                          | Stack Pointer       |
+| $fp                          | Frame Pointer       |
+| $gp                          | Global Pointer      |
+
+=$ps= program counter (address of next instruction): it can't be referenced directly
+
+** Basic Operators
+- =li= (load immediate)
+  #+BEGIN_SRC
+  li $t0, 2   # $t0 := 2
+  li $r, v    # load 64 bit value `v` into `$r`
+  #+END_SRC
+- =move= (Copy content of one register to another)
+  #+BEGIN_SRC
+  move $t1, $t0  # $t1 := $t0
+  #+END_SRC
+- =add= (addition)
+  #+BEGIN_SRC
+  add $r0, $r1  # add contents of `$r1` into `$r0`
+  #+END_SRC
