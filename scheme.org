@@ -1,3 +1,33 @@
+* Commandment
+1. The First Commandment: When recurring on a list of atoms, =lat=, ask
+   two questions about it: =(null? lat)= and =else=. When recurring on a
+   number, =n=, ask two questions about it: =(zero? n)= and =else=. When
+   recurring on a list of S-expressions, =l=, ask three question about
+   it: =(null? l)=, =(atom? (car l))=, and =else=.
+
+2. The Second Commandment: Use =cons= to build lists.
+3. The Third Commandment: When building a list, describe the first
+   typical element, and then =cons= it onto the natural recursion.
+
+4. The Fourth Commandment: Always change at least one argument while
+   recurring. When recurring on a list of atoms, =lat=, use =(cdr lat)=.
+   When recurring on a number, =n=, use =(sub1 n)=. And when
+   recurring on a list of S-expressions, =l=, use =(car l)= and =(cdr l)=
+   if neither =(null? l)= nor =(atom? (car l))= are true. It must
+   be changed to be closer to termination. The changing argument must
+   be tested in the termination condition: when using =cdr=, test
+   termination with =null?= and when using =sub1=, test termination
+   with =zero?=
+
+5. The Fifth Commandment: When building a value with =+=, always use 0
+   for the value of the terminating line, for adding 0 does not change
+   the value of an addition. When building a value with =x=, always use
+   1 for the value of the terminating line, for multiplying by 1 does
+   not change the value of a multiplication. When building a value
+   with =cons=, always consider =()= for the value of the terminating line.
+
+
+* functions
 + =atom=
   - all atoms are S-expression
   - lists are not atom
@@ -9,7 +39,8 @@
   - return the give list except for =(car l)= part
 + =cons=
   - adds an atom to the front of a list
-  - =cons= takes two arguments: the first one is any S-expression; the second one is any list.
+  - =cons= takes two arguments: the first one is any S-expression; the
+    second one is any list.
 + null list is
   - =()=
 + =null?=
@@ -17,5 +48,25 @@
   - =null?= asks if the given argument is the null list.
 + =eq?=
   - takes two argument, both non-numeric atoms
+  - for numeric atoms, use =
 + =lat?=
   - Every lat is a list of atoms
++ =cond=
+  #+BEGIN_SRC scheme
+  (cond
+     ((null? l) #t)
+     ((atom? (car l)) (lat? (cdr l)))
+     (else #f))
+  #+END_SRC
++ =or=
+  #+BEGIN_SRC scheme
+  (define member?
+  (lambda (a lat)
+    (cond
+     ((null? lat) #f)
+     (else (or (eq? (car lat) a)
+               (member? a (cdr lat)))))))
+  #+END_SRC
++ =tuple=
+  - a list of numbers
+  - () is an empty =tuple=
