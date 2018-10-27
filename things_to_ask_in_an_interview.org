@@ -1,7 +1,6 @@
 in no order:
 
 - insurance
-- extra hours payment
 - diversity
 - culture
 - accessibility of product
@@ -9,3 +8,9 @@ in no order:
 - core values
 - psychological hooks (nudges)
 - who's the customer?
+- Does the team has the trying-new-stuff kinda attitude?
+- extra hours payment
+- buying educational materials
+- time for learning
+- job versus career
+- leisure

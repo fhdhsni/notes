@@ -1,3 +1,6 @@
+- What is an S-expression? An S-expression is either an atom or a
+  (possibly empty) list of S-expressions.
+
 * Commandment
 1. The First Commandment: When recurring on a list of atoms, =lat=, ask
    two questions about it: =(null? lat)= and =else=. When recurring on a
@@ -26,6 +29,16 @@
    not change the value of a multiplication. When building a value
    with =cons=, always consider =()= for the value of the terminating line.
 
+6. The Sixth Commandment: Simplify only after the function is correct.
+7. The Seventh Commandment: Recur on the subparts that are of the same nature:
+   + On the sublists of a list.
+   + On the sub expressions of an arithmetic expression.
+8. The Eighth Commandment: Use help functions to abstract from
+   representations.
+9. The Ninth Commandment: Abstract common patterns with a new
+   function.
+10. The Tenth Commandment: Build functions to collect more than one
+    value at a time
 
 * functions
 + =atom=
