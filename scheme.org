@@ -1,6 +1,13 @@
 - What is an S-expression? An S-expression is either an atom or a
   (possibly empty) list of S-expressions.
 
+- Partial functions:
+  + There's an input in its domain that we can give to it but there's
+    nothing in its codomain to give us back
+- Total functions:
+  + given anything form the domain of the function as its input, the function
+    returns something from its codomain.
+
 * Commandment
 1. The First Commandment: When recurring on a list of atoms, =lat=, ask
    two questions about it: =(null? lat)= and =else=. When recurring on a

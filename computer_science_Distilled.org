@@ -1,0 +1,39 @@
+mostly from =Computer Science Distilled=
+
+- Flowcharts
+  + Write states and instruction steps inside rectangles.
+  + Write decision steps, where the process may go different ways, inside diamonds.
+  + Never mix an instruction step with a decision step.
+  + Connect sequential steps with arrows.
+  + Mark the start and end of the process.
+
+- Mathematical Models
+  + A *model* is a set of concepts that represents a problem and its characteristics.
+
+- Boolean Algeb3a
+  + *Associativity*
+    * Parentheses are irrelevant for sequences of =AND= or =OR=
+      operations. As sequences of sums or multiplications in
+      elementary algebra, they can be calculated in any order.
+      #+BEGIN_SRC
+          A AND (B AND C) = (A AND B) AND C
+          A OR (B OR C) = (A OR B) OR C
+      #+END_SRC
+  + *Distributively*
+    * In elementary algebra we factor multiplicative terms from sums:
+      a × (b + c) = (a × b) + (a × c). Likewise in logic, ANDing
+      after an OR is equivalent to ORing results of ANDs, and vice
+      versa:
+      #+BEGIN_SRC
+      A AND (B OR C) = (A AND B) OR (A AND C).
+      A OR (B AND C) = (A OR B) AND (A OR C).
+     #+END_SRC
+  + *DeMorgan's Law*
+    * It can’t be summer and winter at once, so it’s either not summer
+      or not winter. And it’s not summer and not winter if and only if
+      it’s not the case it’s either summer or winter. Following this
+      reasoning, ANDs can be transformed into ORs and vice versa:
+      #+BEGIN_SRC
+      !(A AND B) = !A OR !B,
+      !A AND !B = !(A OR B).
+      #+END_SRC
