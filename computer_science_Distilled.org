@@ -10,7 +10,7 @@ mostly from =Computer Science Distilled=
 - Mathematical Models
   + A *model* is a set of concepts that represents a problem and its characteristics.
 
-- Boolean Algeb3a
+- Boolean Algebra
   + *Associativity*
     * Parentheses are irrelevant for sequences of =AND= or =OR=
       operations. As sequences of sums or multiplications in
@@ -37,3 +37,31 @@ mostly from =Computer Science Distilled=
       !(A AND B) = !A OR !B,
       !A AND !B = !(A OR B).
       #+END_SRC
+- Probability
+  + *Independent Events*: When the outcome of an event does not
+    influence the outcome of another event, they are independent. The
+    probability that two independent events will happen is the product
+    of their individual probabilities.
+
+  + *mutually exclusive*: When two events cannot happen
+    simultaneously, they are mutually exclusive. If you need any of
+    the mutually exclusive events to happen, just sum their individual
+    probabilities.
+  + When two mutually exclusive events cover all possible outcomes,
+    they are complementary. The sum of individual probabilities of
+    complementary events is thus 100%.
+- Complexity
+  + When an algorithm can have different values of =T(n)= for the same value of =n=, we resort to cases:
+    1. BEST CASE: when the input requires the minimum number of
+       operations for any input of that size. In sorting, it happens
+       when the input is already sorted.
+
+    2. WORST CASE: when the input requires the maximum number of
+       operations for any input of that size. In many sorting
+       algorithms, that’s when the input was given in reverse order.
+
+   3. AVERAGE CASE: refers to the average number of operations
+      required for typical inputs of that size. For sorting, an input
+      in random order is usually considered.
+
+  We can approximate T(n) by its fastest-growing term, called the *dominant term*
