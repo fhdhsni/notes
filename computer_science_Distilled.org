@@ -65,3 +65,10 @@ mostly from =Computer Science Distilled=
       in random order is usually considered.
 
   We can approximate T(n) by its fastest-growing term, called the *dominant term*
+
+  + *Space complexity*: The measure for the working storage an algorithm
+    needs is called space complexity. Space complexity analysis is
+    similar to time complexity analysis. The difference is that we
+    count computer memory, and not computing operations.
+
+- Strategy
