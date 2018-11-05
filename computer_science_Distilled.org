@@ -60,9 +60,9 @@ mostly from =Computer Science Distilled=
        operations for any input of that size. In many sorting
        algorithms, that’s when the input was given in reverse order.
 
-   3. AVERAGE CASE: refers to the average number of operations
-      required for typical inputs of that size. For sorting, an input
-      in random order is usually considered.
+  + AVERAGE CASE: refers to the average number of operations
+    required for typical inputs of that size. For sorting, an input
+    in random order is usually considered.
 
   We can approximate T(n) by its fastest-growing term, called the *dominant term*
 
@@ -72,3 +72,21 @@ mostly from =Computer Science Distilled=
     count computer memory, and not computing operations.
 
 - Strategy
+  + *iteration*
+  + *nested loops*
+  + *recursion*
+  + *brute force*
+  + *backtracking*
+    Backtracking works best in problems where the solution is a se-
+    quence of choices and making a choice restrains subsequent choices.
+    It identifies as soon as possible the choices you’ve made cannot give
+    you the solution you want, so you can sooner step back and try
+    something else. Fail early, fail often.
+  + *heuristic*
+    A heuristic method, or simply a heuristic, is a method that leads
+    to a solution without guaranteeing it is the best or optimal one.
+    * greedy
+  + Divide and Conquer
+    Problems with optimal substructure can be divided into similar but
+    smaller subproblems.
+  +
