@@ -1,16 +1,16 @@
 Mostly from “Computer Science Distilled” and Wikipedia
 
-- Flowcharts
+* Flowcharts
   + Write states and instruction steps inside rectangles.
   + Write decision steps, where the process may go different ways, inside diamonds.
   + Never mix an instruction step with a decision step.
   + Connect sequential steps with arrows.
   + Mark the start and end of the process.
 
-- Mathematical Models
+* Mathematical Models
   + A *model* is a set of concepts that represents a problem and its characteristics.
 
-- Boolean Algebra
+* Boolean Algebra
   + *Associativity*
     * Parentheses are irrelevant for sequences of =AND= or =OR=
       operations. As sequences of sums or multiplications in
@@ -37,7 +37,7 @@ Mostly from “Computer Science Distilled” and Wikipedia
       !(A AND B) = !A OR !B,
       !A AND !B = !(A OR B).
       #+END_SRC
-- Probability
+* Probability
   + *Independent Events*: When the outcome of an event does not
     influence the outcome of another event, they are independent. The
     probability that two independent events will happen is the product
@@ -50,7 +50,7 @@ Mostly from “Computer Science Distilled” and Wikipedia
   + When two mutually exclusive events cover all possible outcomes,
     they are complementary. The sum of individual probabilities of
     complementary events is thus 100%.
-- Complexity
+* Complexity
   + When an algorithm can have different values of =T(n)= for the same value of =n=, we resort to cases:
     1. BEST CASE: when the input requires the minimum number of
        operations for any input of that size. In sorting, it happens
@@ -70,7 +70,7 @@ Mostly from “Computer Science Distilled” and Wikipedia
     needs is called space complexity. Space complexity analysis is
     similar to time complexity analysis. The difference is that we
     count computer memory, and not computing operations.
-- Strategy
+* Strategy
   + *iteration*
   + *nested loops*
   + *recursion*
@@ -97,7 +97,7 @@ Mostly from “Computer Science Distilled” and Wikipedia
       4. Return to step 1 with the most promising subproblem.
     With branch and bound, we predict which paths are worst and we
     avoid wasting energy exploring them.
-- Data
+* Data
   + Abstractions
     1. Data Types
        In computer science and computer programming, a data type or
@@ -122,3 +122,175 @@ Mostly from “Computer Science Distilled” and Wikipedia
        operations. This contrasts with data structures, which are
        concrete representations of data, and are the point of view of
        an implementer, not a user.
+       An Abstract Data Type only describes how variables of a given
+       data type are operated. It provides a list of operations, but
+       doesn’t explain how data operations happen.
+** Common Abstractions
+    - *Primitive Data Types*:
+    - *Stack*:
+      + =push(e)=
+      + =pop()=
+    - *Queue*:
+      + =enqueue(e)=: add an item e to the back of the queue
+      + =dequeue()=: remove the item at the front of the queue
+    - *The Priority Queue*: The Priority Queue is similar to the Queue,
+      with the difference that enqueued items must have an assigned
+      priority.
+      + =enqueue(e, p)= : add an item =e= to the queue according to the priority level =p=,
+      + =dequeue()= : remove the item at the front of the queue and return it.
+    - *List*
+      + =insert(n, e)=: insert the item e at position n
+      + =remove(n)=: remove the item at position n
+      + =get(n)=: get the item at position n
+      + =sort()=: sort the items in the list
+      + =slice()=: start, end : return a sub-list slice starting at the position start up until the position end
+      + =reverse()= : reverse the order of the list
+    - *The Sorted List*: The Sorted List is useful when you need to
+      maintain an always sorted list of items.
+      + =insert(e)=: insert item e at the right position in the list
+      + =remove(n)=: remove the item at the position n in the list
+      + =get(n)=: get the item at position n
+    - *Map*: The Map (aka Dictionary ) is used to store mappings
+      between two objects: a key object and a value object. You can
+      query a map with a key and get its associated value.
+      + =set(key, value)= : add a key-value mapping,
+      + =delete(key)= : remove key and its associated value,
+      + =get(key)= : retrieve the value that was associated to key.
+    - *Set*: The Set represents unordered groups of unique items, like
+      mathematical sets. They’re used when the order of items you need
+      to store is meaningless, or if you must ensure no items in the
+      group occurs more than once.
+      + =add(e)=: add an item to the set or produce an error if the item is already in the set
+      + =list()=: list the items in the set
+      + =delete(e)=: remove an item from the set
+** Structures*: Behind the scene :) data structures describe how
+    data is to be organized and accessed in the computer’s
+    memory. They provide ways for implementing ADTs in data-handling
+    modules.
+*** Array:
+    marks the end of the sequence with a special =NULL= token.
+*** Linked List:
+    A cell with an empty pointer marks the end of the
+    chain. if we’re only given the address of a single cell, it’s
+    not easy to remove it or move backwards.
+*** The Double Linked List:
+    The Double Linked List is the Linked
+    List with an extra: cells have two pointers: one to the cell
+    that came before it, and other to the cell that comes after. And
+    if we’re only given the address of a single cell, we’re able to
+    delete it.
+    :NOTE:
+     - Linked Lists are preferable to Arrays when:
+       + You need insertions/deletions in the list to be extremely fast,
+       + You don’t need random, unordered access to the data,
+       + You insert or delete items in the middle of a list,
+       + You can’t evaluate the exact size of the list (it needs to
+         grow or shrink throughout the execution).
+     - Arrays are preferable over Linked Lists when:
+       + You frequently need random, unordered access to the data,
+       + You need extreme performance to access the items,
+       + The number of items doesn’t change during execution, so you
+         can easily allocate contiguous space of computer memory.
+    :END:
+*** Tree:
+    Trees are dynamic data structures
+      - Like the Linked List, the Tree employs memory cells that do
+        not need to be contiguous in physical memory to store objects.
+      - Cells also have pointers to other cells. Unlike Linked Lists,
+        cells and their pointers are not arranged as a linear chain of
+        cells, but as a tree-like structure.
+      - Trees are especially suitable for hierarchical data, such as a
+        file directory structure.
+      - Apart from the Root Node, nodes in trees must have exactly one
+        parent
+      - In the Tree terminology:
+        + a cell is called a *node*
+        + a pointer from one cell to another is called an *edge*
+        + the topmost node of a tree is the *Root Node*: the only node that doesn’t have a parent
+        + two nodes that have the same parent are siblings
+        + A node’s parent, grandparent, great-grandparent (and so on
+          all the way to the Root Node) constitute the node’s
+          *ancestors*
+        + a node’s children, grandchildren, great-grandchildren (and
+          so on all the way to the bottom of the tree) are the node’s
+          *descendants*
+        + Nodes that do not have any children are *leaf nodes*
+        + And a *path* between two nodes is a set of nodes and edges
+          that can lead from one node to the other
+        + A node’s *level* is the size of its path to the Root Node
+        + The tree’s *height* is the level of the deepest node in the tree
+        + a set of trees can be referred to as a *forest*
+      - *Binary Search Tree*: A Binary Search Tree is a special type
+        of Tree that can be efficiently searched. Nodes in Binary
+        Search Trees can have at most two children. And nodes are
+        positioned according to their value/key. Children nodes to the
+        left of the parent must be smaller than the parent, children
+        nodes to the right must be greater.
+      #+BEGIN_SRC
+                    X
+                   / \
+                  Y   Z
+
+              Y <= X; Z >= X
+      #+END_SRC
+      #+BEGIN_SRC
+      function find_node(binary_tree, value)
+        node ← binary_tree.root_node
+
+        while node
+            if node.value = value
+                return node
+            if value > node.value
+                node ← node.right
+            else
+                node ← node.left
+        return "NOT FOUND"
+      #+END_SRC
+      #+BEGIN_SRC
+      function insert_node(binary_tree, new_node)
+        node ← binary_tree.root_node
+
+        while node
+            last_node ← node
+
+            if new_node.value > node.value
+                node ← node.right
+            else
+                node ← node.left
+
+        if new_node.value > last_node.value
+            last_node.right ← new_node
+        else
+            last_node.left ← new_node
+      #+END_SRC
+      + *Tree Balancing*: If we insert too many nodes in a Binary
+        Search Tree, we end up with a tree of very high height, where
+        many nodes have only one child. But we can rearrange nodes in
+        a tree such that its height is reduced. This is called tree
+        balancing. A perfectly balanced tree has the minimum
+        possible height.
+
+        Most operations with trees involve following links between
+        nodes until we get to a specific one. The higher the height of
+        the tree, the longer the average path between nodes, and the
+        more times we need to access the memory. Therefore, it’s
+        important to reduce tree height.
+
+        #+BEGIN_SRC
+        4                             6                         10
+         \                           /  \                     /    \
+          6                         4    8                   6      18
+           \                              \                 / \    /  \
+            8                              10              4   8  15   21
+             \                              \
+              10                             18
+               \                            /  \
+                18                         15   21
+               /  \
+              15   21
+        #+END_SRC
+**** Preorder Traversal
+     This is a recursive process
+     1. visit yourself
+     2. then visit all your left subtree
+     3. then visit all you right subtree
