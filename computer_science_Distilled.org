@@ -1,4 +1,6 @@
-Mostly from “Computer Science Distilled” and Wikipedia
+Mostly from the “Computer Science Distilled”, Wikipedia and
+“Data Structures and Performance” by University of California San Diego.
+
 
 * Flowcharts
   + Write states and instruction steps inside rectangles.
@@ -193,88 +195,101 @@ Mostly from “Computer Science Distilled” and Wikipedia
          can easily allocate contiguous space of computer memory.
     :END:
 *** Tree:
-    Trees are dynamic data structures
-      - Like the Linked List, the Tree employs memory cells that do
-        not need to be contiguous in physical memory to store objects.
-      - Cells also have pointers to other cells. Unlike Linked Lists,
-        cells and their pointers are not arranged as a linear chain of
-        cells, but as a tree-like structure.
-      - Trees are especially suitable for hierarchical data, such as a
-        file directory structure.
-      - Apart from the Root Node, nodes in trees must have exactly one
-        parent
-      - In the Tree terminology:
-        + a cell is called a *node*
-        + a pointer from one cell to another is called an *edge*
-        + the topmost node of a tree is the *Root Node*: the only node that doesn’t have a parent
-        + two nodes that have the same parent are siblings
-        + A node’s parent, grandparent, great-grandparent (and so on
-          all the way to the Root Node) constitute the node’s
-          *ancestors*
-        + a node’s children, grandchildren, great-grandchildren (and
-          so on all the way to the bottom of the tree) are the node’s
-          *descendants*
-        + Nodes that do not have any children are *leaf nodes*
-        + And a *path* between two nodes is a set of nodes and edges
-          that can lead from one node to the other
-        + A node’s *level* is the size of its path to the Root Node
-        + The tree’s *height* is the level of the deepest node in the tree
-        + a set of trees can be referred to as a *forest*
-      - *Binary Search Tree*: A Binary Search Tree is a special type
-        of Tree that can be efficiently searched. Nodes in Binary
-        Search Trees can have at most two children. And nodes are
-        positioned according to their value/key. Children nodes to the
-        left of the parent must be smaller than the parent, children
-        nodes to the right must be greater.
-      #+BEGIN_SRC
-                    X
-                   / \
-                  Y   Z
+Trees are dynamic data structures
+ - Like the Linked List, the Tree employs memory cells that do not
+   need to be contiguous in physical memory to store objects.
+ - Cells also have pointers to other cells. Unlike Linked Lists, cells
+   and their pointers are not arranged as a linear chain of cells, but
+   as a tree-like structure.
+ - Trees are especially suitable for hierarchical data, such as a file
+   directory structure.
+ - Apart from the Root Node, nodes in trees must have exactly one
+   parent
+ - In the Tree terminology:
+   + a cell is called a *node*
+   + a pointer from one cell to another is called an *edge*
+   + the topmost node of a tree is the *Root Node*: the only node that
+     doesn’t have a parent
+   + A node’s parent, grandparent, great-grandparent (and so on all
+     the way to the Root Node) constitute the node’s *ancestors*
+   + a node’s children, grandchildren, great-grandchildren (and so on
+     all the way to the bottom of the tree) are the node’s *descendants*
+   + Nodes that do not have any children are *leaf nodes*
+   + And a *path* between two nodes is a set of nodes and edges that
+     can lead from one node to the other
+   + A node’s *level* is the size of its path to the Root Node
+   + The tree’s *height* is the level of the deepest node in the tree
+   + a set of trees can be referred to as a *forest*
+**** Preorder Traversal
+     This is a recursive process.
+     This is depth first traversal.
+     1. visit yourself
+     2. then visit all your left subtree
+     3. then visit all you right subtree
+        #+BEGIN_SRC java
+          public class BinaryTree<E> {
+            TreeNode<E> root;
 
-              Y <= X; Z >= X
-      #+END_SRC
-      #+BEGIN_SRC
-      function find_node(binary_tree, value)
-        node ← binary_tree.root_node
+            private void preOrder(TreeNode<E> node) {
+              if (node != null) {
+                node.visit();
+                preOrder(node.getLeftChild());
+                preOrder(node.getRightChild());
+              }
+            }
 
-        while node
-            if node.value = value
-                return node
-            if value > node.value
-                node ← node.right
-            else
-                node ← node.left
-        return "NOT FOUND"
-      #+END_SRC
-      #+BEGIN_SRC
-      function insert_node(binary_tree, new_node)
-        node ← binary_tree.root_node
+            public void preOrder() {
+              this.preOrder(root);
+            }
+          }
+        #+END_SRC
+**** Post Order Traversal
+     This is depth first traversal
+     1. then visit all your left subtree
+     2. then visit all you right subtree
+     3. visit yourself
+**** In Order Traversal
+     1. then visit all your left subtree
+     2. visit yourself
+     3. then visit all you right subtree
+**** Level Order Traversal
+     This is a breadth first traversal
+     We want to visit in order: A B C D E F G
+     #+BEGIN_SRC
+             A
+           /   \
+          B     C
+         / \   /  \
+        D   E F    G
+     #+END_SRC
+     #+BEGIN_SRC java
+       public void levelOrder() {
+         Queue< TreeNode<E> > q = new LinkedList< TreeNode<E> >();
+         q.add(this.root);
 
-        while node
-            last_node ← node
+         while(!q.isEmpty()) {
+           TreeNode<E> curr = q.remove();
 
-            if new_node.value > node.value
-                node ← node.right
-            else
-                node ← node.left
+           if(curr != null) {
+             curr.visit();
+             q.add(curr.getLeftChild());
+             q.add(curr.getRightChild());
+           }
+         }
+       }
+     #+END_SRC
+**** Tree Balancing
+ If we insert too many nodes in a Binary Search Tree, we end up with a
+ tree of very high height, where many nodes have only one child. But
+ we can rearrange nodes in a tree such that its height is
+ reduced. This is called tree balancing. A perfectly balanced tree has
+ the minimum possible height.
 
-        if new_node.value > last_node.value
-            last_node.right ← new_node
-        else
-            last_node.left ← new_node
-      #+END_SRC
-      + *Tree Balancing*: If we insert too many nodes in a Binary
-        Search Tree, we end up with a tree of very high height, where
-        many nodes have only one child. But we can rearrange nodes in
-        a tree such that its height is reduced. This is called tree
-        balancing. A perfectly balanced tree has the minimum
-        possible height.
-
-        Most operations with trees involve following links between
-        nodes until we get to a specific one. The higher the height of
-        the tree, the longer the average path between nodes, and the
-        more times we need to access the memory. Therefore, it’s
-        important to reduce tree height.
+ Most operations with trees involve following links between nodes
+ until we get to a specific one. The higher the height of the tree,
+ the longer the average path between nodes, and the more times we need
+ to access the memory. Therefore, it’s important to reduce tree
+ height.
 
         #+BEGIN_SRC
         4                             6                         10
@@ -289,8 +304,77 @@ Mostly from “Computer Science Distilled” and Wikipedia
                /  \
               15   21
         #+END_SRC
-**** Preorder Traversal
-     This is a recursive process
-     1. visit yourself
-     2. then visit all your left subtree
-     3. then visit all you right subtree
+**** Types of Trees
+***** Binary Search Tree
+ A Binary Search Tree is a special type of Tree that can be
+ efficiently searched. Nodes in Binary Search Trees can have at most
+ two children. And nodes are positioned according to their
+ value/key. Children nodes to the left of the parent must be smaller
+ than the parent, children nodes to the right must be greater.
+
+ #+BEGIN_SRC
+               X
+              / \
+             Y   Z
+
+         Y <= X; Z >= X
+ #+END_SRC
+
+ #+BEGIN_SRC
+ function find_node(binary_tree, value)
+   node ← binary_tree.root_node
+
+   while node
+       if node.value = value
+           return node
+       if value > node.value
+           node ← node.right
+       else
+           node ← node.left
+   return "NOT FOUND"
+ #+END_SRC
+ #+BEGIN_SRC java
+   import java.util.LinkedList;
+   import java.util.Queue;
+
+   public class BinaryTree<E extends Comparable<? super E>> {
+     private TreeNode<E> root;
+
+     public boolean contains(E toFind) {
+       TreeNode<E> curr = this.root;
+       int comp;
+
+       while (curr != null) {
+         comp = toFind.compareTo(curr.value());
+
+         if (comp < 0) {
+           curr = curr.getLeftChild();
+         } else if (comp > 0) {
+           curr = curr.getRightChild();
+         } else {
+           return true;
+         }
+       }
+
+       return false;
+     }
+   }
+
+ #+END_SRC
+ #+BEGIN_SRC
+ function insert_node(binary_tree, new_node)
+   node ← binary_tree.root_node
+
+   while node
+       last_node ← node
+
+       if new_node.value > node.value
+           node ← node.right
+       else
+           node ← node.left
+
+   if new_node.value > last_node.value
+       last_node.right ← new_node
+   else
+       last_node.left ← new_node
+ #+END_SRC
