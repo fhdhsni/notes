@@ -320,6 +320,7 @@ Trees are dynamic data structures
          Y <= X; Z >= X
  #+END_SRC
 
+- Searching
  #+BEGIN_SRC
  function find_node(binary_tree, value)
    node ← binary_tree.root_node
@@ -333,6 +334,7 @@ Trees are dynamic data structures
            node ← node.left
    return "NOT FOUND"
  #+END_SRC
+ in Java
  #+BEGIN_SRC java
    import java.util.LinkedList;
    import java.util.Queue;
@@ -361,6 +363,8 @@ Trees are dynamic data structures
    }
 
  #+END_SRC
+
+- Inserting
  #+BEGIN_SRC
  function insert_node(binary_tree, new_node)
    node ← binary_tree.root_node
@@ -378,3 +382,41 @@ Trees are dynamic data structures
    else
        last_node.left ← new_node
  #+END_SRC
+
+ in Java
+ #+BEGIN_SRC java
+   import java.util.LinkedList;
+   import java.util.Queue;
+
+   public class BinaryTree<E extends Comparable<? super E>> {
+     private TreeNode<E> root;
+
+     public boolean insert(E toInsert) {
+       TreeNode<E> curr = this.root;
+       int comp = toInsert.compareTo(curr.value());
+
+       while (comp < 0 && curr.getLeftChild() != null || comp > 0 && curr.getRightChild() != null) {
+         if (comp < 0) curr = curr.getLeftChild();
+         else curr = curr.getRightChild();
+
+         comp = toInsert.compareTo(curr.value());
+       }
+       comp = toInsert.compareTo(curr.value());
+
+       if (comp < 0) {
+         curr.addLeftChild(toInsert);
+       } else if (comp > 0) {
+         curr.addRightChild(toInsert);
+       } else {
+         return false;
+       }
+
+       return true;
+     }
+   }
+ #+END_SRC
+- Deleting
+  Scenarios:
+  1. it's a leaf node
+  2. it has one child
+  3. it has two children
