@@ -100,34 +100,32 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
     With branch and bound, we predict which paths are worst and we
     avoid wasting energy exploring them.
 * Data
-  + Abstractions
-    1. Data Types
-       In computer science and computer programming, a data type or
-       simply type is an attribute of data which tells the compiler or
-       interpreter how the programmer intends to use the data. Most
-       programming languages support common data types of real,
-       integer and boolean. A data type constrains the values that an
-       expression, such as a variable or a function, might take. This
-       data type defines the operations that can be done on the data,
-       the meaning of the data, and the way values of that type can be
-       stored. A type of value from which an expression may take its
-       value.
-
-    2. Abstract Data Types
-       An Abstract Data Type (ADT) is the specification of a group of
-       operations that make sense for a given data type.
-       In computer science, an abstract data type (ADT) is a
-       mathematical model for data types, where a data type is defined
-       by its behavior (semantics) from the point of view of a user of
-       the data, specifically in terms of possible values, possible
-       operations on data of this type, and the behavior of these
-       operations. This contrasts with data structures, which are
-       concrete representations of data, and are the point of view of
-       an implementer, not a user.
-       An Abstract Data Type only describes how variables of a given
-       data type are operated. It provides a list of operations, but
-       doesn’t explain how data operations happen.
-** Common Abstractions
+** Abstractions
+*** Data Types
+    In computer science and computer programming, a data type or
+    simply type is an attribute of data which tells the compiler or
+    interpreter how the programmer intends to use the data. Most
+    programming languages support common data types of real,
+    integer and boolean. A data type constrains the values that an
+    expression, such as a variable or a function, might take. This
+    data type defines the operations that can be done on the data,
+    the meaning of the data, and the way values of that type can be
+    stored. A type of value from which an expression may take its
+    value.
+*** Abstract Data Types
+   An Abstract Data Type (ADT) is the specification of a group of
+   operations that make sense for a given data type.  In computer
+   science, an abstract data type (ADT) is a mathematical model for
+   data types, where a data type is defined by its behavior
+   (semantics) from the point of view of a user of the data,
+   specifically in terms of possible values, possible operations on
+   data of this type, and the behavior of these operations. This
+   contrasts with data structures, which are concrete representations
+   of data, and are the point of view of an implementer, not a user.
+   An Abstract Data Type only describes how variables of a given data
+   type are operated. It provides a list of operations, but doesn’t
+   explain how data operations happen.
+****  Common Abstractions
     - *Primitive Data Types*:
     - *Stack*:
       + =push(e)=
@@ -152,7 +150,7 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
       + =insert(e)=: insert item e at the right position in the list
       + =remove(n)=: remove the item at the position n in the list
       + =get(n)=: get the item at position n
-    - *Map*: The Map (aka Dictionary ) is used to store mappings
+    - *Map*: The Map (aka Dictionary) is used to store mappings
       between two objects: a key object and a value object. You can
       query a map with a key and get its associated value.
       + =set(key, value)= : add a key-value mapping,
@@ -165,17 +163,17 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
       + =add(e)=: add an item to the set or produce an error if the item is already in the set
       + =list()=: list the items in the set
       + =delete(e)=: remove an item from the set
-** Structures*: Behind the scene :) data structures describe how
-    data is to be organized and accessed in the computer’s
-    memory. They provide ways for implementing ADTs in data-handling
-    modules.
-*** Array:
+** Structures
+   Behind the scene :) data structures describe how data is to be
+   organized and accessed in the computer’s memory. They provide ways
+   for implementing ADTs in data-handling modules.
+*** Array
     marks the end of the sequence with a special =NULL= token.
-*** Linked List:
+*** Linked List
     A cell with an empty pointer marks the end of the
     chain. if we’re only given the address of a single cell, it’s
     not easy to remove it or move backwards.
-*** The Double Linked List:
+*** The Double Linked List
     The Double Linked List is the Linked
     List with an extra: cells have two pointers: one to the cell
     that came before it, and other to the cell that comes after. And
@@ -194,8 +192,8 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
        + The number of items doesn’t change during execution, so you
          can easily allocate contiguous space of computer memory.
     :END:
-*** Tree:
-Trees are dynamic data structures
+*** Tree
+- Trees are dynamic data structures
  - Like the Linked List, the Tree employs memory cells that do not
    need to be contiguous in physical memory to store objects.
  - Cells also have pointers to other cells. Unlike Linked Lists, cells
@@ -291,26 +289,77 @@ Trees are dynamic data structures
  to access the memory. Therefore, it’s important to reduce tree
  height.
 
-        #+BEGIN_SRC
-        4                             6                         10
-         \                           /  \                     /    \
-          6                         4    8                   6      18
-           \                              \                 / \    /  \
-            8                              10              4   8  15   21
-             \                              \
-              10                             18
-               \                            /  \
-                18                         15   21
-               /  \
-              15   21
-        #+END_SRC
+ In a balanced Tree:
+ #+BEGIN_SRC
+ |leftHight - rightHeight| <= 1
+ #+END_SRC
+ the height of a balanced Tree is around =log(n)=
+
+ for a word search function say =isWord(String wordToFind)= the time complexity is
+
+ |              | Best Case | Average Case | Worst Case |
+ |--------------+-----------+--------------+------------|
+ | linked list  | O(1)      | O(n)         | O(n)       |
+ | BST          | O(1)      | O(log n)     | O(n)       |
+ | Balanced BST | O(1)      | O(log n)     | O(log n)   |
+ |              |           |              |            |
+
+ #+BEGIN_SRC
+ 4                             6                         10
+  \                           /  \                     /    \
+   6                         4    8                   6      18
+    \                              \                 / \    /  \
+     8                              10              4   8  15   21
+      \                              \
+       10                             18
+        \                            /  \
+         18                         15   21
+        /  \
+       15   21
+ #+END_SRC
+
+ #+BEGIN_SRC
+ function build_balanced nodes
+   if nodes is empty
+      return NULL
+
+   middle ← nodes.length/
+   left ← nodes.slice(0, middle - 1)
+   right ← nodes.slice(middle + 1, nodes.length)
+   balanced ← BinaryTree.new(root=nodes[middle])
+   balanced.left ← build_balanced(left)
+   balanced.right ← build_balanced(right)
+
+   return balanced
+ #+END_SRC
+
 **** Types of Trees
+***** Self Balancing Trees
+To efficiently handle binary trees that change a lot, selfbalancing
+binary trees were invented. Their procedures for inserting or
+removing items directly ensure the tree stays balanced.
+
+- *The Red-Black Tree*: The Red-Black Tree is a famous example of a
+  self-balancing tree, which colors nodes either “red” or “black” for
+  its balancing strategy. Red-Black Trees are frequently used to
+  implement Maps: the map can be heavily edited in an efficient way,
+  and finding any given key in the map remains fast because of
+  self-balancing.
+
+- *AVL Tree*:The AVL Tree is another breed of self-balancing
+  trees. They require a bit more time to insert and delete items than
+  Red-Black Trees, but tend to have better balancing. This means
+  they’re faster than Red-Black Trees for retrieving items. AVL Trees
+  are often used to optimize performance in read-intensive scenarios.
+- *B-Tree*:
 ***** Binary Search Tree
  A Binary Search Tree is a special type of Tree that can be
  efficiently searched. Nodes in Binary Search Trees can have at most
  two children. And nodes are positioned according to their
  value/key. Children nodes to the left of the parent must be smaller
  than the parent, children nodes to the right must be greater.
+
+ *Structure(shape) of BST depends on the order of insertion*.
 
  #+BEGIN_SRC
                X
@@ -420,3 +469,175 @@ Trees are dynamic data structures
   1. it's a leaf node
   2. it has one child
   3. it has two children
+
+  courtesy of https://www.makeinjava.com/delete-remove-node-binary-search-tree-bst-java-dfs-example/
+  #+BEGIN_SRC java
+    public class Node {
+      public int data;
+      public Node left;
+      public Node right;
+
+      public Node(int num) {
+        this.data = num;
+        this.left = null;
+        this.right = null;
+      }
+
+      public Node() {
+        this.left = null;
+        this.right = null;
+      }
+
+      public static Node createNode(int number) {
+        return new Node(number);
+      }
+    }
+
+    public class DeleteNodeInBST {
+      public static void inorder(Node root) {
+        if (root == null) return;
+        inorder(root.left);
+        System.out.printf("%d ", root.data);
+        inorder(root.right);
+      }
+
+      private static int min(Node node) {
+        if (node.left == null) {
+          return node.data;
+        }
+        return min(node.left);
+      }
+
+      public static Node deleteNodeInBST(Node node, int data) {
+        if (null == node) {
+          System.out.println("Element is not there in binary search tree");
+          return null;
+        }
+        if (data < node.data) {
+          node.left = deleteNodeInBST(node.left, data);
+        } else if (data > node.data) {
+          node.right = deleteNodeInBST(node.right, data);
+        } else { // case for equality
+          // Now we see that whether we can directly delete the node
+          // [Scenario 3]
+          if (node.left != null && node.right != null) {
+            int minInRightSubTree = min(node.right);
+            node.data = minInRightSubTree;
+            node.right = deleteNodeInBST(node.right, minInRightSubTree);
+          } else { // either one child or leaf node
+            // [Scenario 1 and Scenario 2]
+            if (node.left == null && node.right == null) {
+              node = null;
+            } else { // one child case
+              Node deleteNode = node;
+              node = (node.left != null) ? (node.left) : (node.right);
+              deleteNode = null;
+            }
+          }
+        }
+        return node;
+      }
+    }
+
+  #+END_SRC
+****** The Binary Heap
+The Binary Heap is a special type of Binary Search Tree, in which we
+can find the smallest (or highest) item instantly. This data structure
+is especially useful for implementing Priority Queues. In the Heap it
+costs =O(1)= to get the minimum (or maximum) item, because it is
+always the Root Node of the tree. Searching or inserting nodes still
+costs =O(log n)=. It has the same node placement rules as the Binary
+Search Tree, plus an extra restriction: a parent node must be greater
+(or smaller) than both its child nodes.
+
+Use the Binary Heap whenever you must frequently
+work with the maximum (or minimum) item of a set.
+
+
+=MAX HEAP=
+#+BEGIN_SRC
+       21                       X
+     /    \                    / \
+    8      18                 Y   Z
+   / \    /  \
+  4   6  10   15            X ⩾ Z ⩾ Y
+#+END_SRC
+
+=MIN HEAP=
+#+BEGIN_SRC
+       4                      X
+     /   \                   / \
+    6     8                 Y   Z
+         / \              X ⩽ Z ⩽ Y
+        10  15
+           /  \
+          18   21
+#+END_SRC
+
+***** Trie
+Comes from the for *reTRIEval*, the pronunciation is different from
+=tree= just to distinguish it.
+
+- Nodes can have more than two children.
+
+
+
+****** Performance
+If there are n words in the dictionary, what is the worst case time to
+find a word?
+
+
+Let's start by a balanced BST. For a balanced BST, the number of words
+in the dictionary determines the worst case scenario, which =O(log n)=.
+
+#+BEGIN_SRC
+                ear
+               /   \
+              /     \
+             /       \
+            at        east
+           /  \       /
+          /    \    eat
+         /      \
+        a       ate
+#+END_SRC
+
+But if we use a TRIE to store the dictionary it's the length of the
+words that determines the worst case scenario. So the worst case
+scenario is the length of the longest word in the dictionary.
+*** Graph
+The Graph is similar to the Tree. The difference is that there’s no
+children or parent nodes, and therefore, no Root Node. Data is freely
+arranged as nodes and edges, and any node can have multiple incoming
+and outgoing edges. This is the most flexible data structure there
+is, and it can be used to represent almost any type of data.
+*** HashTable
+- The Hash Table is a data structure that allows finding items in
+  =O(1)= time.
+- Similarly to the Array, the Hash requires preallocating a big chunk
+  of sequential memory to store data.
+- But unlike the Array, items are not stored in an ordered
+  sequence. The position an item occupies is given by a
+  hash function.
+- *hash function*: A special function that takes the data you want to
+  store as input, and outputs a random-looking number. That number is
+  interpreted as the memory position the item will be stored at. This
+  allows us to retrieve items instantly. A given value is first run
+  through the hash function. The function will output the exact
+  position the item should be stored in memory. Fetch that memory
+  position. If the item was stored, you’ll find it there.
+- *hash collision*: A proper hash function will return random-looking
+  values for different inputs. Therefore, the larger the range of
+  values the hash function can output, the more data positions are
+  available, and the less probable it is for a hash collision to
+  happen. So we ensure at least 50% of the space available to the Hash
+  Table is free. Other- wise, collisions would be too frequent,
+  causing a significant drop in the Hash Table’s performance. Hash
+  Tables are often used to implement Maps and Sets. They allow faster
+  insertions and deletions than tree-based data structures. However,
+  they require a very large chunk of sequential memory in order to
+  work properly.
+  + Solutions:
+    1. *Linear Probing*: just put it in the next open stop. Linear
+       Probing can struggle as the hash table starts getting full.
+    2. *Random Probing*: jump random # of steps instead of just the next one
