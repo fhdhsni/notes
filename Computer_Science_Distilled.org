@@ -1,7 +1,6 @@
 Mostly from the “Computer Science Distilled”, Wikipedia and
 “Data Structures and Performance” by University of California San Diego.
 
-
 * Flowcharts
   + Write states and instruction steps inside rectangles.
   + Write decision steps, where the process may go different ways, inside diamonds.
@@ -53,25 +52,139 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
     they are complementary. The sum of individual probabilities of
     complementary events is thus 100%.
 * Complexity
-  + When an algorithm can have different values of =T(n)= for the same value of =n=, we resort to cases:
-    1. BEST CASE: when the input requires the minimum number of
-       operations for any input of that size. In sorting, it happens
-       when the input is already sorted.
+  :LOGBOOK:
+  - Note taken on [2018-11-18 Sun 19:38] \\
+    You can drop bases of logarithms, when thinking asymptotically. log
+    base 2 of n is equal to log base 10 of n when thinking asymptotically.
+  - Note taken on [2018-11-18 Sun 17:37] \\
+    - f(n) = O(g(n)) means f(n) and g(n) grow in same way as their input
+      grows.
+    - Big O class captures the *rate of growth* of two functions
+    - we say two functions are in the same *big O class* if they have the
+      same rate of growth.
+  - Note taken on [2018-11-18 Sun 17:16] \\
+    Why is asymptotic (asymptote: a straight line that continually
+    approaches a given curve but does not meet it at any finite
+    distance) analysis is useful? It calculates the big O class of
+    code
+  - Note taken on [2018-11-18 Sun 15:46] \\
+    1. Count the number of operations
+       What is an operation? a basic unit that doesn't change as the input changes
+    2. Focus o how performance scales
+    3. Go beyond input size
+  :END:
 
-    2. WORST CASE: when the input requires the maximum number of
-       operations for any input of that size. In many sorting
-       algorithms, that’s when the input was given in reverse order.
 
-  + AVERAGE CASE: refers to the average number of operations
-    required for typical inputs of that size. For sorting, an input
-    in random order is usually considered.
+- *Time complexity*: When an algorithm can have different values of =T(n)= for the same
+  value of =n=, we resort to cases:
 
-  We can approximate T(n) by its fastest-growing term, called the *dominant term*
+  1. BEST CASE: when the input requires the minimum number of
+     operations for any input of that size. In sorting, it happens
+     when the input is already sorted.
 
-  + *Space complexity*: The measure for the working storage an algorithm
-    needs is called space complexity. Space complexity analysis is
-    similar to time complexity analysis. The difference is that we
-    count computer memory, and not computing operations.
+  2. WORST CASE: when the input requires the maximum number of
+     operations for any input of that size. In many sorting
+     algorithms, that’s when the input was given in reverse order.
+
+  3. AVERAGE CASE: refers to the average number of operations required
+     for typical inputs of that size. For sorting, an input in random
+     order is usually considered.
+
+  We can approximate T(n) by its fastest-growing term, called the
+  *dominant term*.
+
+  *EXAMPLES*:
+  #+BEGIN_SRC java
+    import java.util.Arrays;
+
+    public class Library {
+      public static void main(String[] args) {}
+
+      // O(n)
+      public static void reduce(int[] vals) {
+        // O(1)
+        int minIndex = 0;
+
+        // O(n)
+        for (int i = 0; i < vals.length; i += 1) {
+          if (vals[i] < vals[minIndex]) {
+            minIndex = i;
+          }
+        }
+
+        // O(1)
+        int minVal = vals[minIndex];
+
+        // O(n)
+        for (int i = 0; i < vals.length; i += 1) {
+          vals[i] = vals[i] - minVal;
+        }
+      }
+
+      // O(n^2)
+      public static int maxDifference(int[] vals) {
+        // O(1)
+        int max = 0;
+
+        // O(n^2)
+        for (int i = 0; i < vals.length; i += 1) {
+          // O(n)
+          for (int j = 0; j < vals.length; j += 1) {
+            // O(1)
+            if (vals[i] - vals[j] > max) {
+              max = vals[i] - vals[j];
+            }
+          }
+        }
+
+        // O(1)
+        return max;
+      }
+
+      // O(n^2)
+      public static int[] selectionSort(int[] vals) {
+        // O(n)
+        for (int i = 0; i < vals.length; i += 1) {
+          // O(n-i)
+          for (int j = i + 1; j < vals.length; j += 1) {
+            if (vals[j] < vals[i]) {
+              int temp = vals[i];
+              vals[i] = vals[j];
+              vals[j] = temp;
+            }
+          }
+        }
+
+        return vals;
+      }
+
+      // HINT: start from the inside out
+      // O(n) * O(1000) * O(n) => O(n^2)
+      public static void challenge1(int n) {
+        // O(1)
+        int sum = 0;
+        // O(2.n) => O(n) * times big O of the body
+        for (int i = 0; i < 2 * n; i += 1) {
+          // O(1000) times big O of the body
+          for (int j = n - 1000; j < n; j += 1) {
+            // O(n/2) => O(n) * times big O of the body
+            for (int k = n / 2; k < n; k += 1) {
+              // O(1)
+              sum += 1;
+            }
+          }
+        }
+      }
+    }
+
+  #+END_SRC
+
+- *Space complexity*: The measure for the working storage an algorithm
+   needs is called space complexity. Space complexity analysis is
+   similar to time complexity analysis. The difference is that we
+   count computer memory, and not computing operations.
+
+
 * Strategy
   + *iteration*
   + *nested loops*
@@ -612,8 +725,11 @@ arranged as nodes and edges, and any node can have multiple incoming
 and outgoing edges. This is the most flexible data structure there
 is, and it can be used to represent almost any type of data.
 *** HashTable
-- The Hash Table is a data structure that allows finding items in
-  =O(1)= time.
+    Good: Average =O(1)= lookup, insert, remove.
+    Bad: Resizing cost, no data ordering.
+
+- The Hash Table (They are just arrays at the core) is a data
+  structure that allows finding items in =O(1)= time.
 - Similarly to the Array, the Hash requires preallocating a big chunk
   of sequential memory to store data.
 - But unlike the Array, items are not stored in an ordered
@@ -638,6 +754,17 @@ is, and it can be used to represent almost any type of data.
   they require a very large chunk of sequential memory in order to
   work properly.
   + Solutions:
-    1. *Linear Probing*: just put it in the next open stop. Linear
-       Probing can struggle as the hash table starts getting full.
-    2. *Random Probing*: jump random # of steps instead of just the next one
+    1. *Linear Probing*: just put it in the next open spot. Linear
+       Probing can struggle as the hash table starts getting
+       full. When we want to search for a key, we have to keep
+       looking until we get to an open spot.
+
+       + *Random Probing*: jump random # of steps instead of just the next one
+    2. *Separate Chaining*: Just keep a Linked List at each spot. When
+       collision happened add the element to the list.
+- *Resizing*:
+  + Requires to create a new table, new hash function and reinserting
+    everything (At the core, they are just arrays).
+  + Rule of thumb: too full is ≈ 70% full
+- *Ordering*:
+  + No order within the structure itself.
