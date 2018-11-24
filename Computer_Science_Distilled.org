@@ -78,15 +78,16 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
 - *Time complexity*: When an algorithm can have different values of =T(n)= for the same
   value of =n=, we resort to cases:
 
-  1. BEST CASE: when the input requires the minimum number of
+  1. *BEST CASE*: when the input requires the minimum number of
      operations for any input of that size. In sorting, it happens
-     when the input is already sorted.
+     when the input is already sorted. It's the lower bound.
 
-  2. WORST CASE: when the input requires the maximum number of
+  2. *WORST CASE*: when the input requires the maximum number of
      operations for any input of that size. In many sorting
-     algorithms, that’s when the input was given in reverse order.
+     algorithms, that’s when the input was given in reverse
+     order. It's the upper bound.
 
-  3. AVERAGE CASE: refers to the average number of operations required
+  3. *AVERAGE CASE*: refers to the average number of operations required
      for typical inputs of that size. For sorting, an input in random
      order is usually considered.
 
@@ -142,6 +143,7 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
       }
 
       // O(n^2)
+      // BTW the best case is also O(n^2)
       public static int[] selectionSort(int[] vals) {
         // O(n)
         for (int i = 0; i < vals.length; i += 1) {
@@ -175,6 +177,93 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
           }
         }
       }
+
+      // log(n)
+      public static boolean binarySearch(int[] arr, int toFind) {
+        // O(1)
+        var low = 0;
+        var high = arr.length - 1;
+
+        // log(n)
+        while (low <= high) {
+          var middle = (low + high) / 2;
+          var value = arr[middle];
+
+          if (value == toFind) {
+            return true;
+          } else if (toFind < value) {
+            high = middle - 1;
+          } else {
+            low = middle + 1;
+          }
+        }
+
+        return false;
+      }
+
+      // best case O(n)
+      // worst case O(n^2)
+      public static Integer[] insertionSort(Integer[] arr) {
+        for (int i = 1; i < arr.length; i += 1) {
+          int currInd = i;
+
+          while (currInd < 0 && arr[currInd] < arr[currInd - 1]) {
+            arr = swap(arr, currInd, currInd - 1);
+            currInd = currInd - 1;
+          }
+        }
+        return arr;
+      }
+      // O(n.log(n))
+      public static Integer[] mergeSort(Integer[] arr) {
+        if (arr.length == 1) {
+          return arr;
+        } else {
+          return merge(
+              mergeSort(Arrays.copyOfRange(arr, 0, arr.length / 2)),
+              mergeSort(Arrays.copyOfRange(arr, arr.length / 2, arr.length)));
+        }
+      }
+
+      // O(n)
+      public static Integer[] merge(Integer[] firstArray, Integer[] secondArray) {
+        ArrayList<Integer> result = new ArrayList<>();
+
+        while (firstArray.length > 0 && secondArray.length > 0) {
+          if (firstArray[0] < secondArray[0]) {
+            result.add(firstArray[0]);
+            firstArray = shift(firstArray);
+          } else {
+            result.add(secondArray[0]);
+            secondArray = shift(secondArray);
+          }
+        }
+
+        if (firstArray.length == 0) {
+          for (Integer x : secondArray) {
+            result.add(x);
+          }
+        } else if (secondArray.length == 0) {
+          for (Integer x : firstArray) {
+            result.add(x);
+          }
+        }
+
+        return result.toArray(new Integer[result.size()]);
+      }
+
+      public static <T> T[] shift(T[] arr) {
+        return Arrays.copyOfRange(arr, 1, arr.length);
+      }
+
+      public static <T> T[] swap(T[] arr, int firstIndex, int secondIndex) {
+        T temp = arr[firstIndex];
+        arr[firstIndex] = arr[secondIndex];
+        arr[secondIndex] = temp;
+
+        return arr;
+      }
+
     }
 
   #+END_SRC
