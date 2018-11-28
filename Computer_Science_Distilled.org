@@ -1,5 +1,6 @@
-Mostly from the “Computer Science Distilled”, Wikipedia and
-“Data Structures and Performance” by University of California San Diego.
+Mostly from the “Computer Science Distilled”, Wikipedia and “Data
+Structures and Performance” by University of California San Diego and
+some of FrontEndMasters courses.
 
 * Flowcharts
   + Write states and instruction steps inside rectangles.
@@ -73,7 +74,6 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
     2. Focus o how performance scales
     3. Go beyond input size
   :END:
-
 
 - *Time complexity*: When an algorithm can have different values of =T(n)= for the same
   value of =n=, we resort to cases:
@@ -207,7 +207,7 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
         for (int i = 1; i < arr.length; i += 1) {
           int currInd = i;
 
-          while (currInd < 0 && arr[currInd] < arr[currInd - 1]) {
+          while (currInd > 0 && arr[currInd] < arr[currInd - 1]) {
             arr = swap(arr, currInd, currInd - 1);
             currInd = currInd - 1;
           }
@@ -268,11 +268,113 @@ Mostly from the “Computer Science Distilled”, Wikipedia and
 
   #+END_SRC
 
+  *QuickSort*
+  best case is =O(n.log(n))=
+  average case is =O(n.log(n))=
+  worst case is =O(n^2)=
+  #+BEGIN_SRC java
+    import java.util.Arrays;
+
+    public class Library {
+      public static void main(String args[]) {
+        int[] sample = {9, 7, 5, 11, 12, 2, 14, 3, 10, 6};
+        System.out.println(Arrays.toString(sample));
+        quickSort(sample);
+        System.out.println(Arrays.toString(sample));
+      }
+
+      public static int[] quickSort(int[] arr) {
+        return quickSort(arr, 0, arr.length - 1);
+      }
+
+      public static int[] quickSort(int[] arr, int left, int right) {
+        if (left >= right) {
+          return arr;
+        }
+
+        var pivot = arr[(right + left) / 2];
+        var index = partition(arr, left, right, pivot);
+
+        quickSort(arr, left, index - 1);
+        quickSort(arr, index + 1, right);
+
+        return arr;
+      }
+
+      // by the end of this function, the given pivot will be in its final
+      // position, and we return its position (left)
+      public static int partition(int[] arr, int left, int right, int pivot) {
+        while (left < right) {
+
+          // Please find something that should be on the right side of our pivot,
+          // that is to say it is bigger than the pivot
+          while (left < (arr.length - 1) && arr[left] < pivot) {
+            left += 1;
+          }
+
+          // Please find something that should be on the left side of our pivot,
+          // that is to say it is smaller than the pivot
+          while (right > 0 && arr[right] > pivot) {
+            right -= 1;
+          }
+
+          if (left < right) {
+            // we found two elment that should be swapped because,
+            swap(arr, left, right);
+          }
+        }
+
+        // position of pivot
+        return left;
+      }
+
+      public static int[] swap(int[] arr, int firstIndex, int secondIndex) {
+        var temp = arr[firstIndex];
+        arr[firstIndex] = arr[secondIndex];
+        arr[secondIndex] = temp;
+
+        return arr;
+      }
+    }
+
+  #+END_SRC
+
+  *Binary Search recursively*
+  =O(log n)=
+  #+BEGIN_SRC java
+    public class BinarySearch {
+      public static void main(String[] args) {
+        int[] sample = {1, 20, 22, 23, 24, 50, 55, 100};
+
+        System.out.println(binarySearch(sample, 24));
+      }
+
+      public static boolean binarySearch(int[] arr, int toFind) {
+        return binarySearch(arr, toFind, 0, arr.length - 1);
+      }
+
+      public static boolean binarySearch(int[] arr, int toFind, int low, int high) {
+        if (low > high) {
+          return false;
+        }
+
+        var midIndex = (low + high) / 2;
+        var mid = arr[midIndex];
+
+        if (mid > toFind) {
+          return binarySearch(arr, toFind, low, midIndex - 1);
+        } else if (mid < toFind) {
+          return binarySearch(arr, toFind, midIndex + 1, high);
+        } else {
+          return true;
+        }
+      }
+    }
+  #+END_SRC
 - *Space complexity*: The measure for the working storage an algorithm
    needs is called space complexity. Space complexity analysis is
    similar to time complexity analysis. The difference is that we
    count computer memory, and not computing operations.
-
 
 * Strategy
   + *iteration*
@@ -813,47 +915,333 @@ children or parent nodes, and therefore, no Root Node. Data is freely
 arranged as nodes and edges, and any node can have multiple incoming
 and outgoing edges. This is the most flexible data structure there
 is, and it can be used to represent almost any type of data.
-*** HashTable
-    Good: Average =O(1)= lookup, insert, remove.
-    Bad: Resizing cost, no data ordering.
+**** Searching in Graphs
+***** DFS and BFS
+Notice that DFS and BFS only differ in the way the next nodes to
+explore are stored: one uses a Queue, the other a Stack.
 
-- The Hash Table (They are just arrays at the core) is a data
-  structure that allows finding items in =O(1)= time.
-- Similarly to the Array, the Hash requires preallocating a big chunk
-  of sequential memory to store data.
-- But unlike the Array, items are not stored in an ordered
-  sequence. The position an item occupies is given by a
-  hash function.
-- *hash function*: A special function that takes the data you want to
-  store as input, and outputs a random-looking number. That number is
-  interpreted as the memory position the item will be stored at. This
-  allows us to retrieve items instantly. A given value is first run
-  through the hash function. The function will output the exact
-  position the item should be stored in memory. Fetch that memory
-  position. If the item was stored, you’ll find it there.
-- *hash collision*: A proper hash function will return random-looking
-  values for different inputs. Therefore, the larger the range of
-  values the hash function can output, the more data positions are
-  available, and the less probable it is for a hash collision to
-  happen. So we ensure at least 50% of the space available to the Hash
-  Table is free. Other- wise, collisions would be too frequent,
-  causing a significant drop in the Hash Table’s performance. Hash
-  Tables are often used to implement Maps and Sets. They allow faster
-  insertions and deletions than tree-based data structures. However,
-  they require a very large chunk of sequential memory in order to
-  work properly.
-  + Solutions:
-    1. *Linear Probing*: just put it in the next open spot. Linear
-       Probing can struggle as the hash table starts getting
-       full. When we want to search for a key, we have to keep
-       looking until we get to an open spot.
+When you suspect the node you are searching isn’t many levels away
+from the start, it’s usually worth paying the higher cost of BFS,
+because you’re likely to find the node faster. When you need to
+explore all the nodes of a graph, it’s usually better to stick with
+DFS for its simple implementation and smaller memory footprint.
 
-       + *Random Probing*: jump random # of steps instead of just the next one
-    2. *Separate Chaining*: Just keep a Linked List at each spot. When
-       collision happened add the element to the list.
-- *Resizing*:
-  + Requires to create a new table, new hash function and reinserting
-    everything (At the core, they are just arrays).
-  + Rule of thumb: too full is ≈ 70% full
-- *Ordering*:
-  + No order within the structure itself.
+pseudo-code
+#+BEGIN_SRC
+function DFS(start_node, key)
+    next_nodes ← Stack.new()
+    seen_nodes ← Set.new()
+
+    next_nodes.push(start_node)
+    seen_nodes.add(start_node)
+
+    while not next_nodes.empty
+        node ← next_nodes.pop()
+
+        if node.key = key
+            return node
+
+        for n in node.connected_nodes
+            if not n in seen_nodes
+                next_nodes.push(n)
+                seen_nodes.add(n)
+    return NULL
+
+/-------------
+
+function BFS(start_node, key)
+    next_nodes ← Queue.new()
+    seen_nodes ← Set.new()
+
+    next_nodes.enqueue(start_node)
+    seen_nodes.add(start_node)
+
+    while not next_nodes.empty
+        node ← next_nodes.dequeue()
+        if node.key = key
+            return node
+        for n in node.connected_nodes
+            if not n in seen_nodes
+               next_nodes.enqueue(n)
+               seen_nodes.add(n)
+    return NULL
+#+END_SRC
+Recursive and iterative version of DFS in Java, and iterative version BFS, courtesy of [[https://java2blog.com/depth-first-search-in-java/][java2blog]]
+#+BEGIN_SRC java
+  import java.util.ArrayList;
+  import java.util.List;
+  import java.util.Stack;
+
+  public class Graph {
+
+      static class Node {
+          int data;
+          boolean visited;
+          List<Node> neighbours;
+
+          Node(int data) {
+              this.data = data;
+              this.neighbours = new ArrayList<>();
+          }
+
+          public void addneighbours(Node neighbourNode) {
+              this.neighbours.add(neighbourNode);
+          }
+
+          public List<Node> getNeighbours() {
+              return neighbours;
+          }
+
+          public void setNeighbours(List<Node> neighbours) {
+              this.neighbours = neighbours;
+          }
+      }
+
+      // Recursive DFS
+      public void dfs(Node node) {
+          System.out.print(node.data + " ");
+          List<Node> neighbours = node.getNeighbours();
+          node.visited = true;
+          for (int i = 0; i < neighbours.size(); i++) {
+              Node n = neighbours.get(i);
+              if (n != null && !n.visited) {
+                  dfs(n);
+              }
+          }
+      }
+
+      // Iterative DFS using stack
+      public void dfsUsingStack(Node node) {
+          Stack<Node> stack = new Stack<Node>();
+          stack.add(node);
+          node.visited = true;
+          while (!stack.isEmpty()) {
+              Node element = stack.pop();
+              System.out.print(element.data + " ");
+              List<Node> neighbours = element.getNeighbours();
+              for (int i = 0; i < neighbours.size(); i++) {
+                  Node n = neighbours.get(i);
+                  if (n != null && !n.visited) {
+                      stack.add(n);
+                      n.visited = true;
+                  }
+              }
+          }
+      }
+
+      public void bfs(Node node) {
+          queue.add(node);
+          node.visited=true;
+          while (!queue.isEmpty()) {
+              Node element=queue.remove();
+              System.out.print(element.data + "t");
+              List<Node> neighbours=element.getNeighbours();
+              for (int i = 0; i < neighbours.size(); i++) {
+                  Node n=neighbours.get(i);
+                  if(n!=null && !n.visited) {
+                      queue.add(n);
+                      n.visited=true;
+                  }
+              }
+
+          }
+      }
+
+      public static void main(String arg[]) {
+
+          Node node40 = new Node(40);
+          Node node10 = new Node(10);
+          Node node20 = new Node(20);
+          Node node30 = new Node(30);
+          Node node60 = new Node(60);
+          Node node50 = new Node(50);
+          Node node70 = new Node(70);
+
+          node40.addneighbours(node10);
+          node40.addneighbours(node20);
+          node10.addneighbours(node30);
+          node20.addneighbours(node10);
+          node20.addneighbours(node30);
+          node20.addneighbours(node60);
+          node20.addneighbours(node50);
+          node30.addneighbours(node60);
+          node60.addneighbours(node70);
+          node50.addneighbours(node70);
+
+          Graph dfsExample = new Graph();
+
+          System.out.println("The DFS traversal of the graph using stack ");
+          dfsExample.dfsUsingStack(node40);
+
+          System.out.println();
+
+          // Resetting the visited flag for nodes
+          node40.visited = false;
+          node10.visited = false;
+          node20.visited = false;
+          node30.visited = false;
+          node60.visited = false;
+          node50.visited = false;
+          node70.visited = false;
+
+          System.out.println("The DFS traversal of the graph using recursion ");
+          dfsExample.dfs(node40);
+      }
+  }
+
+#+END_SRC
+
+**** Graph Coloring
+**** Path Finding
+To find short paths, BFS and DFS strategies are usable but bad.  One
+famous and very effective way of finding the shortest path is the
+*Djkistra Algorithm*: As BFS uses an auxiliary Queue to keep track of
+nodes to explore, the Djkistra Algorithm uses a Priority Queue. When
+new nodes are explored, their connections are added to the Priority
+Queue. A node’s priority is the weight of the edges that take it to
+the starting node. This way, the next node to explore is always the
+closest to where we started.
+**** PageRank
+**** Operation Research
+Operations research involves defining an objective to maximize or
+minimize. It can help maximize objectives like yield, profit, or
+performance; and minimize objectives like loss, risk, or cost.
+**** Linear Optimization problem
+Problems where the objective and constraints can be modeled using
+linear equations (Formally, polynomials with degree 1. They can have
+no squares (nor any powers) and their variables can only be multiplied
+by constant numbers.) are called linear optimization problems.
+Can be solved by Simplex Method.
+
+*** HASHTABLE
+    GOOD: AVERAGE =O(1)= LOOKUP, INSERT, REMOVE.
+    BAD: RESIZING COST, NO DATA ORDERING.
+
+- THE HASH TABLE (THEY ARE JUST ARRAYS AT THE CORE) IS A DATA
+  STRUCTURE THAT ALLOWS FINDING ITEMS IN =O(1)= TIME.
+- SIMILARLY TO THE ARRAY, THE HASH REQUIRES PREALLOCATING A BIG CHUNK
+  OF SEQUENTIAL MEMORY TO STORE DATA.
+- BUT UNLIKE THE ARRAY, ITEMS ARE NOT STORED IN AN ORDERED
+  SEQUENCE. THE POSITION AN ITEM OCCUPIES IS GIVEN BY A
+  HASH FUNCTION.
+- *HASH FUNCTION*: A SPECIAL FUNCTION THAT TAKES THE DATA YOU WANT TO
+  STORE AS INPUT, AND OUTPUTS A RANDOM-LOOKING NUMBER. THAT NUMBER IS
+  INTERPRETED AS THE MEMORY POSITION THE ITEM WILL BE STORED AT. THIS
+  ALLOWS US TO RETRIEVE ITEMS INSTANTLY. A GIVEN VALUE IS FIRST RUN
+  THROUGH THE HASH FUNCTION. THE FUNCTION WILL OUTPUT THE EXACT
+  POSITION THE ITEM SHOULD BE STORED IN MEMORY. FETCH THAT MEMORY
+  POSITION. IF THE ITEM WAS STORED, YOU’LL FIND IT THERE.
+- *HASH COLLISION*: A PROPER HASH FUNCTION WILL RETURN RANDOM-LOOKING
+  VALUES FOR DIFFERENT INPUTS. THEREFORE, THE LARGER THE RANGE OF
+  VALUES THE HASH FUNCTION CAN OUTPUT, THE MORE DATA POSITIONS ARE
+  AVAILABLE, AND THE LESS PROBABLE IT IS FOR A HASH COLLISION TO
+  HAPPEN. SO WE ENSURE AT LEAST 50% OF THE SPACE AVAILABLE TO THE HASH
+  TABLE IS FREE. OTHER- WISE, COLLISIONS WOULD BE TOO FREQUENT,
+  CAUSING A SIGNIFICANT DROP IN THE HASH TABLE’S PERFORMANCE. HASH
+  TABLES ARE OFTEN USED TO IMPLEMENT MAPS AND SETS. THEY ALLOW FASTER
+  INSERTIONS AND DELETIONS THAN TREE-BASED DATA STRUCTURES. HOWEVER,
+  THEY REQUIRE A VERY LARGE CHUNK OF SEQUENTIAL MEMORY IN ORDER TO
+  WORK PROPERLY.
+  + SOLUTIONS:
+    1. *LINEAR PROBING*: JUST PUT IT IN THE NEXT OPEN SPOT. LINEAR
+       PROBING CAN STRUGGLE AS THE HASH TABLE STARTS GETTING
+       FULL. WHEN WE WANT TO SEARCH FOR A KEY, WE HAVE TO KEEP
+       LOOKING UNTIL WE GET TO AN OPEN SPOT.
+
+       + *RANDOM PROBING*: JUMP RANDOM # OF STEPS INSTEAD OF JUST THE NEXT ONE
+    2. *SEPARATE CHAINING*: JUST KEEP A LINKED LIST AT EACH SPOT. WHEN
+       COLLISION HAPPENED ADD THE ELEMENT TO THE LIST.
+- *RESIZING*:
+  + REQUIRES TO CREATE A NEW TABLE, NEW HASH FUNCTION AND REINSERTING
+    EVERYTHING (AT THE CORE, THEY ARE JUST ARRAYS).
+  + RULE OF THUMB: TOO FULL IS ≈ 70% FULL
+- *ORDERING*:
+  + NO ORDER WITHIN THE STRUCTURE ITSELF.
+* Database
+When a database is organized in a way that it is completely free of
+duplicate information, we say that the database is =normalized=. The
+process of transforming a database with replicated data to one without
+is called =normalization=.
+
+** Codd's Relational Model
+- A relation (table) is a set of tuples (rows) (d1, d2, d3,... dn).
+- Each *element in a tuple* (cell value) dj is a member of Dj, a *data domain* (set of allowed values).
+
+** SELECT and WHERE
+
+#+BEGIN_SRC sql
+select 'farhad.hsni@gmail.com' like '%gmail.com' -- true
+#+END_SRC
+
+#+BEGIN_SRC
+SELECT * FROM Customer WHERE FirstName LIKE '____'
+#+END_SRC
+
+|----------------------+------------------------------------------|
+| >, <, >=, <=, =      | age >= 21                                |
+| Not equal: <> or !=. | isDeleted != TRUE                        |
+| Within a range       | temperature BETWEEN 68 AND 75            |
+| Member of a set      | companyname IN ('Microsoft', 'LinkedIn') |
+| String ends with     | email LIKE '%.gov'                       |
+| String includes      | summary LIKE '%spicy%'                   |
+| String length        | billing_state LIKE '__'                  |
+
+*** Logical Boolean Operators
+AND, OR, NOT
+- Boolean (logic) operators
+- Operate on conditions
+- Parens for clarity
+#+BEGIN_SRC sql
+SELECT productname FROM Product WHERE (unitprice > 60 AND unitsinstock > 20)
+#+END_SRC
+
+** Core Functions
+Core Functions
+- Each database's set of core functions is slightly different (SQLite,
+  MySQL, PostgreSQL)
+- Some of these work across databases (lower, max, min, count, substr,
+  etc...)
+- Fine to use them in a comparison
+- ...or as an additional column
+#+BEGIN_SRC sql
+  select * from customer where lower(companyname) like lower('%Taq%') or
+  lower(contactname) like lower('%JOHN%')
+#+END_SRC
+
+** Sorting
+Sorting
+- An =ORDER BY= clause declares the desired sorting of the result set
+- Specify sort direction as =ASC= or =DESC=
+- Multiple sorts and directions may be provided, separated by commas
+#+BEGIN_SRC sql
+  SELECT productname, unitprice FROM Product WHERE unitprice BETWEEN 9.6
+  AND 11 ORDER BY unitprice ASC, productname DESC
+#+END_SRC
+
+** Limiting
+When dealing with large result sets, sometimes we just want the first N rows
+- A LIMIT clause allows us to specify how many we want
+- Performance can be much higher, if the database doesn't have to examine
+each record for sorting purposes
+#+BEGIN_SRC sql
+SELECT productname, unitprice
+FROM Product
+ORDER BY unitprice DESC
+LIMIT 3
+#+END_SRC
+** Offsetting
+- Means "Start with the Nth result"
+- We can paginate over a set of results using a LIMIT and OFFSET
+#+BEGIN_SRC sql
+SELECT productname,
+unitprice
+FROM Product
+ORDER BY unitprice DESC
+LIMIT 3
+OFFSET 3
+#+END_SRC
+** Schema Migration
+When we need to change the database structure, we create a schema
+migration script. It automatically upgrades the schema and transforms
+existing data accordingly. Typically, these scripts can also undo
+their changes.

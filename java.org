@@ -322,9 +322,6 @@ methods called indexOf . They have signatures
 =indexOf(String)=
 =indexOf(String, int)=
 
-The return type is not part of the method signature. That is, you
-cannot have two meth
-
 ** Default Field Initialization
 
 If you don’t set a field explicitly in a constructor, it is
