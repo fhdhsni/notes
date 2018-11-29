@@ -1,4 +1,3 @@
-
 To work with OOP, you should be able to identify three key
 characteristics of objects:
 
@@ -26,6 +25,5 @@ The most common relationships between classes are
   “association” relationship. From the point of view of modeling, that
   is understandable. But for programmers, the “has–a” relationship
   makes a lot of sense.
-
 
 - Inheritance (“is–a”)

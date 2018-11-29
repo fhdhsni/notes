@@ -99,7 +99,6 @@ Using recursive functions in JavaScript requires some care. Every function call 
 However, this can be avoided with tail call optimisation.
 ** Tail Call Optimisation
 
-
 * From Preethi Kasireddy email course
 1) The function depends only on the input provided to it to produce a
    result (and not on any external state).

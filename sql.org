@@ -66,7 +66,7 @@ as a saved query or, more simply, a query.
 
 ** Relationships
 Three types of relationships can exist between a pair of tables:
-one-to-one, one-to-many, or many- to-many.
+one-to-one, one-to-many, or many-to-many.
 
 *** one-to-one
 A pair of tables has a one-to-one relationship when a single record in
@@ -87,6 +87,10 @@ but a single record in the second table can be related to only one
 record in the first table. This relationship is established by taking
 the primary key of the table on the “one” side and inserting it into
 the table on the “many” side, where it becomes a foreign key.
+e.g.
+- ONE customer MANY orders
+- ONE category MANY products
+- ONE department MANY employees
 
 *** many-to-many
 A pair of tables is in a many-to-many relationship when a single
@@ -102,6 +106,33 @@ using them to form the structure of the new table. These fields
 actually serve two distinct roles: Together they form the composite
 primary key of the linking table, and separately they each serve as a
 foreign key.
+e.g.
+
+author
+| id | name           |   zip |
+|----+----------------+-------|
+| 74 | Jordan Winters | 83542 |
+| 75 | Fred Summers   | 39749 |
+| 76 | John Marr      | 98347 |
+
+title
+| id | title      | isbn   |
+|----+------------+--------|
+|  1 | DB design  | abc123 |
+|  2 | sharepoint | def456 |
+|  3 | SQL Server | FGH789 |
+
+
+authortitle
+| id | authorid | titleid |
+|----+----------+---------|
+|  1 |       74 |       1 |
+|  2 |       74 |       3 |
+|  3 |       76 |       3 |
+|  4 |       75 |       2 |
+
+this is the linking table, it has a one-to-many relationship with the
+each of the above tables (author and title)
 
 * Sound Structures
 ** Fine-Tuning Fields
