@@ -4,6 +4,11 @@ stored in /relations/, which are perceived by the user as tables. Each
 relation is composed of tuples (records or rows) and attributes
 (fields or columns).
 
+When a database is organized in a way that it is completely free of
+duplicate information, we say that the database is =normalized=. The
+process of transforming a database with replicated data to one without
+is called =normalization=.
+
 * Tables
 The logical order of records and fields within a table is of
 absolutely no importance.
@@ -249,11 +254,767 @@ the maximum possible number of related records.
 You must figure out to what degree each table will participate. You do
 this by determining the minimum and maximum number of records in one
 table that can be related to a single record in the other table.
+* miscellaneous
+** Codd's Relational Model
+- A relation (table) is a set of tuples (rows) (d1, d2, d3,... dn).
+- Each *element in a tuple* (cell value) dj is a member of Dj, a *data domain* (set of allowed values).
 
-* select
+** SELECT and WHERE
 
-The =SELECT= operation in SQL can be broken down into three smaller
-operations:
-1.the SELECT statement
-2.the SELECT expression
-3.the SELECT query: a SELECT query as a SELECT statement with an ORDER BY clause.
+#+BEGIN_SRC sql
+select 'farhad.hsni@gmail.com' like '%gmail.com' -- true
+#+END_SRC
+
+#+BEGIN_SRC
+SELECT * FROM Customer WHERE FirstName LIKE '____'
+#+END_SRC
+
+|----------------------+------------------------------------------|
+| >, <, >=, <=, =      | age >= 21                                |
+| Not equal: <> or !=. | isDeleted != TRUE                        |
+| Within a range       | temperature BETWEEN 68 AND 75            |
+| Member of a set      | companyname IN ('Microsoft', 'LinkedIn') |
+| String ends with     | email LIKE '%.gov'                       |
+| String includes      | summary LIKE '%spicy%'                   |
+| String length        | billing_state LIKE '__'                  |
+
+*** Logical Boolean Operators
+AND, OR, NOT
+- Boolean (logic) operators
+- Operate on conditions
+- Parens for clarity
+#+BEGIN_SRC sql
+SELECT productname FROM Product WHERE (unitprice > 60 AND unitsinstock > 20)
+#+END_SRC
+
+** Core Functions
+Core Functions
+- Each database's set of core functions is slightly different (SQLite,
+  MySQL, PostgreSQL)
+- Some of these work across databases (lower, max, min, count, substr,
+  etc...)
+- Fine to use them in a comparison
+- ...or as an additional column
+#+BEGIN_SRC sql
+  select * from customer where lower(companyname) like lower('%Taq%') or
+  lower(contactname) like lower('%JOHN%')
+#+END_SRC
+
+** Sorting
+Sorting
+- An =ORDER BY= clause declares the desired sorting of the result set
+- Specify sort direction as =ASC= or =DESC=
+- Multiple sorts and directions may be provided, separated by commas
+#+BEGIN_SRC sql
+  SELECT productname, unitprice FROM Product WHERE unitprice BETWEEN 9.6
+  AND 11 ORDER BY unitprice ASC, productname DESC
+#+END_SRC
+
+** Limiting
+When dealing with large result sets, sometimes we just want the first N rows
+- A LIMIT clause allows us to specify how many we want
+- Performance can be much higher, if the database doesn't have to examine
+each record for sorting purposes
+#+BEGIN_SRC sql
+SELECT productname, unitprice
+FROM Product
+ORDER BY unitprice DESC
+LIMIT 3
+#+END_SRC
+** Offsetting
+- Means "Start with the Nth result"
+- We can paginate over a set of results using a LIMIT and OFFSET
+#+BEGIN_SRC sql
+SELECT productname,
+unitprice
+FROM Product
+ORDER BY unitprice DESC
+LIMIT 3
+OFFSET 3
+#+END_SRC
+
+** Relationships
+also check out [[file:sql.org::*Relationships][sql.org]]
+#+BEGIN_SRC
+
+(customerid)
+(employeeid)
+ORDER⚞⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ CUSTOMER
+ \|/
+  |
+  |
+  |
+EMPLOYEE
+#+END_SRC
+- Order belongs to Customer
+- Customer has many Orders
+- Order belongs to Employee
+- Employee has many Orders
+
+ORDER
+|    id | customerid | employeeid |
+|-------+------------+------------|
+| 10625 | ANATR      |          3 |
+| 10835 | ALFKI      |          1 |
+| 12617 | ANTON      |          2 |
+
+CUSTOMER
+| id    | companyname         | contactname           |
+|-------+---------------------+-----------------------|
+| ALFKI | Alfreds             | Maria Anders          |
+| ANATR | Ana Futterkiste     | Ana Trujillo          |
+| ANTON | Antonio Emparedados | Moreno Antonio Moreno |
+
+EMPLOYEE
+| id | firstname | lastname  |
+|----+-----------+-----------|
+|  1 | Nancy     | Davolio   |
+|  2 | Andrew    | Fuller    |
+|  3 | Janet     | Leverling |
+
+** JOIN: Assemble tables together
+The JOINing is done on a related column between the tables
+
+- Four types of join, that differ in terms of how "incomplete" matches are handled
+- Simplified example
+
+*customerorder*
+| id | customerid | amount | notes         | month |
+|----+------------+--------+---------------+-------|
+|  1 |          1 |     99 | order 1 notes |     5 |
+|  2 |          1 |    212 | order 2 notes |     3 |
+|  4 |         12 |   1000 | order 4 notes |    11 |
+|  3 |          3 |   14.5 | order 3 notes |     3 |
+|  5 |          1 |    199 | orde 5 notes  |     3 |
+
+*customer*
+| id | name             | notes        |
+|----+------------------+--------------|
+|  2 | Mark Grabanski   | mark's notes |
+|  1 | Mike North       | mike's notes |
+|  3 | Lisa Huang-North | lisa's notes |
+
+incomplete matches:
+- order 4 has customerid of 12 but we don't have any customer with that id
+- customer 2 doesn't have any order
+
+*** INNER JOIN
+Only rows that have "both ends" of the match will be selected for the
+sample tables demonstrated above, =customer 2= and =order 4= will be
+dropped.
+#+BEGIN_SRC sql
+select
+    *
+from
+    customerorder as o
+inner join customer as c on
+    o.customerid = c.id
+#+END_SRC
+
+| id | customerid | amount | notes         | month | id | name             | notes        |
+|----+------------+--------+---------------+-------+----+------------------+--------------|
+|  1 |          1 |     99 | order 1 notes |     5 |  1 | Mike North       | mike's notes |
+|  2 |          1 |    212 | order 2 notes |     3 |  1 | Mike North       | mike's notes |
+|  3 |          3 |   14.5 | order 3 notes |     3 |  3 | Lisa Huang-North | lisa's notes |
+|  5 |          1 |    199 | orde 5 notes  |     3 |  1 | Mike North       | mike's notes |
+
+*** LEFT JOIN
+Rows from LEFT of join will be selected no matter what
+#+BEGIN_SRC sql
+select
+    *
+from
+    customerorder as o
+left join customer as c on
+    o.customerid = c.id
+#+END_SRC
+|id |customerid |amount |notes         |month |id |name             |notes        |
+|---|-----------|-------|--------------|------|---|-----------------|-------------|
+|1  |1          |99     |order 1 notes |5     |1  |Mike North       |mike's notes |
+|2  |1          |212    |order 2 notes |3     |1  |Mike North       |mike's notes |
+|4  |12         |1000   |order 4 notes |11    |   |                 |             |
+|3  |3          |14.5   |order 3 notes |3     |3  |Lisa Huang-North |lisa's notes |
+|5  |1          |199    |orde 5 notes  |3     |1  |Mike North       |mike's notes |
+As you can see order 4 stil exist although it doesn't have any
+customer
+*** RIGHT JOIN
+Rows from RIGHT of join will be selected no matter what
+
+#+BEGIN_SRC sql
+select
+    *
+from
+    customerorder as o
+right join customer as c on
+    o.customerid = c.id
+#+END_SRC
+|id |customerid |amount |notes         |month |id |name             |notes        |
+|---|-----------|-------|--------------|------|---|-----------------|-------------|
+|1  |1          |99     |order 1 notes |5     |1  |Mike North       |mike's notes |
+|2  |1          |212    |order 2 notes |3     |1  |Mike North       |mike's notes |
+|3  |3          |14.5   |order 3 notes |3     |3  |Lisa Huang-North |lisa's notes |
+|5  |1          |199    |orde 5 notes  |3     |1  |Mike North       |mike's notes |
+|   |           |       |              |      |2  |Mark Grabanski   |mark's notes |
+
+as you can see customer 2 despite the fact that he doesn't have any
+order, he made it into the result
+
+*** FULL JOIN
+All rows in both tables are selected
+
+#+BEGIN_SRC sql
+select
+    *
+from
+    customerorder as o
+full join customer as c on
+    o.customerid = c.id
+#+END_SRC
+
+| id | customerid | amount | notes         | month | id | name             | notes        |
+|----+------------+--------+---------------+-------+----+------------------+--------------|
+|  1 |          1 |     99 | order 1 notes |     5 |  1 | Mike North       | mike's notes |
+|  2 |          1 |    212 | order 2 notes |     3 |  1 | Mike North       | mike's notes |
+|  4 |         12 |   1000 | order 4 notes |    11 |    |                  |              |
+|  3 |          3 |   14.5 | order 3 notes |     3 |  3 | Lisa Huang-North | lisa's notes |
+|  5 |          1 |    199 | orde 5 notes  |     3 |  1 | Mike North       | mike's notes |
+|    |            |        |               |       |  2 | Mark Grabanski   | mark's notes |
+
+As you can see there're two gaps
+
+*** OUTER JOIN
+- =LEFT=, =RIGHT= and =FULL JOIN= are sometimes referred to as =OUTER= joins
+
+- In general, an =OUTER= join allows for the possibility that one or
+  more rows may be partially empty, due to not having a corresponding
+  match in the other table
+*** JOIN - Selecting Columns
+- =SELECT= * is generally a bad idea, and it's particularly dangerous
+  in the context of a JOIN
+- Choose columns with care, and alias any duplicates
+
+#+BEGIN_SRC sql
+select
+    o.id,
+    o.customerid,
+    o.amount,
+    c.name
+from
+    customerorder as o
+left join customer as c on
+    o.customerid = c.id
+#+END_SRC
+| id | customerid | amount | name             |
+|----+------------+--------+------------------|
+|  1 |          1 |     99 | Mike North       |
+|  2 |          1 |    212 | Mike North       |
+|  4 |         12 |   1000 |                  |
+|  3 |          3 |   14.5 | Lisa Huang-North |
+|  5 |          1 |    199 | Mike North       |
+
+** Aggregate Functions
+- Perform a calculation on a set of values, to arrive at a single
+  value
+- Each RDBMS has its own functions, but they all generally have a
+  foundational set
+  + =SUM= - Adds values together
+  + =COUNT= - Counts the number of values
+  + =MIN/MAX= - Finds the min/max value
+  + =AVG= - Calculates the mean of the values
+
+** Aggregate Functions and GROUP BY
+TIP:  What you =SELECT=, aggregate and =GROUP BY= must agree.
+
+*customerorder*
+| id | customerid | amount | notes         | month |
+|----+------------+--------+---------------+-------|
+|  1 |          1 |     99 | order 1 notes |     5 |
+|  2 |          1 |    212 | order 2 notes |     3 |
+|  4 |         12 |   1000 | order 4 notes |    11 |
+|  3 |          3 |   14.5 | order 3 notes |     3 |
+|  5 |          1 |    199 | orde 5 notes  |     3 |
+
+*customer*
+| id | name             | notes        |
+|----+------------------+--------------|
+|  2 | Mark Grabanski   | mark's notes |
+|  1 | Mike North       | mike's notes |
+|  3 | Lisa Huang-North | lisa's notes |
+
+- Imagine we have this JOIN query, and we want total amount per customer
+
+total spent by each customer
+#+BEGIN_SRC sql
+select
+    c.id,
+    c.name,
+    sum( o.amount )
+from
+    customerorder as o
+inner join customer as c on o.customerid=c.id
+group by c.name,c.id
+#+END_SRC
+
+*RESULT*:
+|id |name             |sum  |
+|---|-----------------|-----|
+|1  |Mike North       |510  |
+|3  |Lisa Huang-North |14.5 |
+
+
+total spent by each customer per month
+#+BEGIN_SRC sql
+select
+    c.id,
+    c.name,
+    o.m,
+    sum( o.amount )
+from
+    customerorder as o
+inner join customer as c on o.customerid=c.id
+group by c.name,c.id,o.m
+#+END_SRC
+
+*RESULT*:
+|id |name             |m |sum  |
+|---|-----------------|--|-----|
+|1  |Mike North       |5 |99   |
+|1  |Mike North       |3 |411  |
+|3  |Lisa Huang-North |3 |14.5 |
+
+
+impementation specific aggregators:
+
+#+BEGIN_SRC sql
+select
+    c.id,
+    c.name,
+    string_agg( cast( o.id as text ), ', ' ) as orders
+from
+    customer as c
+left join customerorder as o on
+    c.id = o.customerid
+group by
+    c.id,
+    c.name
+order by
+    c.id
+#+END_SRC
+| id | name             | orders  |
+|----+------------------+---------|
+|  1 | Mike North       | 1, 2, 5 |
+|  2 | Mark Grabanski   |         |
+|  3 | Lisa Huang-North | 3       |
+
+** Filtering *grouped* results
+- A =WHERE= clause is used to examine individual rows. It cannot be used
+  with an aggregate function
+- A =HAVING= clause is used to examine groups, and include or exclude
+  them from the result set
+- It's totally fine to use both in the same query. =WHERE= to
+  disregard irrelevant rows =HAVING= to disregard irrelevant groups
+
+#+BEGIN_SRC sql
+select
+    m,
+    sum(amount) as sum_month
+from
+    customerorder
+where
+    sum_month > 300
+group by
+    m
+#+END_SRC
+#+BEGIN_SRC
+ERROR: COLUMN "SUM_MONTH" DOES NOT EXIST
+#+END_SRC
+
+WITH =HAVING=
+#+BEGIN_SRC SQL
+SELECT
+    M,
+    SUM( AMOUNT ) AS SUM_MONTH
+FROM
+    CUSTOMERORDER
+GROUP BY
+    M
+HAVING
+    SUM( AMOUNT ) > 300
+#+END_SRC
+
+|  M | SUM_MONTH |
+|----+-----------|
+| 11 |      1000 |
+|  3 |     425.5 |
+
+** Subquery
+- A =SELECT= query can be nested in another query
+- Useful when results from the database are needed in order to define
+  "outer" query
+- Inner query cannot mutate data
+- Sometimes your RDBMS doesn't support ORDER BY within the subquery
+
+We need products which are in the category of 'Beverages', so first we
+get the id of 'Beverages' category from category table.
+#+BEGIN_SRC sql
+select
+    *
+from
+    Product
+where
+    categoryid =(
+    select
+        id
+    from
+        Category
+    where
+        categoryname = 'Beverages' );
+#+END_SRC
+
+** Creating Records
+- Add new records to a table via an INSERT INTO statement, indicating
+  the table to insert into
+- This must be followed by a VALUES expression, with an array
+  containing the corresponding data, in the order aligned with the
+  table's columns
+#+BEGIN_SRC sql
+INSERT INTO Customer VALUES (8424, 'Tanner Thompson', 'Likes scotch');
+#+END_SRC
+- Sometimes, columns can have default (or other auto-generated) values
+  and we need only provide data for SOME columns.
+- Specify the column names in your INSERT INTO statement, and ensure
+  your VALUES array is in the respective order.
+#+BEGIN_SRC sql
+INSERT INTO Customer (name, notes)
+VALUES ('Tanner Thompson', 'Likes scotch');
+#+END_SRC
+
+** SQL Injection
+- Anytime new data is added to your database, it must be appropriately
+  sanitized
+- Most of the time your SQL driver (library) helps you out
+
+#+BEGIN_SRC sql
+db.exec(`INSERT INTO Customer (name, notes)
+VALUES ($1, $2)`, ['Tanner', 'Tanner notes']);
+#+END_SRC
+
+** Deleting Records
+- Delete a table completely, including column definitions, indices,
+  etc... =DROP TABLE Customer=;
+- Delete all records from a table, while leaving the structure and indices intact =DELETE FROM Customer;=
+- One or more rows can be deleted while leaving the rest intact, via a =WHERE= clause
+#+BEGIN_SRC sql
+DELETE FROM Customer WHERE name = 'Juicero';
+#+END_SRC
+
+** Transactions
+- Sometimes we need to perform multi-statement operations (i.e.,
+  create an =Order= and several =OrderDetail= items)
+- What would happen if the =Order= was created, but something went wrong
+  with creating one of the =OrderDetails=?
+#+BEGIN_SRC sql
+INSERT INTO CustomerOrder ...; -- create new order
+INSERT INTO OrderDetail ...;
+INSERT INTO OrderDetail ...; -- ERROR happens
+#+END_SRC
+- Surround multiple statements with =BEGIN= and =COMMIT= to include them
+  in a transaction
+#+BEGIN_SRC sql
+BEGIN;
+    INSERT INTO CustomerOrder ...; -- create new order
+    INSERT INTO OrderDetail ...; -- add order item to it
+    INSERT INTO OrderDetail ...;
+    INSERT INTO OrderDetail ...;
+COMMIT; -- save! -- or in case of error we can say ROLLBACK
+#+END_SRC
+
+*** ACID
+Principles that guarantee data consistency, even when things go wrong
+- Atomic: All of the operations are treated as a single "all or
+  nothing" unit
+- Consistent: Changes from one valid state to another (never halfway)
+- Isolated: How visible are particulars of a transaction before it's
+  complete? When? To whom?
+- Durable: Once it completes, the transaction's results are stored
+  permanently in the system
+
+*** Transaction Isolation Levels
+- The degree to which other queries to the database can see, or be
+  influenced by an in-progress transaction
+- There are levels of isolation, and we as developers have a choice
+- Often this is a concurrency vs. safety and consistency trade-off
+**** Read Phenomena: Dirty Reads
+#+BEGIN_SRC sql
+BEGIN;
+SELECT month FROM CustomerOrder WHERE id = 21; -- 3
+                                                                    BEGIN;
+                                                                    UPDATE CustomerOrder SET month=4 WHERE id = 21;
+SELECT month FROM CustomerOrder WHERE id = 21; -- 4 OOPS
+                                                                    ROLLBACK;
+COMMIT;
+#+END_SRC
+*month is not 4*. The transation on the right which set month to 4
+failed and rolled back.
+
+**** Read Phenomena: Non-Repeatable Reads
+#+BEGIN_SRC sql
+BEGIN;
+SELECT month FROM CustomerOrder WHERE id = 21; -- 3
+                                                                  BEGIN;
+                                                                  UPDATE CustomerOrder SET month=4 WHERE id = 21;
+                                                                  COMMIT;
+SELECT month FROM CustomerOrder WHERE id = 21 -- 4 OOPS, it changed during the transaction
+#+END_SRC
+**** Read Phenomena: Phantom Reads
+| id | customerid | amount | month |
+|----+------------+--------+-------|
+| 19 |          1 |  99.00 |     5 |
+| 20 |          1 | 212.00 |     3 |
+| 21 |          3 |  14.50 |     3 |
+
+#+BEGIN_SRC sql
+BEGIN;
+SELECT SUM(amount) FROM CustomerOrder WHERE month BETWEEN 3 AND 5 -- 226.50
+                                                                                BEGIN;
+                                                                                INSERT INTO CustomerOrder(customer_id, amount, month) VALUES (22, 40000, 3);
+                                                                                COMMIT;
+SELECT SUM(amount) FROM CustomerOrder WHERE month BETWEEN 3 AND 5 -- 40226.50 -- OOPS
+#+END_SRC
+A new record has been added within the range of criteria which we were
+interested in.
+
+**** Transaction Isolation Levels
+- *Read Uncommitted*: Dirty reads are possible.
+- *Read Committed*: Write locks are obtained across the whole
+  transaction, read locks are obtained only for the duration of a
+  =SELECT=. Dirty reads are not possible.
+- *Repeatable Read*: Read and write locks are obtained across the whole
+  transaction.
+- *Serializable*: Read and write locks are obtained on selected data,
+  range locks are obtained for =WHERE= clauses.
+
+** Updating Records
+- One or more records may be updated at a time
+#+BEGIN_SRC sql
+UPDATE OrderDetail SET discount = 0.15 WHERE orderid = 10793
+#+END_SRC
+- Sometimes we want to use current values to calculate new ones
+#+BEGIN_SRC sql
+UPDATE OrderDetail
+    SET discount = 0.15,
+        unitprice = (1 - 0.15) * (SELECT unitprice FROM Product WHERE id = OrderDetail.productid)
+WHERE orderid = 10793
+#+END_SRC
+
+** Schema Migration
+When we need to change the database structure, we create a schema
+migration script. It automatically upgrades the schema and transforms
+existing data accordingly. Typically, these scripts can also undo
+their changes.
+
+- Incremental changes to a database
+- Ideally, reversible
+- May start with an initial “seed” script
+- “Applied” migrations are stored in a special DB table
+- Ideally, backwards compatible
+#+BEGIN_SRC
+                        |--------------|
+                        | Setup & Seed |
+                        |--------------|
+                                ⇊
+                                ⇊
+                                ⇊
+               |----------------------------------|
+               | ADD NEW COLUMN TO CUSTOMER TABLE |
+               |----------------------------------|
+                                ⇊
+                                ⇊
+                                ⇊
+                |--------------------------------|
+                | CREATE A NEW BILLINGINFO TABLE |
+                |--------------------------------|
+                                ⇊
+                                ⇊
+                                ⇊
+|---------------------------------------------------------------|
+| INCREASE the width of OF THE “NOTES” IN THE the Account table |
+|---------------------------------------------------------------|
+#+END_SRC
+
+** Indices - A memory-for-time trade-off
+- Extra bookkeeping performed on records for quick retrieval later
+- showcase
+    Without indexing
+    #+BEGIN_SRC sql
+    SELECT * FROM OrderDetail WHERE orderid = 10793 -- 60ms
+    #+END_SRC
+
+    ask for query plan
+    #+BEGIN_SRC sql
+    EXPLAIN SELECT * FROM OrderDetail WHERE orderid = 10793
+    #+END_SRC
+
+    Results in
+    #+BEGIN_SRC
+    QUERY PLAN                                                                    |
+    ------------------------------------------------------------------------------|
+    Gather  (cost=1000.00..9426.57 rows=46 width=33)                              |
+      Workers Planned: 2                                                          |
+      ->  Parallel Seq Scan on orderdetail  (cost=0.00..8421.97 rows=19 width=33) |
+            Filter: (orderid = 10794)                                             |
+    #+END_SRC
+
+    *index*
+    #+BEGIN_SRC sql
+    CREATE INDEX orderdetail_oid ON OrderDetail(orderid)
+    #+END_SRC
+
+    run the same query again after indexing
+    #+BEGIN_SRC sql
+    SELECT * FROM OrderDetail WHERE orderid = 10794 -- 1ms
+    #+END_SRC
+
+    ask for query plan
+    #+BEGIN_SRC  sql
+    EXPLAIN SELECT * FROM OrderDetail WHERE orderid = 10793
+    #+END_SRC
+
+    Results in
+    #+BEGIN_SRC
+    QUERY PLAN                                                                          |
+    ------------------------------------------------------------------------------------|
+    Index Scan using orderdetail_oid on orderdetail  (cost=0.42..9.23 rows=46 width=33) |
+      Index Cond: (orderid = 10793)                                                     |
+    #+END_SRC
+- Indices can be created on multiple columns
+  #+BEGIN_SRC sql
+    CREATE INDEX orderdetail_order_customer ON OrderDetail(orderid, customerid)
+  #+END_SRC
+- When creating indices, the goal is to reduce (possibly eliminate)
+  the exhaustive searching done for common or perf-sensitive queries
+- We can remove an index like
+  #+BEGIN_SRC sql
+  DROP INDEX orderdetail_order_customer;
+  #+END_SRC
+** Column Constraints - Types
+- One of the ways we can constrain values placed in particular columns
+  is by types
+- Names and properties of these types may vary from system to system
+- Choice of column type impacts performance, and options for indexing
+  and filtering
+*** Create a Table
+- Creating a table gives us the opportunity to define columns as
+  name/type pairs
+  #+BEGIN_SRC sql
+  create table UserPreferences
+  ( id int primary key,           -- an integer
+   favorite_color char( 6 ),      -- Exactly 6 characters
+   age smallint,                  -- an "small" integer
+   birth_date date,               -- date (may or may not include time)
+   notes varchar( 255 ),          -- up to 255 characters
+   is_active boolean              -- boolean
+   );
+  #+END_SRC
+*** NOT NULL
+- We can forbid null values for one or more columns by adding =NOT NULL=
+  #+BEGIN_SRC sql
+  create table UserPreferences (
+    id int primary key not null, -- required
+    favorite_color char( 6 ),
+    age smallint,
+    birth_date date not null, -- required
+    notes varchar( 255 ),
+    is_active boolean not null -- required
+  );
+  #+END_SRC
+*** UNIQUE
+- A uniqueness constraint may be added to a column via =UNIQUE=
+      #+BEGIN_SRC sql
+      CREATE TABLE UserAccount (email VARCHAR(255) UNIQUE NOT NULL, name VARCHAR(255));
+      #+END_SRC
+*** PRIMARY KEY
+- A combination of a =NOT NULL= and =UNIQUE= constraint
+  #+BEGIN_SRC sql
+  CREATE TABLE UserAccount (
+      email VARCHAR(255) PRIMARY KEY,
+      name VARCHAR(255)
+  );
+
+  #+END_SRC
+- Often you’ll have one identity column in each that serves as the
+  “id” for each addressable record
+- Often we want these IDs to auto-increment
+- In PostgreSQL we’ll create a SEQUENCE as our source of incrementing values
+  #+BEGIN_SRC sql
+  create sequence UserAccount_id_seq;
+
+  create table UserAccount (
+        id integer primary key default nextval( 'UserAccount_id_seq' ),
+        name varchar( 255 )
+      );
+
+  alter sequence UserAccount_id_seq owned by UserAccount.id;
+  #+END_SRC
+  or alternatively
+  #+BEGIN_SRC sql
+  CREATE TABLE UserAccount (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255)
+  );
+  #+END_SRC
+*** Foreign Keys
+  - Used to enforce the “other end” of a relationship
+  - Validates against a column in the “foreign” table
+
+*order*
+| id | customerid | amount |
+|----+------------+--------|
+|  1 |          1 |  99.00 |
+|  2 |          1 | 212.00 |
+|  3 |          3 |  14.50 |
+
+*customer*
+
+| id | name             |
+|----+------------------|
+|  1 | Mike North       |
+|  2 | Mark Grabanski   |
+|  3 | Lisa Huang-North |
+
+#+BEGIN_SRC sql
+CREATE TABLE customer (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255)
+    );
+
+CREATE TABLE CustomerOrder (
+    id SERIAL PRIMARY KEY,
+    customerid INTEGER REFERENCES customer(id),
+    amount REAL,
+    month INTEGER DEFAULT 5 NOT NULL
+);
+
+#+END_SRC
+**** ON DELETE
+What happens when we delete the parent?
+- NO ACTION
+  + doesn't let you delete the parent. safest option.
+- CASCADE
+  + *dangerous*, it deletes all the parents referencing that children.
+- SET NULL
+  + set the reference in child to =NULL=
+- SET DEFAULT
+  + set the column to whatever is the default of theat column.
+**** ON UPDATE
+What happens when the parent's id is changed? (well, if it's a primary
+key it should never change, but if we are referencing a unique column
+that is not a primary key, it might change)
+- NO ACTION
+  - you can't do this. DB throws
+- CASCADE
+  - reflects changes on the child too.
+- SET NULL
+  - changes it to NULL
+- SET DEFAULT
+  - changes it to default value.
