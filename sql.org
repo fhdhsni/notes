@@ -4,10 +4,6 @@ stored in /relations/, which are perceived by the user as tables. Each
 relation is composed of tuples (records or rows) and attributes
 (fields or columns).
 
-When a database is organized in a way that it is completely free of
-duplicate information, we say that the database is =normalized=. The
-process of transforming a database with replicated data to one without
-is called =normalization=.
 
 * Tables
 The logical order of records and fields within a table is of
@@ -694,7 +690,7 @@ VALUES ('Tanner Thompson', 'Likes scotch');
   sanitized
 - Most of the time your SQL driver (library) helps you out
 
-#+BEGIN_SRC sql
+#+BEGIN_SRC javascript
 db.exec(`INSERT INTO Customer (name, notes)
 VALUES ($1, $2)`, ['Tanner', 'Tanner notes']);
 #+END_SRC
@@ -844,6 +840,27 @@ their changes.
 
 ** Indices - A memory-for-time trade-off
 - Extra bookkeeping performed on records for quick retrieval later
+- DBMS builds an auxiliary index, mapping row IDs to their respec-
+  tive addresses in memory. An index is essentially a self-balancing
+  binary search tree. Each row in the table corresponds to
+  a node in the tree.
+- Indexing fields that have a uniqueness constraint is necessary to be
+  able to insert items fast.
+- *Sorting*: Indexes help to fetch rows in the indexed fields’ sorted
+  order. For instance, if there is an index for the “name” field, we
+  can get rows sorted by name without any extra calculations.
+- *joint indexes*: When sorting by two fields is required, joint
+  indexes are used. They index multiple fields and won’t help finding
+  items faster, but they make returning data sorted by the multiple
+  fields a breeze.
+- *performance*: So indexes are awesome: they allow for super fast
+  querying and instant sorted data access. Then why don’t we have
+  indexes for all fields in every table? The problem is when a new
+  register is inserted to or removed from the table, all its indexes
+  must be updated to reflect that. If there are a lot of indexes,
+  updating, inserting or removing rows can become computationally
+  expensive (remember tree balancing). Moreover, indexes occupy disk
+  space, which is not an unlimited resource.
 - showcase
     Without indexing
     #+BEGIN_SRC sql
@@ -897,6 +914,7 @@ their changes.
   #+BEGIN_SRC sql
   DROP INDEX orderdetail_order_customer;
   #+END_SRC
+
 ** Column Constraints - Types
 - One of the ways we can constrain values placed in particular columns
   is by types
@@ -963,6 +981,14 @@ their changes.
       name VARCHAR(255)
   );
   #+END_SRC
+- composite key
+#+BEGIN_SRC sql
+CREATE TABLE Interests (
+    AnimalId INT NOT NULL,
+    SpeciesId INT NOT NULL,
+    PRIMARY KEY(AnimalId, SpeciesId),
+)
+#+END_SRC
 *** Foreign Keys
   - Used to enforce the “other end” of a relationship
   - Validates against a column in the “foreign” table
@@ -1018,3 +1044,37 @@ that is not a primary key, it might change)
   - changes it to NULL
 - SET DEFAULT
   - changes it to default value.
+
+* Normalization
+When a database is organized in a way that it is completely free of
+duplicate information, we say that the database is =normalized=. The
+process of transforming a database with replicated data to one without
+is called =normalization=.
+
+** Normal forms
+*** 1NF
+Basically have a good design. Make things as singular as possible.
+
+- Atomicity (rule of one)
+  One column describes only one attribute. Every column is individable.
+- Every table should have a primary key.
+- Everything in the table should describe the primary key and depend on that.
+*** 2NF
+The goal of 2NF is to get rid of partial dependency, which we might
+have when we have composite keys. It's the situation when a column
+depends on part of the primary key. Every column should depend on the
+entire key.
+
+*bookauthor*. The composite key is =bookid= and =authorid= columns.
+| isbn | bookid | authorid |
+|------+--------+----------|
+|   26 | John   | Eve      |
+This is partial dependency because =isbn= column is only depends on
+=bookid=.
+
+*** 3NF
+To get rid of transitive dependency, that's when a column depends on the key but
+through another column that depends on the PK.
+- Every column should only depend on the primary key.
+* postgresql cheatsheet
+http://www.postgresqltutorial.com/postgresql-cheat-sheet/
