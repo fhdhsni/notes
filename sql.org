@@ -330,7 +330,6 @@ OFFSET 3
 #+END_SRC
 
 ** Relationships
-also check out [[file:sql.org::*Relationships][sql.org]]
 #+BEGIN_SRC
 
 (customerid)
@@ -705,6 +704,9 @@ DELETE FROM Customer WHERE name = 'Juicero';
 #+END_SRC
 
 ** Transactions
+- A transaction is a list of database operations that must be executed
+  atomically (Atomic operations are performed in a single step: they
+  can’t half-execute).
 - Sometimes we need to perform multi-statement operations (i.e.,
   create an =Order= and several =OrderDetail= items)
 - What would happen if the =Order= was created, but something went wrong

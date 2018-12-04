@@ -1158,3 +1158,336 @@ Can be solved by Simplex Method.
 - *ORDERING*:
   + NO ORDER WITHIN THE STRUCTURE ITSELF.
 * Database
+** Relational
+   Check out [[file:sql.org][sql.org]]
+** Non-Relational
+*** document stores
+- In document stores, data entries are kept exactly the way they are
+  needed by the application.
+- The non-relational model expects us to duplicate at information each
+  relevant place.
+- There are no “tables” and “rows” in document stores. Instead, a data
+  entry is called a document. Related documents are grouped in a
+  collection.
+*** Key-value stores
+*** Graph databases
+- In a graph database, data entries are stored as nodes, and rela-
+  tionships as edges. Nodes are not tied to a fixed schema and can
+  store data flexibly.
+*** Big Data
+Big Data describes data-handling situations that are extremely
+challenging in terms of Volume, Velocity, or Variety.
+
+- *VOLUME* means you handle thousands of terabytes, as is the case of
+  the LHC (Large Hadron Collider).
+- *VELOCITY* means you must store mil- lion of writes per second
+  without holdups, or serve billions of read queries quickly.
+- Data *VARIETY* means that the data doesn’t have a strong structure,
+  so it’s difficult to handle it using traditional relational
+  databases.
+
+** Distributed
+There are several situations in which not one, but several computers
+must act in coordination to provide a database system.
+- Databases of several hundred terabytes. Finding a single computer
+  with that much storage space is impractical.
+- Database systems that process several thousand simultaneous queries
+  per second. No single computer has enough networking or processing
+  power to handle such a load.
+- Mission-critical databases, such as the ones recording altitude
+  and speed of aircraft currently in a given airspace. Relying on a
+  single computer is too risky—if it crashes, the database becomes
+  unavailable.
+
+*** Single-Master Replication
+One computer is the master and receives all queries to the
+database. It is connected to several other slave computers. Each slave
+has a replica of the database. As the master receives write queries,
+it forwards them to slaves, keeping them synchronized:
+
+
+#+BEGIN_SRC
+read query-----------↓
+                     ↓  |----------------->  ___
+                     ↓  |                   |   |
+                     ↓  |                   |___| (slave)
+                     ___                      ╧
+                    |   |  ---------------> ___
+           (master) |___|                  |   | (slave)
+                      ╧                    |___|
+                     ↑  |                    ╧
+                     ↑  |                   ___
+                     ↑  |--------------->  |   |
+write query----------↑                     |___| (slave)
+                                             ╧
+#+END_SRC
+
+With this setup, the master is able to serve more read queries,
+because it can delegate those to the slaves. And the system becomes
+more reliable: if the master computer shuts down, the slave ma- chines
+can coordinate and elect a new master automatically. That way, the
+system doesn’t stop running.
+
+*** Multi-Master Replication
+If your database system must support a massive amount of simultaneous
+write queries, a single master cannot handle all the load. In this
+case, all computers in the cluster become masters. A load balancer is
+used to distribute incoming read and write queries equally among the
+machines in the cluster.
+
+Each computer is connected to all others in the cluster. They
+propagate write queries among themselves, so they all remain
+synchronized. Each has a copy of the entire database.
+*** Sharding
+If your database receives many write queries for large amounts of
+data, it’s hard to synchronize the database everywhere in the cluster.
+Some computers might not have enough storage space to accommodate the
+entire thing. One solution is to partition the database among the
+computers. Since each machine owns a portion of the database, a query
+router forwards queries to the relevant one.
+
+#+BEGIN_SRC
+read query-----------↓
+                     ↓  |----------------->  ___ (shard #1 from A-I)
+                     ↓  |                   |   |
+                     ↓  |                   |___|
+                     ___                      ╧
+                    |   | --------------->  ___
+     (query router) |___|                  |   | (shard #2 from I-R)
+                                           |___|
+                     ↑  |                    ╧
+                     ↑  |                   ___
+                     ↑  |--------------->  |   |
+write query----------↑                     |___| (shard #3 from R-Z)
+                                             ╧
+#+END_SRC
+This setup can process many read and write queries for super huge
+databases. But it has a problem: if a machine in the cluster fails, the
+parts of data it is responsible for become unavailable. To mitigate
+that risk, sharding can be used with replication:
+*** Data Consistency
+In distributed databases with replication, updates made in one machine
+don’t propagate instantly across all replicas. It takes some time
+until all machines in the cluster are synchronized. That can damage
+the consistency of your data.
+
+There is a trade-off between consistency and performance. If your
+database queries do not strongly enforce data consistency, they are
+said to work under *eventual consistency*. Data is guaranteed to
+eventually be consistent, after some time. This means some write
+queries might not be applied, and some read queries may return
+out-of-date information.
+*** Geographical
+*** Serialization formats
+How can we store data outside of our database, in a format that
+is interoperable across different systems? For instance, we might
+want to backup the data, or export it to an other system. To do this,
+the data has to go through a process called serialization, where
+it is transformed according to an encoding format. The resulting
+file can be understood by any system that supports that encoding
+format.
+- Encoding formats:
+  1. SQL: SQL is the most common format for serializing relational
+     databases. We write a series of SQL commands that replicate the
+     database and all its details. Most relational database systems
+     include a “dump” command to create an SQL-serialized file of your
+     database. They also include a “restore” command to load such a
+     “dump file” back to the database system.
+  2. XML
+  3. JSON
+  4. CSV
+* Computers
+- The memory can operate in read or write mode.
+- Each memory cell stores an 8-digit binary number, which is called a
+  byte. In “read” mode, the memory retrieves the byte stored in a
+  cell, and outputs it in eight data-transmitting wires.
+- When the memory is in “write” mode, it gets a byte from these wires,
+  and writes it to the informed cell.
+- A group of wires used for transmitting the same data is a *bus*. The
+  eight wires used to transmit addresses form the *address bus*. The
+  other eight wires used to transmit data to and from memory cells
+  form the *data bus*. While the address bus is unidirectional (only
+  used to receive data), the data bus is bidirectional (used to send
+  and receive data).
+
+- The collection of all operations a CPU can do is called its
+  *instruction set*. Each operation in the instruction set is assigned
+  a number. Computer code is essentially a sequence of numbers
+  representing CPU operations. These operations are stored as numbers
+  in the RAM. We store input/output data, partial calculations, and
+  computer code, all mixed together in the RAM.
+- The CPU works in a never-ending cycle, always fetching and executing
+  an instruction from memory. At the core of this cycle is the PC
+  register, or *Program Counter*. It’s a special register that stores
+  the memory address of the next instruction to be executed. The CPU
+  will:
+  1. Fetch the instruction at the memory address given by the PC (Program Counter),
+  2. Increment the PC by 1,
+  3. Execute the instruction,
+  4. Go back to step 1.
+- *CPU Clock*: a number that indicates the CPU’s clock: the number of
+  basic operations it executes per second. A machine instruction
+  requires five to ten basic operations to complete.
+- *CPU architecture*: A different CPU architecture means a different
+  CPU instruction set, thus a different way to encode in- structions
+  as numbers. Numbers that translate as instructions for your desktop
+  CPU don’t represent valid instructions for the CPU in your cell
+  phone, and vice versa.
+- *32 bit VS. 64 bit architecture*: The first CPU, called Intel 4004,
+  was built on a 4-bit architecture. This means it could operate (sum,
+  compare, move) binary numbers of up to 4 digits in a single machine
+  instruction. The 4004 had data and address buses with only four
+  wires each.  Larger registers naturally lead to larger data and
+  address buses. An address bus with 32 wires allows addressing 2^32
+  bytes (4 GB) of memory.
+- *BIG-ENDIAN VS. LITTLE ENDIAN*: Some computer designers thought it made
+  sense to store numbers left-to-right in the RAM and CPU, in a way
+  that is known as little-endian. Other computer designers preferred
+  to write data in memory right-to-left, in what is known as
+  big-endian. The binary sequence 1-0-0-0-0-0-1-1 can represent
+  different numbers, depending on “endianness”:
+  + Big-endian: 2^7 + 2^1 + 2^0 = 131,
+  + Litte-endian: 2^0 + 2^6 + 2^7 = 193.
+** compilers
+- we rarely write our programs directly as CPU instructions. It would
+  be impossible for a human to write a realistic 3D computer game this
+  way. To express our orders in a more “natural” and compact way, we
+  created programming languages. We write our code in these
+  languages.9 Then, we use a program called a compiler to translate
+  our orders as machine instructions a CPU can run.
+
+- Alan Turing, the father of computing, discovered that simple
+  machines can be powerful enough to compute anything that is com-
+  putable. For a machine to have universal computing power, it must be
+  able to follow a program containing instructions to:
+  + Read and write data in memory,
+  + Perform conditional branching: if a memory address has a given
+    value, jump to another point in the program.
+  Machines that have such universal computing power are called *turing-complete*.
+** Operation systems
+A compiled program may not be usable on two computers that share the
+same CPU architecture. That’s because programs must communicate with
+the computer’s operating system to run.  To communicate with the
+world, programs must input and output stuff: open files, write a
+message on the screen, open a network connection, etc. But different
+computers have different hardware.  It’s impossible for a program to
+directly support all different types of screens, sound cards, or
+network cards.  That’s why programs rely on an operating system to
+execute.  With its help, programs can work effortlessly with different
+hardware. Programs make special *system calls*, requesting the
+operating system to perform required input/output
+operations. Compilers translate input/output commands into the
+appropriate system calls.  However, different operating systems often
+use incompatible system calls. The system call for printing something
+on the screen with Windows is different from the one used by Mac OS,
+or Linux.  That’s why if you compile your program to run on Windows
+with a x86 processor, it won’t work on a Mac with a x86 processor.
+Besides targeting a specific CPU architecture, compiled code also
+targets a specific operating system.
+** Memory Hierarchy
+We know a computer works by having its CPU execute simple
+instructions. We know these instructions can only operate on data
+stored in CPU registers. However, their storage space is usually
+limited to less than a thousand bytes. This means CPU registers
+constantly have to transfer data to and from the RAM.
+
+** Process-Memory Gap
+In modern computers, it takes about a thousand CPU cycles to get data
+from the RAM—about 1 microsecond.13 That’s incredibly fast, but it’s
+an eternity compared to the time it takes to access CPU
+registers. Computer scientists started to try to find ways to reduce
+the number of RAM operations required by their computations.
+
+*** Temporal and Spatial Locality
+When trying to minimize RAM access, computer scientists started
+noticing two things:
+
+- *Temporal Locality*: when a memory address is accessed, it’s probable
+  it will be accessed again soon.
+- *Spatial Locality* : when a memory address is accessed, it’s probable
+  addresses that are adjacent to it are going to be accessed soon.
+**** L1 Cache
+Getting data from this memory into the registers is just a tiny bit
+slower than getting data from the registers themselves.
+
+With an L1 cache, we can copy the contents of memory addresses with
+high probability of being accessed close to the CPU registers. This
+way, they can be very quickly loaded into CPU reg- isters. It takes
+only about ten CPU cycles to get data from the L1 cache into the
+registers. That’s about a hundred times faster then fetching it from
+the RAM.
+**** The L2 Cache
+Increasing the size of the L1 cache would make fetching data from the
+RAM an even rarer operation, further reducing CPU waiting
+time. However, growing the L1 cache without slowing it down is
+difficult. After the L1 cache is about 50 KB in size, further
+increasing it gets very expensive. The better solution is to build an
+additional memory cache: the L2 cache. By allowing it to be slower, it
+can be much larger than the L1 cache. A modern CPU will have about 200
+KB of L2 cache. It takes about a hundred CPU cycles to get data from
+the L2 cache into CPU registers.
+
+| memory | speed  |
+|--------+--------|
+| CPU    | 1ns    |
+| L1     | 10ns   |
+| L2     | 100ns  |
+| RAM    | 1000ns |
+| DISK   | 1ms    |
+* Programming
+** Linguistics
+Programming languages differ wildly, but all of them exist to do
+one thing: manipulate information. These languages rely on three
+basic building blocks to do this.
+1. A =value= represents information
+2. An =expression= produces a value.
+   - You can create a value in two ways: either by writing a literal,
+     or by calling a function.
+   -  In the end, even the most complex expression must always
+     evaluate to a single value.
+3. A =statement= uses a value to give an instruction to a computer
+** Paradigms
+A paradigm is a specific collection of concepts and practices that
+define a field of science. A paradigm will orientate how you approach
+a problem, the techniques you use, and the structure of your solution.
+
+*** programming paradigms
+**** Imperative
+- The imperative programming paradigm is about instructing the
+  computer on what it must do exactly at each step using specific
+  commands.
+- Each command changes the computer’s state. The se- quence of
+  commands that constitutes a program is followed, one after another.
+- *Machine Programming*: Early programmers, who had to input their
+  code manually to the computer using 1s and 0s, also got lazy. They
+  decided it would be more fun to write their sequence of CPU
+  instructions using mnemonics, such as CP for the “copy” instruction,
+  MOV for the “move” instruction, CMP for the “compare” instruction,
+  and so on. Then they wrote a program that converted mnemonic code to
+  equivalent binary numbers, which could then be executed by the
+  computer. With this, the Assembly (aka ASM) language was born.
+- *Structured Programming*: In the beginning, programs used GOTO
+  commands to control the execution flow. This command makes the
+  execution to jump to a different part of the code.
+- *Procedural programming*: The next advance in the art of coding was
+  procedural programming. It allows code to be organized into
+  procedures, to avoid code replication and to increase code
+  reusability.
+
+**** Declarative
+The declarative programming paradigm makes you state your desired
+result without dealing with every single intricate step that gets you
+there. It’s about declaring what you want, and not how you want it
+done. In many scenarios, this allows programs to be much shorter and
+simpler. They are often also easier to read.
+
+- *Functional Programming*: In the functional programming paradigm,
+  functions are more than just procedures. They’re used to declare the
+  relationship between two or more items, much like math equa-
+  tions. Functions are first-class citizens in the functional
+  paradigm. They are treated the same way as any other primitive data
+  type, such as strings and numbers.
+
+**** Logic
+Whenever your problem is the solution to a set of logical formulas,
+you can use logic programming.
