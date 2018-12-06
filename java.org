@@ -206,7 +206,6 @@ constructor.
 #+BEGIN_SRC
 String str = new String(codePoints, 0, codePoints.length);
 #+END_SRC
-* input
 * Arrays
 C++ NOTE: A Java array is quite different from a C++ array on the
 stack. It is, however, essentially the same as a pointer to an array
@@ -255,6 +254,14 @@ int [][] triangle = new int[ROWS][];
 for (int i = 0; i < ROWS; i++) triangle[i] = new int[i + 1];
 #+END_SRC
 * OO in java
+
+| modifiers    | class | package | subclass(same pkg) | subclass(diff pkg) | world |
+|--------------+-------+---------+--------------------+--------------------+-------|
+| public       | +     | +       | +                  | +                  | +     |
+| protected    | +     | +       | +                  | +                  |       |
+| no modifiers | +     | +       | +                  |                    |       |
+| private      | +     |         |                    |                    |       |
+
 - A constructor has the same name as the class.
 - A class can have more than one constructor.
 - A constructor can take zero, one, or more parameters.
@@ -544,10 +551,7 @@ ArrayList<Integer> list = new ArrayList<>();
 list.add(3); // same as list.add(Integer.valueOf(3))
 int n = list.get(i); // same as list.get(i).intValue()
 #+END_SRC
-** Methods with variable number of parameters
-#+BEGIN_SRC java
 
-#+END_SRC
 * Interfaces and Lambda expressions
 
 ** Interfaces
@@ -580,13 +584,13 @@ int n = list.get(i); // same as list.get(i).intValue()
   #+END_SRC
 - you can also supply a =default= implemention for any interface method
   #+BEGIN_SRC java
-    public interace Comparable<T> {
+    public interface Comparable<T> {
       default compareTo(T other) {
         return 0;
       }
     }
   #+END_SRC
-- a =default= interface can call and abstract method
+- a =default= interface can call an abstract method
   #+BEGIN_SRC java
     public interface Collection {
 
@@ -633,3 +637,239 @@ Arrays.sort(words, (first, second) -> first.length() - second.length())
   // same as
   s -> new Person(s)
   #+END_SRC
+* FP
+take a look at =java.util.function= Package
+
+| Shape     | Functional method signature |
+|-----------+-----------------------------|
+| Consumer  | void accept<T t>            |
+| Suplier   | T get()                     |
+| Function  | R apply(T t)                |
+| Predicate | boolean test(T t)           |
+
+
+#+BEGIN_SRC java
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
+
+public class Library {
+    public static void main(String[] args) {
+        List<String> foo = Arrays.asList("foo", "bar", "zoo");
+
+        foo.forEach(new Consumer<String>() {
+                @Override
+                public void accept(String s) {
+                    System.out.println(s);
+                }
+            });
+    }
+}
+#+END_SRC
+using lambda
+#+BEGIN_SRC java
+  import java.util.Arrays;
+  import java.util.List;
+
+  public class Library {
+      public static void main(String[] args) {
+          List<String> foo = Arrays.asList("foo", "bar", "zoo");
+
+          foo.forEach(s -> System.out.println(s)); // or foo.forEach(System.out::println);
+      }
+  }
+#+END_SRC
+
+** stream API
+#+BEGIN_SRC java
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class Library {
+    public static void main(String[] args) {
+        List<Integer> nums = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+
+        nums.stream()
+            .filter(x -> x % 2 == 0)
+            .limit(3)
+            .collect(Collectors.toList());
+    }
+}
+
+#+END_SRC
+
+Any method reference that is refering to an instance method, expects
+an argument that is the instance of the type that has that method on
+it.
+#+BEGIN_SRC java
+  public class Person {
+      private String name;
+      private Integer age;
+
+      public Person(String name, Integer age) {
+          this.name = name;
+          this.age = age;
+      }
+
+      public String getName() {
+          return this.name.toUpperCase();
+      }
+      public Integer getAge() {
+          return this.age;
+      }
+
+  }
+
+  import java.util.Arrays;
+  import java.util.List;
+  import java.util.stream.Collectors;
+
+  public class Library {
+      public static void main(String[] args) {
+          List<Person> people = Arrays.asList(new Person("Farhad", 26),
+                                              new Person("Jafar", 90),
+                                              new Person("Morad", 11));
+
+          var result = people.stream()
+              .filter(person -> person.getAge() > 20)
+              .map(Person::getName) // we can do so, although getName is an instance method and not static
+              .collect(Collectors.toList());
+
+          System.out.println(result);
+      }
+  }
+
+#+END_SRC
+
+- create a stream
+#+BEGIN_SRC java
+import java.util.stream.Stream;
+
+public class Library {
+    public static void main(String[] args) {
+        Stream.of(1, 2, 3, 4, 5, 6)
+            .filter(x -> x > 3)
+            .forEach(System.out::println);
+    }
+}
+
+#+END_SRC
+
+- flatMap and Collectors
+#+BEGIN_SRC java
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public class Library {
+    public static void main(String[] args) {
+        List<String> sample = Arrays.asList("one two three", "two three", "four five six", "three", "four", "nine");
+
+        var res = sample.stream()
+            .map(str -> str.split("\\W+"))
+            .flatMap(Stream::of)
+            .filter(x -> x.length() > 0)
+            .map(String::toLowerCase)
+            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        System.out.println(res); // {nine=1, six=1, four=2, one=1, five=1, three=3, two=2}
+    }
+}
+#+END_SRC
+
+- mapToInt
+#+BEGIN_SRC java
+import java.util.stream.Stream;
+
+public class Library {
+    public static void main(String[] args) {
+        System.out.println(Stream.of("foo", "bar", "foobar", "kkljds", "fdfhsssssssse")
+                           .mapToInt(String::length)
+                           .average()); // OptionalDouble[6.2]
+    }
+}
+#+END_SRC
+
+- =Comparator.comparingInt=
+
+#+BEGIN_SRC java
+import java.util.Comparator;
+import java.util.stream.Stream;
+
+public class Library {
+    public static void main(String[] args) {
+        var r = Stream.of("foo", "bar", "foobar", "kkljds", "fdfhsssssssse")
+            .max(Comparator.comparingInt(String::length));
+        System.out.println(r);  // Optional[fdfhsssssssse]
+    }
+}
+
+#+END_SRC
+- Optional
+#+BEGIN_SRC java
+import java.util.Optional;
+import java.util.stream.Stream;
+
+public class Library {
+    public static void main(String[] args) {
+        Optional<String> found = Stream.of("foo", "bar", "bazaar", "baz", "car", "cdr")
+            .filter(str -> str.contains("baz"))
+            .findFirst();
+
+        System.out.println(found);
+    }
+}
+#+END_SRC
+- IntStream, range, mapToObj
+#+BEGIN_SRC java
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.IntStream;
+
+public class Library {
+    public static void main(String[] args) {
+        List<String> menu = Arrays.asList("chiken", "beef", "vegtable", "tea", "coffee");
+
+        IntStream.rangeClosed(1, menu.size())
+            .mapToObj(i -> String.format("%d. %s", i, menu.get(i - 1)))
+            .forEach(System.out::println);
+    }
+}
+#+END_SRC
+- infinit streams, =iterate=
+#+BEGIN_SRC java
+import java.util.stream.IntStream;
+
+public class Library {
+    public static void main(String[] args) {
+        IntStream.iterate(2, i -> i + 2)
+            .limit(10)
+            .forEach(System.out::println);
+    }
+}
+#+END_SRC
+- HOF
+
+#+BEGIN_SRC java
+import java.util.function.Predicate;
+
+public class Library {
+    public static void main(String[] args) {
+        Predicate<String> greaterThanThree = str -> str.length() > 3;
+        Predicate<String> lessThanSix = str -> str.length() < 6;
+
+		doStuffIfValid("fobar", greaterThanThree.and(lessThanSix));
+    }
+    public static void doStuffIfValid(String str, Predicate<String> predicate) {
+        if(predicate.test(str)) {
+            System.out.println("a match");
+        } else {
+            System.out.println("nah");
+        }
+    }
+}
+
+#+END_SRC
