@@ -1,5 +1,5 @@
 * Elixir
-Most of these nots are from official elixir guide and learnelixir.tv
+Most of these notes are from official elixir guide and learnelixir.tv
 ** Tips
 1) *.ex files will be compiled.
 2) *.exs are script files (won't get compiled)
@@ -7,10 +7,10 @@ Most of these nots are from official elixir guide and learnelixir.tv
 4) # starts a comment line
 5) ~/.iex.exs is iex configuration file (more info =iex> h IEx.configure=)
 6) === (triple equal) is used for comparing floats to integers (2 === 2.0 returns false)
-7) Use =i= in iex for getting information about a thing like =i 'foo'= 
+7) Use =i= in iex for getting information about a thing like =i 'foo'=
 8) When counting the elements in a data structure, Elixir also abides
-   by a simple rule: the function is named size if the operation is in
-   constant time (i.e. the value is pre-calculated) or length if the
+   by a simple rule: the function is named =size= if the operation is in
+   constant time (i.e. the value is pre-calculated) or =length= if the
    operation is linear (i.e. calculating the length gets slower as the
    input grows). As a mnemonic, both “length” and “linear” start with
    “l”.
@@ -44,9 +44,8 @@ Most of these nots are from official elixir guide and learnelixir.tv
      iex> !nil
      true
     #+END_SRC
-- In Elixir when can compare two different types. the order is 
+- In Elixir when can compare two different types. the order is
   =number < atom < reference < function < port < pid < tuple < map < list < bitstring=
-
 
 ** Types
 *** Numbers
@@ -89,11 +88,11 @@ is true
 Strings in Elixir are represented internally by binaries which are
 sequences of bytes:
 
-#+BEGIN_SRC 
+#+BEGIN_SRC
 iex> is_binary("hellö")
 true
 
-# We can also get the number of bytes in a string: 
+# We can also get the number of bytes in a string:
 
 iex> byte_size("hellö")
 6
@@ -122,14 +121,50 @@ is_list 'hello' # true
 - Every element is 1 byte long.
 - Concatenating two binary list
 =<<1, 2, 3>> <> <<4>>=
-Binaries can be tagged with a size atribute
-=<<1::size(16)>>= # 16 bits (2 bytes)
 
-=<<65>> <> <<" Farhad">>= # "A Farhad"
-#+BEGIN_SRC elixir
-<<104, 101, 108, 108, 111>> == "hello" # true
+Each number given to a binary is meant to represent a byte and
+therefore must go up to 255. Binaries allow modifiers to be given to
+store numbers bigger than 255 or to convert a code point to its UTF-8
+representation:
+
+#+BEGIN_SRC elixir sh
+iex> <<255>>
+<<255>>
+iex> <<256>> # truncated
+<<0>>
+iex> <<256 :: size(16)>> # use 16 bits (2 bytes) to store the number
+<<1, 0>>
+iex> <<256 :: utf8>> # the number is a code point
+"Ā"
+iex> <<256 :: utf8, 0>>
+<<196, 128, 0>>
 #+END_SRC
 
+*** bitstring
+If a byte has 8 bits, what happens if we pass a size of 1 bit?
+
+#+BEGIN_SRC sh
+iex> <<1 :: size(1)>>
+<<1::size(1)>>
+iex> <<2 :: size(1)>> # truncated
+<<0::size(1)>>
+iex> is_binary(<<1 :: size(1)>>)
+false
+iex> is_bitstring(<<1 :: size(1)>>)
+true
+iex> bit_size(<<1 :: size(1)>>)
+1
+#+END_SRC
+
+The value is no longer a binary, but a bitstring – a bunch of bits! So
+a binary is a bitstring where the number of bits is divisible by 8.
+
+#+BEGIN_SRC sh
+iex> is_binary(<<1 :: size(16)>>)
+true
+iex> is_binary(<<1 :: size(15)>>)
+false
+#+END_SRC
 
 *** Anonymous functions
 Anonymous functions are closures and as such they can access variables
@@ -143,6 +178,7 @@ iex> add.(1, 2)
 #+END_SRC
 To call an anonymous function we use . notation like =add.(1, 2)=
 
+
 **** Pattern Matching in anonymous function and multi lining them
 #+BEGIN_SRC elixir
 account_transaction = fn
@@ -150,10 +186,26 @@ account_transaction = fn
     (balance, amount, :withdraw) -> balance - amount
 end
 #+END_SRC
+
+anonymous functions can have multiple clauses and guards:
+#+BEGIN_SRC sh
+iex> f = fn
+...>   x, y when x > 0 -> x + y
+...>   x, y -> x * y
+...> end
+#Function<12.71889879/2 in :erl_eval.expr/5>
+iex> f.(1, 3)
+4
+iex> f.(-1, 3)
+-3
+#+END_SRC
+The number of arguments in each anonymous function clause needs to be
+the same, otherwise an error is raised.
+
 **** Shorthand syntax
 #+BEGIN_SRC elixir
-  deposit = fn(balance, amount) -> amount + balance 
-  # becomes 
+  deposit = fn(balance, amount) -> amount + balance
+  # becomes
   deposit = &(&1 + &2)
 #+END_SRC
 
@@ -172,7 +224,7 @@ Elixir uses square brackets to specify a list of values. Values can be of any ty
   # also there's a --
 #+END_SRC
 Appending to the end of a list is a slow operation because it needs to
-copy the whole list. Think to twice before doin' so.
+copy the whole list. Think twice before doin' so.
 
 The head is the first element of a list and the tail is the remainder of the list.
 #+BEGIN_SRC elixir
@@ -229,6 +281,15 @@ because it requires copying the whole tuple in memory.
 To see if an element is present in a list
 #+BEGIN_SRC elixir
 "fhd" in ["fhd", "hsni", "blah"] # true
+#+END_SRC
+*** == vs ===
+The difference between == and === is that the latter is more strict
+when comparing integers and floats:
+#+BEGIN_SRC sh
+iex> 1 == 1.0
+true
+iex> 1 === 1.0
+false
 #+END_SRC
 *** ++ and --
 #+BEGIN_SRC elixir
@@ -300,7 +361,7 @@ Enum.map ["fhd", "hsni"], &String.upcase/1
 #+END_SRC
 ** Pattern Matching
 =a = 8= bind variable /a/ to number /8/, =8 = a= is a valid expression
-since 8 matches a.
+ since 8 matches a.
 
 If on the left hand side of = operator is variable it'll be bind to the
 right hand side but if it's a value, pattern matching happens. If you
@@ -341,7 +402,7 @@ structure. In Elixir, when we have a list of tuples and the first item
 of the tuple (i.e. the key) is an atom, we call it a keyword list:
 
 #+BEGIN_SRC elixir
-  me = [{:name, "Farhad"}, {:status, "Awesome"}] # a list with two tuples(each one a 2-itme tuple) inside it
+  me = [{:name, "Farhad"}, {:status, "Awesome"}] # a list with two tuples(each one a 2-item tuple) inside it
   [name: "Farhad", status: "Awesome"] === me # true
 
   Keyword.get me, :name #"Farhad"
@@ -362,7 +423,7 @@ To use it in a function
 
 #+BEGIN_SRC elixir
   defmodule Account do
-    def balance(transactions, options \\ []) do  
+    def balance(transactions, options \\ []) do
       currency = options[:currency] || "dollar"
       symbol = options[:symbol] || "$"
       # ... rest of function
@@ -376,8 +437,19 @@ To use it in a function
   Account.balance(..., [{:currency, "dollar"}, {:symbol, "$"}])
 #+END_SRC
 
+In general, when the keyword list is the last argument of a function,
+the square brackets are optional.
 
 
+Although we can pattern match on keyword lists, it is rarely done in
+practice since pattern matching on lists requires the number of items
+and their order to match:
+#+BEGIN_SRC sh
+iex> [a: a] = [a: 1]
+[a: 1]
+iex> a
+1
+#+END_SRC
 ** Maps
 Whenever you need a key-value store, maps are the “go to” data
 structure in Elixir.
@@ -397,6 +469,18 @@ Keyword syntax is allowed as long as all of the keys are atoms
 #+BEGIN_SRC elixir
 %{a: 1, b: 2} === %{:a => 1, :b => 2} # true
  #+END_SRC
+
+pattern matching:
+#+BEGIN_SRC elixir
+iex> %{} = %{:a => 1, 2 => :b}
+%{2 => :b, :a => 1}
+iex> %{:a => a} = %{:a => 1, 2 => :b}
+%{2 => :b, :a => 1}
+iex> a
+1
+iex> %{:c => c} = %{:a => 1, 2 => :b}
+** (MatchError) no match of right hand side value: %{2 => :b, :a => 1}
+#+END_SRC
 
 Maps have the following syntax for updating a key’s value.
 Note: *new keys cannot be added*
@@ -569,20 +653,16 @@ end
 Concat.join "hello", " world" # will run first clause
 Concat.join "hello", "world", "_" # will run second clause
 #+END_SRC
- invoking the =join= function with two arguments will always choose
- the first definition of =join= whereas the second one will only be
- invoked when three arguments are passed. thus providing a default
- value for =sep= in second clause is unnecessary and has no effect.
+invoking the =join= function with two arguments will always choose
+the first definition of =join= whereas the second one will only be
+invoked when three arguments are passed. thus providing a default
+value for =sep= in second clause is unnecessary and has no effect.
 
-Note the header function defines the default value of =acc=. Also note that less generalized functions are 
-higher and more generalized functions are at the bottom. In this example if we put =def reduce([], _func, acc), do: acc=
-bellow =def reduce(list, func, acc), do: do_reduce(list, func, acc)= we get a warning:
-=warning: this clause cannot match because a previous clause at line 6 always matches=
-since the more generalized function is higher and it always match.
+
 #+BEGIN_SRC elixir
 defmodule MyList do
   @moduledoc """
-  
+
   """
   def reduce(list, func, acc \\ 0)
   def reduce([], _func, acc), do: acc
@@ -596,7 +676,14 @@ end
 [1, 2, 3]
 |> MyList.reduce(&(&1 * &1), 4)
 |> IO.puts
-#+END_SRC 
+#+END_SRC
+- The header function defines the default value of =acc=.
+- Less generalized functions are higher and more generalized functions are at the bottom.
+- If we put =def reduce([], _func, acc), do: acc= bellow =def
+  reduce(list, func, acc), do: do_reduce(list, func, acc)= we get a
+  warning: =warning: this clause cannot match because a previous
+  clause at line 6 always matches= since the more generalized function
+  is higher and it always match.
 
 *** Recursive function
 #+BEGIN_SRC elixir
@@ -630,7 +717,7 @@ Another example
 #+BEGIN_SRC elixir
 defmodule MyList do
   @moduledoc """
-  
+
   """
   def length(list), do: length(list, 0)
   defp length([], count), do: count
@@ -644,7 +731,7 @@ When a function calls itself as the last operation
 #+BEGIN_SRC elixir
 defmodule MyList do
   @moduledoc """
-  
+
   """
   def each([], _fun), do: :ok
   def each([h | t], func) do
@@ -697,7 +784,7 @@ Note when this method is used with Maps is returns a tuple.
 Enum.at %{:name => "Farhad", :age => 25}, 0, :default # {:age, 25}
 #+END_SRC
 
-**** Enum.filter 
+**** Enum.filter
 Note the anonymous function gets a tuple and returns a keyword list
 #+BEGIN_SRC elixir
 %{:name => "Farhad", :age => 25}
@@ -705,10 +792,10 @@ Note the anonymous function gets a tuple and returns a keyword list
 #+END_SRC
 
 **** Enum.reduce
-
 **** Enum.into
-Converts an =Enumerable= to another type. Target must implement =Collectable= protocol.
-lists and maps both implement collectable protocol
+Converts an =Enumerable= to another type. Target must implement
+=Collectable= protocol.  lists and maps both implement collectable
+protocol
 
 In the example we convert a keyword list to a map
 #+BEGIN_SRC elixir
@@ -726,7 +813,7 @@ Enum.take(10..20, 5)  # [10, 11, 12, 13, 14]
 =Stream= is a lazy version of =Enum=.  Unlike =Enum= which does it's
 job immediately, =Stream= waits until you ask for the result. This
 could end up to be more efficient; like iterating over a list once for
-nnall rather than doin' it for each operation like =Enum= does.
+all rather than doin' it for each operation like =Enum= does.
 
 #+BEGIN_QUOTE
 Due to their laziness, streams are useful when working with large (or
@@ -743,10 +830,17 @@ computations that are executed at a later moment.
 #+END_SRC
 
 #+BEGIN_SRC elixir
-list = [1, 2, 3, "string", 4, 8]
-stream = Stream.filter(list, &is_number/1)  # stream stores the anonymous functions and returns a Stream struct
-stream = Stream.filter(stream, &(rem(&1, 2) == 0)) # stream stores the anonymous functions and returns a Stream struct
- Enum.into(stream, []) # up until now Stream hasn't done any actuall work. By Enum.into we make it to do the operations we asked for earlier
+  list = [1, 2, 3, "string", 4, 8]
+
+  # stream stores the anonymous functions and returns a Stream struct
+  stream = Stream.filter(list, &is_number/1)
+
+  # stream stores the anonymous functions and returns a Stream struct
+  stream = Stream.filter(stream, &(rem(&1, 2) == 0))
+
+  Enum.into(stream, []) # up until now Stream hasn't done any actuall
+                         # work. By Enum.into we make it to do the
+                         # operations we asked for earlier
 #+END_SRC
 
 *** Stream.cycle
@@ -813,6 +907,7 @@ for suit <- suits,
 
 #+BEGIN_SRC elixir
 users = [user: "john", admin: "meg", guest: "barbara"]
+
 for {type, name} when type != :guest <- users do
     String.upcase(name)
 end
@@ -837,11 +932,6 @@ for <<c <- " hello world ">>, c != ?\s, into: "", do: <<c>> # "helloworld"
 | iterations | DEPENDS | ONCE   | ONCE |
 | & Operator | YES     | YES    | NO   |
 
-
-A more complex example 
-#+BEGIN_SRC elixir
-
-#+END_SRC
 A more complex example
 #+BEGIN_SRC elixir
 defmodule Triple do
@@ -862,7 +952,7 @@ Triple.pythagorean(12) # [{3, 4, 5}, {4, 3, 5}]
 Sigils are a way to create a shorthand. There are bunch of userful
 built-in sigil but we can also create our own sigils by =sigil_*=
 function in a module and use it like =~*(blah blah)=. It also possible
-to override built-in sigils. 
+to override built-in sigils.
 
 Sigils are simply replaced by =sigil_*=
 function at compile time.
@@ -915,7 +1005,7 @@ a heredoc string
 
 *** Character List sigil
 #+BEGIN_SRC elixir
-~c(foobar) # 'foo bar'
+~c(foobar) # 'foobar'
 #+END_SRC
 
 ** Mix, Hex and others
@@ -926,8 +1016,8 @@ The build tool for elixir
   + =config :projectName, key: value=
   + =config :projectName, Module.Name, key: value=
 - To get a configuration from =config.exe=
-  + =Application.get_env(:projectName, :key)= 
-  + =Application.get_env(:projectName, __MODULE__)[:key]= 
+  + =Application.get_env(:projectName, :key)=
+  + =Application.get_env(:projectName, __MODULE__)[:key]=
 - to install hex =mix local.hex=
 - to get deps specified in mix file =mix deps.get=
 - to remove deps that you have removed from mix file =mix deps.clean PACKAGE_NAME=
@@ -947,7 +1037,8 @@ The build tool for elixir
     ]
   end
 #+END_SRC
-  + remember to update application/0 to specify each one of your runtime dependencies as an application in the :application list
+  + remember to update =application/0= to specify each one of your
+    runtime dependencies as an application in the =:application= list
     #+BEGIN_SRC elixir
     def application do
       [application: [:dependency_a, :dependency_b]]
@@ -990,7 +1081,7 @@ defmodule CryptoTest do
     variable = 3
     {:ok, variable: variable}
   end
-  
+
   test "the truth", %{variable: variable} do
     refute 1 + 1 == variable
   end
@@ -1123,7 +1214,6 @@ process's mailbox. Mailbox may fill up.
 It flushes and prints all the messages in the mailbox.
 *** kill
 =Process.exit(pid, :kil)=
-
 ** GenServer
 A primitive emulation of GenServer.
 
@@ -1159,7 +1249,7 @@ end
 BankAccount:
 #+BEGIN_SRC elixir
 defmodule BankAccount do
-  
+
   def handle_message({:deposit, amount}, _from, balance) do
     balance + amount
   end
@@ -1184,7 +1274,7 @@ end
 1. Note that the list =[arg1, arg2]= is sent to =init= function defined inside =CallbackModule=
 2. =opts= is optional.
 3. =init= function sets the initial state with ={:ok, initial_state}= response
-4. =handle_call= is synchronous and 
+4. =handle_call= is synchronous and
    - Handles =GenServer.call=
    - Its signature is =handle_call(arg, from_pid, current_state)=. =arg= is =GenServer.call(pid, *arg*)=
    - Should reply like ={:reply, return_value, new_state}=
@@ -1229,7 +1319,7 @@ defmodule BankAccount do
 end
 #+END_SRC
 To use it:
-#+BEGIN_SRC 
+#+BEGIN_SRC
   {:ok, account} = GenServer.start(BankAccount, 0)
   GenServer.cast(account, {:deposit, 50})
   GenServer.cast(account, {:withdraw, 25})
@@ -1280,7 +1370,7 @@ defmodule BankAccount do
 end
 #+END_SRC
 To use it:
-#+BEGIN_SRC 
+#+BEGIN_SRC
   account = BankAccount.start(0)
   BankAccount.deposit(account, 50)
   BankAccount.withdraw(account, 25)
@@ -1357,7 +1447,7 @@ end
 #+END_SRC
 
 To use it:
-#+BEGIN_SRC 
+#+BEGIN_SRC
 iex(1)> {:ok, s_pid} = BasicSupervisor.start_link("Jack")
 inside Basic start_link...
 "Jack"
@@ -1421,7 +1511,7 @@ defmodule Todo.Supervisor do
 
   def init([]) do
     children = [
-      worker(Todo, [[]]) 
+      worker(Todo, [[]])
     ]
     supervise(children, strategy: :one_for_one)
   end
@@ -1464,7 +1554,7 @@ Supervisor:
 #+BEGIN_SRC elixir
 defmodule Play.Supervisor do
   use Supervisor
-  
+
   def start_link do
     Supervisor.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -1499,29 +1589,29 @@ Agents are a simple abstraction around state.
   Agent.get(agent, fn(state) -> state end)
 #+END_SRC
 
-implementing =BankAccount= with Agents 
+implementing =BankAccount= with Agents
 #+BEGIN_SRC elixir
 defmodule BankAccount do
   def start_link(balance) do
     Agent.start_link(fn -> balance end)
   end
-  
+
   def deposit(account, amount) do
     Agent.update(account, &(&1 + amount))
   end
-  
+
   def withdraw(account, amount) do
     Agent.update(account, &(&1 - amount))
   end
-  
+
   def balance(account) do
     Agent.get(account, &(&1))
-  end 
+  end
 end
 #+END_SRC
 ** Nodes
 A Node is an instance of BEAM virtual machine.
-- =Node.self= 
+- =Node.self=
   + to get the current node's name
 - =Node.list=
   + to get a list of connected nodes
@@ -1541,7 +1631,7 @@ A Node is an instance of BEAM virtual machine.
 - Code is /not sent/
 - All data in the message will be /copied/
 - Be aware of Network Latency
-- 
+
 ** Miscellaneous
 *** =if=
     if statement is just a macro that takes =true= or =false= as it's
@@ -1694,6 +1784,7 @@ case v do
   _ -> "not meow"
 end
 #+END_SRC
+
 *** =with=
 #+BEGIN_SRC elixir
  with
@@ -1753,7 +1844,7 @@ IO.inspect ?a # 97
 IO.inspect ?\s # 32 (for space)
 #+END_SRC
 ** WAT?
-*** 
+
 #+BEGIN_SRC elixir
 foo = fn 0 -> "zero"; 2 -> "two" end
 foo.(0) # "zero"
