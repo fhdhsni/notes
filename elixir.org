@@ -354,6 +354,12 @@ Enum.reduce [1, 2, 3], &(&1 + &2) # 6
 ## capturing + operator
 Enum.reduce [1, 2, 3], &+/2
 #+END_SRC
+#+BEGIN_SRC sh
+iex> fun2 = &"Good #{&1}"
+#Function<6.127694169/1 in :erl_eval.expr/5>
+iex)> fun2.("morning")
+"Good morning"
+#+END_SRC
 
 Using capture operator to capture functions from other modules
 #+BEGIN_SRC elixir
@@ -1163,14 +1169,20 @@ or only run those with this tag
 =mix test --only slow=
 
 ** Processes
-*** spawn
+*** =spawn=
 =spawn(a_function)=
+#+BEGIN_SRC sh
+iex> pid = spawn fn -> 1 + 2 end
+#PID<0.43.0>
+iex> Process.alive?(pid)
+false
+#+END_SRC
 =spawn(someModule, :some_function, [arg1, arg2])=
 **** spawn
 Spawned process is isolated. If it raises an error parent process won't die.
 **** spawn_link
 In this way failure in the spawned process propagates to parent
-process.  It's also possible to link processes via =Process.link/1=
+process. It's also possible to link processes via =Process.link/1=
 
 In the parent process we can =:trap_exit= and to something other than
 dying if the spawned process died.
@@ -1191,12 +1203,12 @@ dying if the spawned process died.
       # Revive juliet
   end
 #+END_SRC
-*** self
+*** =self=
 returns current process PID
-*** send
+*** =send=
 The process that sends the message does not block on send/2, it puts
 the message in the recipient’s mailbox and continues.
-*** receive
+*** =receive=
 If there is no message in the mailbox matching any of the patterns,
 the current process will wait until a matching message arrives. A
 timeout can also be specified with =after= block:
@@ -1210,10 +1222,64 @@ iex> receive do
 #+END_SRC
 Messages that don't match any of provided patterns will be left in the
 process's mailbox. Mailbox may fill up.
-*** flush
+*** =flush=
 It flushes and prints all the messages in the mailbox.
-*** kill
+*** =kill=
 =Process.exit(pid, :kil)=
+
+example
+#+BEGIN_SRC elixir
+  defmodule Play do
+    def ground(pid) do
+      # send self(), {:hello, "World"}
+      receive do
+        {:hello, msg} -> IO.puts msg
+        {:world, _msg} -> IO.puts "fuck this shit"
+      after
+        1_000 -> send pid, {:bye, "papa"}
+      end
+    end
+  end
+
+  spawn Play, :ground, [self()]
+  # Play.ground
+  # send pid, {:hello, "World"}
+
+  receive do
+    {:bye, name} -> IO.puts name  # papa
+    _ -> IO.puts "unknown crap"
+  end
+#+END_SRC
+
+*** keeping state
+#+BEGIN_SRC elixir
+defmodule KV do
+  def start_link do
+    Task.start_link(fn -> loop(%{}) end)
+  end
+
+  defp loop(map) do
+    receive do
+      {:get, key, caller} ->
+        send caller, Map.get(map, key)
+        loop(map)
+      {:put, key, value} ->
+        loop(Map.put(map, key, value))
+    end
+  end
+end
+
+
+{:ok, pid} = KV.start_link;
+
+send pid, {:put, "name", "farhad"}
+
+send pid, {:get, "name", self()}
+
+receive do
+  name -> IO.inspect name       # farhad
+end
+#+END_SRC
 ** GenServer
 A primitive emulation of GenServer.
 
@@ -1525,6 +1591,9 @@ end
 - =simple_one_for_one= is for dynamically launching processes.
 ** Task & Agents
 *** Tasks
+Tasks build on top of the spawn functions to provide better error
+reports and introspection.
+
 Asynchronous Processing
 #+BEGIN_SRC elixir
   task = Task.async fn ->
@@ -1533,7 +1602,7 @@ Asynchronous Processing
 
   # OR
 
-  task = Task.async(OI. :puts, ["Hello World"])
+  task = Task.async(IO, :puts, ["Hello World"])
 
   result = Task.await(task)
 #+END_SRC
@@ -1583,10 +1652,11 @@ Task.Supervisor.async(MyApp.TaskSupervisor, IO, :puts, ["Hello world!"])
   - Temporarily blocks the current process waiting for a task reply.
 *** Agent
 Agents are a simple abstraction around state.
+
 #+BEGIN_SRC  elixir
-  {:ok, agent} = Agent.start_link(fn -> 0 end)
-  Agent.update(agent, fn(state) -> state + 1 end)
-  Agent.get(agent, fn(state) -> state end)
+{:ok, agent} = Agent.start_link(fn -> 0 end)
+Agent.update(agent, fn(state) -> state + 1 end)
+Agent.get(agent, fn(state) -> state end) # 1
 #+END_SRC
 
 implementing =BankAccount= with Agents
