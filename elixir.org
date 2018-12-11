@@ -485,7 +485,7 @@ iex> %{:a => a} = %{:a => 1, 2 => :b}
 iex> a
 1
 iex> %{:c => c} = %{:a => 1, 2 => :b}
-** (MatchError) no match of right hand side value: %{2 => :b, :a => 1}
+ (MatchError) no match of right hand side value: %{2 => :b, :a => 1}
 #+END_SRC
 
 Maps have the following syntax for updating a key’s value.
@@ -747,6 +747,276 @@ defmodule MyList do
 end
 
 MyList.each([1, 2, 3, 4], &(IO.puts &1))
+#+END_SRC
+** IO and the file system
+- By default, files are opened in binary mode, which requires
+  developers to use the specific =IO.binread/2= and =IO.binwrite/2=
+  functions from the IO module
+
+#+BEGIN_SRC sh
+iex> {:ok, file} = File.open "hello", [:write]
+{:ok, #PID<0.47.0>}
+iex> IO.binwrite file, "world"
+:ok
+iex> File.close file
+:ok
+iex> File.read "hello"
+{:ok, "world"}
+#+END_SRC
+
+#+BEGIN_SRC elixir
+case File.read(file) do
+  {:ok, body}      -> # do something with the `body`
+  {:error, reason} -> # handle the error caused by `reason`
+end
+#+END_SRC
+** alias, require, and import
+Elixir provides three directives (alias, require and import) plus a
+macro called use summarized below:
+#+BEGIN_SRC elixir
+# Alias the module so it can be called as Bar instead of Foo.Bar
+alias Foo.Bar, as: Bar
+
+# Require the module in order to use its macros
+require Foo
+
+# Import functions from Foo so they can be called without the `Foo.` prefix
+import Foo
+
+# Invokes the custom code defined in Foo as an extension point
+use Foo
+#+END_SRC
+
+the first three are called directives because they have lexical scope,
+while use is a common extension point that allows the used module to
+inject code.
+*** alias
+Referencing a module by a different name
+#+BEGIN_SRC elixir
+defmodule AnotherModule do
+  def add(a, b), do: a + b
+end
+
+defmodule Foo do
+  alias AnotherModule, as: M
+
+  def fun, do: M.add 2, 5
+end
+#+END_SRC
+Using a module by last part of its name
+#+BEGIN_SRC elixir
+defmodule Some.Other.Mod do
+  def add(a, b), do: a + b
+end
+
+defmodule MyMod do
+  alias Some.Other.Mod
+  def fun(a, b), do: Mod.add(a, b) # just using Mod
+end
+#+END_SRC
+
+#+BEGIN_SRC elixir
+defmodule Stats do
+  alias Math.List, as: List
+  # In the remaining module definition List expands to Math.List.
+end
+#+END_SRC
+The original List can still be accessed within Stats by the
+fully-qualified name =Elixir.List=.
+
+:NOTE:
+Note: All modules defined in Elixir are defined inside the main Elixir
+namespace. However, for convenience, you can omit “Elixir.” when
+referencing them.
+:END:
+
+Note that alias is lexically scoped, which allows you to set aliases
+inside specific functions:
+#+BEGIN_SRC elixir
+defmodule Math do
+  def plus(a, b) do
+    alias Math.List
+    # ...
+  end
+
+  def minus(a, b) do
+    # ...
+  end
+end
+#+END_SRC
+*** require
+Elixir provides macros as a mechanism for meta-programming (writing
+code that generates code). Macros are expanded at compile time. Public
+functions in modules are globally available, but in order to use
+macros, you need to opt-in by requiring the module they are defined
+in.
+#+BEGIN_SRC sh
+
+iex(2)> Integer.is_odd(3)
+ (CompileError) iex:2: you must require Integer before invoking the macro Integer.is_odd/1
+    (elixir) src/elixir_dispatch.erl:97: :elixir_dispatch.dispatch_require/6
+
+iex(2)> require Integer
+Integer
+
+iex(3)> Integer.is_odd(3)
+true
+#+END_SRC
+=require= is also lexically scoped
+*** import
+We use import whenever we want to easily access functions or macros
+from other modules without using the fully-qualified name.
+#+BEGIN_SRC sh
+iex> import List, only: [duplicate: 2]
+List
+iex> duplicate :ok, 3
+[:ok, :ok, :ok]
+#+END_SRC
+
+import also supports =:macros= and =:functions= to be given to =:only=. For
+example, to import all macros, one could write:
+#+BEGIN_SRC elixir
+import Integer, only: :macros
+#+END_SRC
+#+BEGIN_SRC elixir
+import Integer, only: :functions
+#+END_SRC
+
+Note that import is lexically scoped too. This means that we can
+import specific macros or functions inside function definitions:
+#+BEGIN_SRC elixir
+defmodule Math do
+  def some_function do
+    import List, only: [duplicate: 2]
+    duplicate(:ok, 10)
+  end
+end
+#+END_SRC
+*Note that importing a module automatically requires it.*
+
+**** Importing the whole module
+#+BEGIN_SRC elixir
+defmodule AnotherModule do
+  def add(a, b), do: a + b
+end
+
+defmodule Foo do
+  import AnotherModule
+
+  def fun, do: add 2, 10
+end
+
+Foo.fun # 12
+#+END_SRC
+
+**** =only=
+ #+BEGIN_SRC elixir
+ defmodule AnotherModule do
+  def add(a, b), do: a + b
+  def add(a, b, c), do: a + b + c
+end
+
+defmodule Foo do
+  import AnotherModule, only: [add: 2] # 2 is the arity
+
+  def fun, do: add 2, 10, 2
+end
+
+Foo.fun # %CompileError{description: "undefined function add/3", file: "nofile", line: 9}
+ #+END_SRC
+ Above snippet raise an error because we only imported to =add/2=
+ function. The number is the arity of the given function.
+
+**** =except=
+#+BEGIN_SRC elixir
+defmodule Some.Other.Mod do
+  def add(a, b), do: a + b
+  def subtract(a, b), do: a - b
+end
+
+defmodule MyMod do
+  import Some.Other.Mod, except: [add: 2] # don't import add/2
+
+  # def foo(a, b), do: add(a, b) #throws an error, we didn't import add/2
+  def bar(a, b), do: subtract(a, b)
+end
+
+# MyMod.foo(10, 20) # %CompileError{description: "undefined function add/2", file: "nofile", line: 8}
+
+MyMod.bar(20, 10) # 10
+#+END_SRC
+*** use
+The =use= macro is frequently used as an extension point. This means
+that, when you use a module FooBar, you allow that module to inject
+any code in the current module, such as importing itself or other
+modules, defining new functions, setting a module state, etc.
+
+For example, in order to write tests using the ExUnit framework, a
+developer should use the =ExUnit.Case= module:
+#+BEGIN_SRC elixir
+defmodule AssertionTest do
+  use ExUnit.Case, async: true
+
+  test "always pass" do
+    assert true
+  end
+end
+#+END_SRC
+Behind the scenes, use requires the given module and then calls the
+=__using__/1= callback on it allowing the module to inject some code
+into the current context. Generally speaking, the following module:
+#+BEGIN_SRC elixir
+defmodule Example do
+  use Feature, option: :value
+end
+#+END_SRC
+is compiled to
+#+BEGIN_SRC elixir
+defmodule Example do
+  require Feature
+  Feature.__using__(option: :value)
+end
+#+END_SRC
+*** Understanding Aliases
+An alias in Elixir is a capitalized identifier (like String, Keyword,
+etc) which is converted to an atom during compilation. For instance,
+the String alias translates by default to the atom =:"Elixir.String"=:
+#+BEGIN_SRC
+iex> is_atom(String)
+true
+iex> to_string(String)
+"Elixir.String"
+iex> :"Elixir.String" == String
+true
+#+END_SRC
+Aliases expand to atoms because in the Erlang VM (and consequently
+Elixir) modules are always represented by atoms. For example, that’s
+the mechanism we use to call Erlang modules:
+#+BEGIN_SRC
+iex> :lists.flatten([1, [2], 3])
+[1, 2, 3]
+#+END_SRC
+*** Module nesting
+#+BEGIN_SRC elixir
+defmodule Foo do
+  defmodule Bar do
+  end
+end
+#+END_SRC
+The example above will define two modules: Foo and Foo.Bar. The second
+can be accessed as Bar inside Foo as long as they are in the same
+lexical scope. The code above is exactly the same as:
+#+BEGIN_SRC elixir
+defmodule Elixir.Foo do
+  defmodule Elixir.Foo.Bar do
+  end
+  alias Elixir.Foo.Bar, as: Bar
+end
+#+END_SRC
+
+*** Multi alias/import/require/use
+#+BEGIN_SRC
+alias MyApp.{Foo, Bar, Baz}
 #+END_SRC
 ** Module attributes
    Module attributes in Elixir serve three purposes:
@@ -1713,82 +1983,6 @@ A Node is an instance of BEAM virtual machine.
   if(false, [do: :this, else: :that]) # :that
 #+END_SRC
 
-*** =alias=
-Referencing a module by a different name
-#+BEGIN_SRC elixir
-defmodule AnotherModule do
-  def add(a, b), do: a + b
-end
-
-defmodule Foo do
-  alias AnotherModule, as: M
-
-  def fun, do: M.add 2, 5
-end
-#+END_SRC
-Using a module by last part of its name
-#+BEGIN_SRC elixir
-defmodule Some.Other.Mod do
-  def add(a, b), do: a + b
-end
-
-defmodule MyMod do
-  alias Some.Other.Mod
-  def fun(a, b), do: Mod.add(a, b) # just using Mod
-end
-#+END_SRC
-*** =import=
-**** Importing the whole module
-#+BEGIN_SRC elixir
-defmodule AnotherModule do
-  def add(a, b), do: a + b
-end
-
-defmodule Foo do
-  import AnotherModule
-
-  def fun, do: add 2, 10
-end
-
-Foo.fun # 12
-#+END_SRC
-
-**** =only=
- #+BEGIN_SRC elixir
- defmodule AnotherModule do
-  def add(a, b), do: a + b
-  def add(a, b, c), do: a + b + c
-end
-
-defmodule Foo do
-  import AnotherModule, only: [add: 2] # 2 is the arity
-
-  def fun, do: add 2, 10, 2
-end
-
-Foo.fun # %CompileError{description: "undefined function add/3", file: "nofile", line: 9}
- #+END_SRC
- Above snippet raise an error because we only imported to =add/2=
- function. The number is the arity of the given function.
-
-**** =except=
-#+BEGIN_SRC elixir
-defmodule Some.Other.Mod do
-  def add(a, b), do: a + b
-  def subtract(a, b), do: a - b
-end
-
-defmodule MyMod do
-  import Some.Other.Mod, except: [add: 2] # don't import add/2
-
-  # def foo(a, b), do: add(a, b) #throws an error, we didn't import add/2
-  def bar(a, b), do: subtract(a, b)
-end
-
-# MyMod.foo(10, 20) # %CompileError{description: "undefined function add/2", file: "nofile", line: 8}
-
-MyMod.bar(20, 10) # 10
-#+END_SRC
 *** =cond=
 Run the first block where expression is truthy.
 Remember =cond= has no falling through like a switch case does in other languages.
