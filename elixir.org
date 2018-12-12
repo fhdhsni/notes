@@ -533,6 +533,7 @@ defmodule User do
   defstruct name: "Farhad", email: "farhad.hsni@gmail.com"
 end
 #+END_SRC
+
 #+BEGIN_SRC elixir
   defmodule User do
     def __struct__ do
@@ -540,6 +541,81 @@ end
     end
   end
 #+END_SRC
+**** Accessing and updating structs
+#+BEGIN_SRC elixir
+defmodule Foo do
+  defstruct class: "assassin", age: "young"
+end
+
+defmodule Play do
+  defstruct name: "Farhad", age: 26
+
+  def main do
+    me = %Play{name: "Jafar"} # age will be the default
+
+    me = %{me | name: "awesome" } # updating
+
+    IO.puts me.name # awesome
+
+    %Play{age: the_age } = %Play{name: "Morad", age: 900}       # pattern matching
+    # %Play{age: the_age } = {name: "Morad", age: 900}       # error
+    # %Play{age: the_age } = %Foo{}       # error
+
+    IO.puts the_age # 900
+  end
+end
+
+Play.main()
+#+END_SRC
+**** Structs are bare maps underneath
+none of the protocols implemented for maps are available for
+structs. For example, you can neither enumerate nor access a struct.
+However, since structs are just maps, they work with the functions
+from the Map module:
+#+BEGIN_SRC elixir
+iex> jane = Map.put(%User{}, :name, "Jane")
+%User{age: 27, name: "Jane"}
+iex> Map.merge(jane, %User{name: "John"})
+%User{age: 27, name: "John"}
+iex> Map.keys(jane)
+[:__struct__, :age, :name]
+#+END_SRC
+
+**** Default values and required keys
+If you don’t specify a default key value when defining a struct, nil
+will be assumed:
+#+BEGIN_SRC elixir
+defmodule Play do
+  defstruct [:name]
+
+  def main do
+    me = %Play{}
+
+    IO.inspect me.name          # nil
+  end
+end
+
+Play.main()
+#+END_SRC
+
+You can also enforce that certain keys have to be specified when
+creating the struct:
+#+BEGIN_SRC elixir
+defmodule Play do
+  @enforce_keys [:name]
+  defstruct [:name]
+
+  def main do
+    me = %Play{}                # (ArgumentError) the following keys
+                                # must also be given when building
+                                # struct Play: [:name]
+
+  end
+end
+
+Play.main()
+#+END_SRC
+
 *** Range
 Range struct
 #+BEGIN_SRC elixir
@@ -554,6 +630,7 @@ Range struct
 #+BEGIN_SRC elixir
 is_map ~r/hello/ # true
 #+END_SRC
+
 ** Functions, Guard clauses and Modules
 Functions in Elixir are identified by both their name and their
 arity. The arity of a function describes the number of arguments which
@@ -1023,9 +1100,23 @@ alias MyApp.{Foo, Bar, Baz}
 1. They serve to annotate the module, often with information to be used by the user or the VM.
 2. They work as constants.
 3. They work as a temporary module storage to be used during compilation.
-*** =@moduledoc= and  =@doc=
-=@moduledoc= provides documentation for the current module.
-=@doc= provides documentation for the function or macro that follows the attribute.
+*** As annotations
+Elixir has a handful of reserved attributes. Here are a few of them, the most commonly used ones:
+
+- =@moduledoc=: provides documentation for the current module.
+
+- =@doc=: provides documentation for the function or macro that
+  follows the attribute.
+- =@behaviour=: (notice the British spelling) used for specifying an
+  OTP or user-defined behaviour.
+
+- =@before_compile= - provides a hook that will be invoked before the
+  module is compiled. This makes it possible to inject functions
+  inside the module exactly before compilation
+
+-
+e.g.
+
 #+BEGIN_SRC elixir
 defmodule Math do
   @moduledoc """
@@ -1044,6 +1135,136 @@ defmodule Math do
   def sum(a, b), do: a + b
 end
 #+END_SRC
+Elixir provide a tool called =ExDoc= which is used to generate HTML
+pages from the documentation.
+*** As “constants”
+Elixir developers will often use module attributes as constants:
+
+#+BEGIN_SRC elixir
+defmodule Play do
+  @initial_state %{host: "127.0.0.1", port: 3456}
+
+  def main do
+    IO.inspect @initial_state
+  end
+end
+#+END_SRC
+
+Every time an attribute is read inside a function, a snapshot of its
+current value is taken. In other words, the value is read at
+compilation time and not at runtime. As we are going to see, this also
+makes attributes useful to be used as storage during module
+compilation.
+
+#+BEGIN_SRC elixir
+defmodule MyServer do
+  @my_data 14
+  def first_data, do: @my_data
+  @my_data 13
+  def second_data, do: @my_data
+end
+
+MyServer.first_data #=> 14
+MyServer.second_data #=> 13
+#+END_SRC
+*** As temporary storage
+** Protocols
+Protocols are a mechanism to achieve polymorphism in Elixir.
+#+BEGIN_SRC elixir
+defprotocol Size do
+  @doc "Calculates the size (and not the length!) of a data structure"
+  def size(data)
+end
+
+defimpl Size, for: BitString do
+  def size(string), do: byte_size(string)
+end
+
+defimpl Size, for: Map do
+  def size(map), do: map_size(map)
+end
+
+defimpl Size, for: Tuple do
+  def size(tuple), do: tuple_size(tuple)
+end
+#+END_SRC
+
+#+BEGIN_SRC elixir
+iex> Size.size("foo")
+3
+iex> Size.size({:ok, "hello"})
+2
+iex> Size.size(%{label: "some label"})
+1
+iex> Size.size([1, 2, 3])
+ (Protocol.UndefinedError) protocol Size not implemented for [1, 2, 3]
+#+END_SRC
+- Elixir data structures
+  + =Atom=
+  + =BitString=
+  + =Float=
+  + =Function=
+  + =Integer=
+  + =List=
+  + =Map=
+  + =PID=
+  + =Port=
+  + =Reference=
+  + =Tuple=
+
+Instead of sharing protocol implementation with maps, structs require
+their own protocol implementation. Since a MapSet has its size
+precomputed and accessible through MapSet.size/1, we can define a Size
+implementation for it:
+#+BEGIN_SRC elixir
+defimpl Size, for: MapSet do
+  def size(set), do: MapSet.size(set)
+end
+#+END_SRC
+
+#+BEGIN_SRC elixir
+defmodule User do
+  defstruct [:name, :age]
+end
+
+defimpl Size, for: User do
+  def size(_user), do: 2
+end
+#+END_SRC
+*** Implementing =Any=
+#+BEGIN_SRC elixir
+defimpl Size, for: Any do
+  def size(_), do: 0
+end
+#+END_SRC
+To use the above implementation we have to opt-in manually.
+
+**** Deriving
+When deriving, Elixir will implement the Size protocol for =Play=
+based on the implementation provided for =Any=.
+
+we can do so by =@derive= attribute:
+#+BEGIN_SRC elixir
+defmodule Play do
+  @derive [Size]
+  defstruct name: "farhad", age: 26
+end
+#+END_SRC
+
+
+**** Fallback to Any
+Another alternative to =@derive= is to explicitly tell the protocol to
+fallback to =Any= when an implementation cannot be found. This can be
+achieved by setting =@fallback_to_any= to =true= in the protocol
+definition:
+#+BEGIN_SRC elixir
+defprotocol Size do
+  @doc "Calculates the size (and not the length!) of a data structure"
+  @fallback_to_any true
+  def size(data)
+end
+#+END_SRC
+
 ** Enum module
 Types which implements Enumerable hence can be used with Enum methods
 - Lists
