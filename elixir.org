@@ -1814,7 +1814,103 @@ iex(1)> :observer.start()
 #+END_SRC
 
 Also =runtime_info/0= is a gives a minimal overview.
+** erlang
+Elixir discourages simply wrapping Erlang libraries in favor of
+directly interfacing with Erlang code.
+*** The binary module
+The built-in Elixir String module handles binaries that are UTF-8
+encoded. The binary module is useful when you are dealing with binary
+data that is not necessarily UTF-8 encoded.
+#+BEGIN_SRC
+iex> String.to_charlist "Ø"
+[216]
+iex> :binary.bin_to_list "Ø"
+[195, 152]
+#+END_SRC
+The =String= module returns Unicode codepoints, while =:binary= deals with
+raw data bytes.
+*** The crypto module
+#+BEGIN_SRC
+iex> Base.encode16(:crypto.hash(:sha256, "Elixir"))
+"3315715A7A3AD57428298676C5AE465DADA38D951BDFAC9348A8A31E9C7401CB"
+#+END_SRC
+The =:crypto= module is not part of the Erlang standard library, but is
+included with the Erlang distribution. This means you must list
+=:crypto= in your project’s applications list whenever you use it. To do
+this, edit your =mix.exs file to include:
 
+#+BEGIN_SRC elixir
+def application do
+  [extra_applications: [:crypto]]
+end
+#+END_SRC
+
+*** The digraph module
+The digraph module (as well as digraph_utils) contains functions for
+dealing with directed graphs built of vertices and edges. After
+constructing the graph, the algorithms in there will help finding, for
+instance, the shortest path between two vertices, or loops in the
+graph.
+
+#+BEGIN_SRC elixir
+iex> digraph = :digraph.new()
+iex> coords = [{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}]
+iex> [v0, v1, v2] = (for c <- coords, do: :digraph.add_vertex(digraph, c))
+iex> :digraph.add_edge(digraph, v0, v1)
+iex> :digraph.add_edge(digraph, v1, v2)
+iex> :digraph.get_short_path(digraph, v0, v2)
+[{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}]
+#+END_SRC
+Note that the functions in :digraph alter the graph structure
+in-place, this is possible because they are implemented as ETS tables.
+
+*** Erlang Term Storage
+The modules =ets= and =dets= handle storage of large data structures in
+memory or on disk respectively.
+
+ETS lets you create a table containing tuples. By default, ETS tables
+are protected, which means only the owner process may write to the
+table but any other process can read. ETS has some functionality to be
+used as a simple database, a key-value store or as a cache mechanism.
+#+BEGIN_SRC
+iex> table = :ets.new(:ets_test, [])
+# Store as tuples with {name, population}
+iex> :ets.insert(table, {"China", 1_374_000_000})
+iex> :ets.insert(table, {"India", 1_284_000_000})
+iex> :ets.insert(table, {"USA", 322_000_000})
+iex> :ets.i(table)
+<1   > {<<"India">>,1284000000}
+<2   > {<<"USA">>,322000000}
+<3   > {<<"China">>,1374000000}
+#+END_SRC
+
+*** The math module
+*** The queue module
+#+BEGIN_SRC
+iex> q = :queue.new
+iex> q = :queue.in("A", q)
+iex> q = :queue.in("B", q)
+iex> {value, q} = :queue.out(q)
+iex> value
+{:value, "A"}
+iex> {value, q} = :queue.out(q)
+iex> value
+{:value, "B"}
+iex> {value, q} = :queue.out(q)
+iex> value
+:empty
+#+END_SRC
+*** the rand module
+#+BEGIN_SRC
+iex> :rand.uniform()
+0.8175669086010815
+iex> _ = :rand.seed(:exs1024, {123, 123534, 345345})
+iex> :rand.uniform()
+0.5820506340260994
+iex> :rand.uniform(6)
+6
+#+END_SRC
+*** The zip and zlib modules
 ** Mix, Hex and others
 The build tool for elixir
 - =mix new foobar= to create foobar project
@@ -2150,7 +2246,10 @@ end
    - Its signature =handle_cast(arg, current_state)=
    - Should reply ={:noreply, new_state}=
 6. =handle_info= is asynchronous and
-   - handles messages from everyone(like =Process.send=) except for GenServer.
+   - must be used for all other messages a server may receive that are
+     not sent via =GenServer.call/2= or =GenServer.cast/2=, including
+     regular messages sent with =send/2=. The monitoring =:DOWN= messages
+     are such an example of this.
 7. =GenServer.cast=
    + Send a message without expecting or waiting for a response
 8. =GenServer.call=
@@ -2275,6 +2374,15 @@ end
 - GenServer processes can be supervised and restarted
 - GenServer process state can be upgraded in place
 
+*** Monitors or links?
+when should we use monitors and when should we use links?
+
+Links are bi-directional. If you link two processes and one of them
+crashes, the other side will crash too (unless it is trapping
+exits). A monitor is uni-directional: only the monitoring process will
+receive notifications about the monitored one. In other words: use
+links when you want linked crashes, and monitors when you just want to
+be informed of crashes, exits, and so on.
 ** Supervisor
 *** example 1
 =Basic= module:
@@ -2393,7 +2501,9 @@ end
 ** Task & Agents
 *** Tasks
 Tasks build on top of the spawn functions to provide better error
-reports and introspection.
+reports and introspection. They are Asynchronous units of computation
+that allow spawning a process and potentially retrieving its result at
+a later time.
 
 Asynchronous Processing
 #+BEGIN_SRC elixir
