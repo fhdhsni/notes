@@ -1,0 +1,287 @@
+My Erlang notes, mostly from [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book.
+
+** Miscellaneous
+- to get the documentation on lists =erl -man lists=
+- [[http://www.erlang.se/doc/programming_rules.shtml][Programming Rules and Conventions]]
+* Basics
+** Numbers
+If you want to express integers in other bases than base 10, just
+enter the number as Base#Value (given Base is in the range 2..36):
+#+BEGIN_SRC erlang
+> 2#101010.
+42
+#+END_SRC
+** Atoms
+An atom is referred to in an "atom table" which consumes memory (4
+bytes/atom in a 32-bit system, 8 bytes/atom in a 64-bit system). The
+atom table is not garbage collected, and so atoms will accumulate
+until the system tips over, either from memory usage or because
+1048577 atoms were declared.
+#+BEGIN_SRC erlang
+> atom = 'atom'.
+atom
+#+END_SRC
+** Boolean Algebra & Comparison operators
+the boolean operators =and= and =or= will always evaluate arguments on
+both sides of the operator. If you want to have the short-circuit
+operators (which will only evaluate the right-side argument if it
+needs to), use =andalso= and =orelse=.
+
+#+BEGIN_SRC
+erl> 5 =:= 5.
+true
+
+erl> 1 =:= 0.
+false
+
+erl> 1 =/= 0.
+true
+
+erl> 5 =:= 5.0.
+false
+
+erl> 5 == 5.0.
+true
+
+erl> 5 /= 5.0.
+false
+
+erl> 1 >= 1.
+true
+
+erl> 1 =< 1.
+true
+
+erl> 0 == false.
+false
+
+erl> 1 < false.
+true
+#+END_SRC
+
+Note: The correct ordering of each element in a comparison is the following:
+=number < atom < reference < fun < port < pid < tuple < list < bit string=
+
+Erlang has no such things as boolean true and false. The terms =true=
+and =false= are atoms,
+** Tuples
+A tuple which contains an atom with one element following it is called
+a 'tagged tuple'
+** Lists
+Strings are lists and the notation is the same!
+#+BEGIN_SRC
+erl> [97, 98, 99].
+"abc"
+#+END_SRC
+
+Both =++= and =--= are right-associative. This means the elements of
+many =--= or =++= operations will be done from right to left, as in the
+following examples:
+#+BEGIN_SRC
+erl> [1,2,3] -- [1,2] -- [3].
+[3]
+
+erl> [1,2,3] -- [1,2] -- [2].
+[2,3]
+#+END_SRC
+*** cons
+These are all equivalent:
+#+BEGIN_SRC
+[a, b, c, d]
+[a, b, c, d | []]
+[a, b | [c, d]]
+[a, b | [c | [d]]]
+[a | [b | [c | [d]]]]
+[a | [b | [c | [d | [] ]]]]
+#+END_SRC
+*** List Comprehensions
+Set notation basically tells you how to build a set by specifying
+properties its members must satisfy.
+
+#+BEGIN_SRC
+erl> [2*N || N <- [1,2,3,4]].
+[2,4,6,8]
+
+elr> [X*2 || X <- [1,2,3,4,5,6,7,8,9,10], X >= 4, X < 8].
+[8,10,12,14]
+#+END_SRC
+
+#+BEGIN_SRC
+NewList = [Expression || GeneratorExp1, GeneratorExp2, ..., GeneratorExpN, Condition1, Condition2, ... ConditionM]
+#+END_SRC
+** bit syntax
+#+BEGIN_SRC  erlang
+erl> Pixels = <<213,45,132,64,76,32,76,0,0,234,32,15>>. % declare 4 pixels of RGB colors in binary
+<<213,45,132,64,76,32,76,0,0,234,32,15>>
+
+erl> <<Pix1,Pix2,Pix3,Pix4>> = Pixels. %  we have more than 4 segments
+  exception error: no match of right hand side value <<213,45,132,64,76,32,76, 0,0,234,32,15>>
+
+erl> 19> <<Foo,_,_,_,_,_,_,_,_,_,_,_>> = Pixels.
+<<213,45,132,64,76,32,76,0,0,234,32,15>>
+
+erl> Foo.
+213
+
+% We tell Erlang that each variable on the left side will hold 24 bits of data. That's what Var:24 means
+erl> <<Pix1:24, Pix2:24, Pix3:24, Pix4:24>> = Pixels.
+<<213,45,132,64,76,32,76,0,0,234,32,15>>
+
+erl> <<R:8, G:8, B:8>> = <<Pix1:24>>.
+<<213,45,132>>
+
+7> R.
+213
+
+8> <<R:8, Rest/binary>> = Pixels.
+<<213,45,132,64,76,32,76,0,0,234,32,15>>
+
+9> R.
+213
+#+END_SRC
+
+ Erlang accepts more than one way to describe a binary segment. Those are all valid:
+
+    Value
+    Value:Size
+    Value/TypeSpecifierList
+    Value:Size/TypeSpecifierList
+
+where /Size/ is going to represent bits or bytes (depending on /Type/ and
+/Unit/ below), and /TypeSpecifierList/ represents one or more of the
+following:
+
+- *Type*
+    + Possible values: =integer= | =float= | =binary= | =bytes= |
+      =bitstring= | =bits= | =utf8= | =utf16= | =utf32=
+    + This represents the kind of binary data used. Note that 'bytes'
+      is shorthand for 'binary' and 'bits' is shorthand for
+      'bitstring'. When no type is specified, Erlang assumes an
+      'integer' type.
+
+- *Signedness*
+  + Possible values: =signed= | =unsigned=
+  + Only matters for matching when the type is integer. The default is
+  'unsigned'.
+
+- *Endianness*
+  + Possible values: =big= | =little= | =native=
+
+  + Endianness only matters when the Type is either integer, utf16,
+  utf32, or float. This has to do with how the system reads binary
+  data. As an example, the BMP image header format holds the size of
+  its file as an integer stored on 4 bytes. For a file that has a size
+  of 72 bytes, a little-endian system would represent this as
+  <<72,0,0,0>> and a big-endian one as <<0,0,0,72>>. One will be read
+  as '72' while the other will be read as '1207959552', so make sure
+  you use the right endianness. There is also the option to use
+  'native', which will choose at run-time if the CPU uses
+  little-endianness or big-endianness natively. By default, endianness
+  is set to 'big'.
+
+- *Unit*
+    + written unit:Integer
+
+    + This is the size of each segment, in bits. The allowed range is
+      1..256 and is set by default to 1 for integers, floats and bit
+      strings and to 8 for binary. The utf8, utf16 and utf32 types
+      require no unit to be defined. The multiplication of Size by
+      Unit is equal to the number of bits the segment will take and
+      must be evenly divisible by 8. The unit size is usually used to
+      ensure byte-alignment.
+
+The /TypeSpecifierList/ is built by separating attributes by a '-'.
+
+#+BEGIN_SRC
+erl> <<X1/unsigned>> =  <<-44>>.
+<<"Ô">>
+
+erl> X1.
+212
+
+erl> <<X2/signed>> =  <<-44>>.
+<<"Ô">>
+
+erl> X2.
+-44
+
+erl> <<X2/integer-signed-little>> =  <<-44>>.
+<<"Ô">>
+
+erl> X2.
+-44
+
+erl> <<N:8/unit:1>> = <<72>>.
+<<"H">>
+
+erl> N.
+72
+
+erl> <<N/integer>> = <<72>>.
+<<"H">>
+
+erl> <<Y:4/little-unit:8>> = <<72,0,0,0>>.
+<<72,0,0,0>>
+
+erl> Y.
+72
+#+END_SRC
+
+
+
+The standard binary operations (shifting bits to left and right,
+binary 'and', 'or', 'xor', or 'not') also exist in Erlang. Just use
+the functions =bsl= (Bit Shift Left), =bsr= (Bit Shift Right), =band=, =bor=,
+=bxor=, and =bnot=.
+
+#+BEGIN_SRC
+2#00100 = 2#00010 bsl 1.
+2#00001 = 2#00010 bsr 1.
+2#10101 = 2#10001 bor 2#00101.
+#+END_SRC
+
+Example: parse TCP segments
+#+BEGIN_SRC
+<<SourcePort:16, DestinationPort:16,
+AckNumber:32,
+DataOffset:4, _Reserved:4, Flags:8, WindowSize:16,
+CheckSum: 16, UrgentPointer:16,
+Payload/binary>> = SomeBinary.
+#+END_SRC
+
+*** bit strings
+#+BEGIN_SRC
+<<"this is a bit string!">>
+#+END_SRC
+
+** Binary Comprehensions
+#+BEGIN_SRC
+erl> [ X || <<X>> <= <<1,2,3,4,5>>, X rem 2 == 0].
+[2,4]
+
+2> Pixels = <<213,45,132,64,76,32,76,0,0,234,32,15>>.
+<<213,45,132,64,76,32,76,0,0,234,32,15>>
+
+3> RGB = [ {R,G,B} || <<R:8,G:8,B:8>> <= Pixels ].
+[{213,45,132},{64,76,32},{76,0,0},{234,32,15}]
+
+erl> RGB.
+[{213,45,132},{64,76,32},{76,0,0},{234,32,15}]
+
+erl> << <<R:8, G:8, B:8>> ||  {R,G,B} <- RGB >>.
+<<213,45,132,64,76,32,76,0,0,234,32,15>>
+
+erl> << <<(X+1)/integer>> || <<X>> <= <<3,7,5,4,7>> >>.
+<<4,8,6,5,8>>
+#+END_SRC
+*  Modules
+- All functions in Erlang must be defined in modules.
+
+** Module Declaration
+- =-module(Name).=  This is always the first attribute (and statement) of
+    a file, and for good reason: it's the name of the current module,
+    where Name is an atom. This is the name you'll use to call
+    functions from other modules. The calls are made with the =M:F(A)=
+    form, where =M= is the module name, =F= the function, and A the
+    arguments.
+- =export([Function1/Arity, Function2/Arity, ..., FunctionN/Arity]).=

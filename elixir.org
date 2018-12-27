@@ -138,6 +138,24 @@ iex> <<256 :: utf8>> # the number is a code point
 "Ā"
 iex> <<256 :: utf8, 0>>
 <<196, 128, 0>>
+
+iex> pixels
+<<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+
+iex> <<red::size(8), rest::binary>> = pixels
+<<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+
+iex> red
+213
+
+iex> rest
+<<45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+
+iex> <<r::8, rest::binary>> = pixels
+<<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+
+iex> r
+213
 #+END_SRC
 
 *** bitstring
@@ -716,6 +734,20 @@ IO.puts Concat.join("Hello", "world")      #=> Hello world
 IO.puts Concat.join("Hello", "world", "_") #=> Hello_world
 IO.puts Concat.join("Hello")               #=> Hello
 #+END_SRC
+
+Another usecase would be doing so for documentation purposes. e.g.
+#+BEGIN_SRC elixir
+@doc """
+Runs the given command.
+"""
+def run(command)
+
+def run({:create, bucket}) do
+  KV.Registry.create(KV.Registry, bucket)
+  {:ok, "OK\r\n"}
+end
+#+END_SRC
+
 *** overlapping function definitions
 When using default values, one must be careful to avoid overlapping
 function definitions. Consider the following example:
@@ -2038,24 +2070,46 @@ There's also the built-in =skip= tag
 *** Doctests
 use =doctests MyApp.MyModule= in test file to consider doc examples as tests
 
-Written inline with documentation for a module of function typically under an =## example= heading.
+Written inline with documentation for a module of function typically under an =## Examples= heading.
 #+BEGIN_SRC elixir
   defmodule MyApp.Math do
     @doc """
     Adds two numbers together and returns the sum.
 
-    # Examples
+    ## Examples
 
-      iex> Math.add(1, 2)
-      3
+        iex> Math.add(1, 2)
+        3
 
-      iex> sum = Math.add(5, 5)
-      ...> Math.add(sum. 5)
-      15
+        iex> sum = Math.add(5, 5)
+        ...> Math.add(sum. 5)
+        15
+
     """
     def add(a, b), do: a + b
   end
 #+END_SRC
+
+Another example
+#+BEGIN_SRC elixir
+defmodule KVServer.Command do
+  @doc ~S"""
+  Parses the given `line` into a command.
+
+  ## Examples
+
+      iex> KVServer.Command.parse("CREATE shopping\r\n")
+      {:ok, {:create, "shopping"}}
+
+  """
+  def parse(_line) do
+    :not_implemented
+  end
+end
+#+END_SRC
+Note that we started the documentation string using =@doc ~S"""=. The
+=~S= prevents the =\r\n= characters from being converted to a carriage
+return and line feed until they are evaluated in the test.
 
 *** Running tests
 Exclude tests tagged with :slow
@@ -2498,14 +2552,22 @@ end
 - Supervisors themself can be supervised =worker(Supervisor_module, [])=
 - for data storage you might find =ets=, =dets=, or =Mnesia= more useful than third party tools
 - =simple_one_for_one= is for dynamically launching processes.
+
 ** Task & Agents
 *** Tasks
 Tasks build on top of the spawn functions to provide better error
 reports and introspection. They are Asynchronous units of computation
 that allow spawning a process and potentially retrieving its result at
-a later time.
+a later time. Sometimes it is useful to run a task to compute a value
+and read its result later on. For this, tasks also provide the
+async/await pattern:
 
-Asynchronous Processing
+#+BEGIN_SRC elixir
+task = Task.async(fn -> compute_something_expensive end)
+res  = compute_something_else()
+res + Task.await(task)
+#+END_SRC
+
 #+BEGIN_SRC elixir
   task = Task.async fn ->
     IO.puts "Hello world!"
@@ -2527,6 +2589,10 @@ defmodule Play do
   end
 end
 #+END_SRC
+
+=async/await= provides a very simple mechanism to compute values
+concurrently.
+
 
 To Supervise A Task
 
