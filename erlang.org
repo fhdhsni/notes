@@ -1,8 +1,9 @@
 My Erlang notes, mostly from [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book.
 
-** Miscellaneous
+* Miscellaneous
 - to get the documentation on lists =erl -man lists=
 - [[http://www.erlang.se/doc/programming_rules.shtml][Programming Rules and Conventions]]
+- Erlang functions and expressions must always return something.
 * Basics
 ** Numbers
 If you want to express integers in other bases than base 10, just
@@ -274,14 +275,251 @@ erl> << <<R:8, G:8, B:8>> ||  {R,G,B} <- RGB >>.
 erl> << <<(X+1)/integer>> || <<X>> <= <<3,7,5,4,7>> >>.
 <<4,8,6,5,8>>
 #+END_SRC
-*  Modules
+* Modules
 - All functions in Erlang must be defined in modules.
-
-** Module Declaration
+- module attributes are metadata describing the module itself. They can be found via =module_info/0=, like =mymod.module_info().=
 - =-module(Name).=  This is always the first attribute (and statement) of
-    a file, and for good reason: it's the name of the current module,
-    where Name is an atom. This is the name you'll use to call
-    functions from other modules. The calls are made with the =M:F(A)=
-    form, where =M= is the module name, =F= the function, and A the
-    arguments.
-- =export([Function1/Arity, Function2/Arity, ..., FunctionN/Arity]).=
+  a file, and for good reason: it's the name of the current module,
+  where Name is an atom. This is the name you'll use to call
+  functions from other modules. The calls are made with the =M:F(A)=
+  form, where =M= is the module name, =F= the function, and A the
+  arguments.
+- =-export([Function1/Arity, Function2/Arity, ..., FunctionN/Arity]).=
+- =-import(Module, [Function1/Arity, ..., FunctionN/Arity]).=
+  Importing a function is not much more than a shortcut
+- =-define(MACRO, some_value).=
+  e.g =-define(foo, 88).= and to use it =?foo=
+  e.g =-define(sub(X,Y), X-Y).= and to use it =?sub(23,47)=
+
+* Compiling the code
+  - =erlc flags file.erl= when in the command line
+  - =compile:file(FileName)= when in the shell or in a module
+  - =c()= when in the shell
+*** flags
+    - =-debug_info=
+    - =-{outdir,Dir}=
+    - =-export_all=: Will ignore the =-export= module attribute
+   - =-{d,Macro}= or ={d,Macro,Value}= Defines a macro to be used in
+     the module, where Macro is an atom. This is more frequently used
+     when dealing when unit-testing, ensuring that a module will only
+     have its testing functions created and exported when they are
+     explicitly wanted. By default, Value is 'true' if it's not
+     defined as the third element of the tuple.
+
+e.g.
+#+BEGIN_SRC
+erl> compile:file(useless, [debug_info, export_all]).
+{ok,useless}
+
+erl> c(useless, [debug_info, export_all]).
+{ok,useless}
+#+END_SRC
+
+Compiler flags can also be defined from within a module, with a module
+attribute.
+#+BEGIN_SRC erlang
+-compile(export_all).
+#+END_SRC
+
+You could also use =c(Module,[native])=.
+* Pattern Matching
+Get the secon element of a list
+#+BEGIN_SRC erlang
+second([_, X|_]) ->
+    X.
+
+same(X,X) ->
+true;
+same(_,_) ->
+false.
+
+foo({First = {X,Y,Z}, Second = {H, S, M}}) ->
+    io:format("X:~p, Y: ~p, Z: ~p, H: ~p, S: ~p, M: ~p~n", [X,Y,Z, H, S, M]),
+    io:format("First: ~p, second: ~p~n", [First, Second]).
+#+END_SRC
+* Guards, Guards!
+#+BEGIN_SRC erlang
+old_enough(X) when X >= 16 -> true;
+old_enough(_) -> false.
+
+right_age(X) when X >= 16, X =< 104 -> %% The comma (,) acts in a similar manner to the operator `andalso`
+    true;
+right_age(_) ->
+    false.
+
+wrong_age(X) when X < 16; X > 104 -> %% the semicolon (;) acts a bit like `orelse`
+    true;
+wrong_age(_) ->
+    false.
+#+END_SRC
+
+Note: I've compared =,= and =;= in guards to the operators =andalso= and
+=orelse=. They're not exactly the same, though. The former pair will
+catch exceptions as they happen while the latter won't. What this
+means is that if there is an error thrown in the first part of the
+guard `X >= N; N >= 0`, the second part can still be evaluated and the
+guard might succeed; if an error was thrown in the first part of `X >= N orelse N >= 0`,
+the second part will also be skipped and the whole
+guard will fail.
+
+However, only =andalso= and =orelse= can be
+nested inside guards. This means =(A orelse B) andalso C= is a valid
+guard, while =(A; B), C= is not.
+
+
+
+Note: type test BIFs constitute more than half of the functions
+allowed in guard expressions. The rest are also BIFs, but do not
+represent type tests. These are:
+
+#+BEGIN_SRC erlang
+ abs(Number), bit_size(Bitstring), byte_size(Bitstring), element(N, Tuple),
+ float(Term), hd(List), length(List), node(),
+ node(Pid|Ref|Port), round(Number), self(), size(Tuple|Bitstring),
+ tl(List), trunc(Number), tuple_size(Tuple)
+#+END_SRC
+
+e.g
+#+BEGIN_SRC erlang
+zip(Xs, Ys) when length(Xs) == length(Ys) ->
+    lists:reverse(zip(Xs, Ys, [])).
+
+zip([], [], Result) ->
+    Result;
+zip([X|Xs], [Y|Ys], Result) ->
+    zip(Xs, Ys, [{X, Y} | Result]).
+#+END_SRC
+
+* if
+The =if= clauses are called Guard Patterns.
+
+#+BEGIN_SRC erlang
+  oh_god(N) ->
+      if N =:= 2 -> might_succeed;
+         true -> always_does  %% this is Erlang's if's 'else!', we can't omit this, or else we get an error
+      end.
+
+  help_me(Animal) ->
+      Talk = if Animal == cat ->
+                     "meow";
+                Animal == beef ->
+                     "moo";
+                Animal == dog ->
+                     "bark";
+                true ->
+                     "fdlkajfj"
+             end,
+      {Animal, "says " ++ Talk ++ "!"}.
+#+END_SRC
+* In Case ... of
+a =case ... of= expression is like the whole function head: you can
+have the complex pattern matching you can use with each argument, and
+you can have guards on top of it!
+
+#+BEGIN_SRC erlang
+  insert(X, []) ->
+      [X];
+  insert(X, Set) ->
+      case lists:member(X, Set) of
+          true -> Set;
+          false -> [X | Set]
+      end.
+
+  beach(Temperature) ->
+      case Temperature of
+          {celsius, N} when N >= 20, N =< 45 ->
+              'favorable';
+          {kelvin, N} when N >= 293, N =< 318 ->
+              'scientifically favorable';
+          {fahrenheit, N} when N >= 68, N =< 113 ->
+              'favorable in the US';
+          _ ->
+              'avoid beach'
+      end.
+#+END_SRC
+
+* Type conversions
+Each of these functions take the form =<type>_to_<type>= and are
+implemented in the =erlang= module.
+#+BEGIN_SRC
+1> erlang:list_to_integer("54").
+54
+
+2> erlang:integer_to_list(54).
+"54"
+
+3> erlang:list_to_integer("54.32").
+   exception error: bad argument
+in function  list_to_integer/1
+called as list_to_integer("54.32")
+
+4> erlang:list_to_float("54.32").
+54.32
+
+5> erlang:atom_to_list(true).
+"true"
+
+6> erlang:list_to_bitstring("hi there").
+<<"hi there">>
+
+7> erlang:bitstring_to_list(<<"hi there">>).
+"hi there"
+#+END_SRC
+
+All of them:
+#+BEGIN_SRC
+atom_to_binary/2, atom_to_list/1, binary_to_atom/2,
+binary_to_existing_atom/2, binary_to_list/1, bitstring_to_list/1,
+binary_to_term/1, float_to_list/1, fun_to_list/1, integer_to_list/1,
+integer_to_list/2, iolist_to_binary/1, iolist_to_atom/1,
+list_to_atom/1, list_to_binary/1, list_to_bitstring/1,
+list_to_existing_atom/1, list_to_float/1, list_to_integer/2,
+list_to_pid/1, list_to_tuple/1, pid_to_list/1, port_to_list/1,
+ref_to_list/1, term_to_binary/1, term_to_binary/2, tuple_to_list/1.
+#+END_SRC
+* To Guard a Data Type
+type test BIFs:
+#+BEGIN_SRC
+is_atom/1           is_binary/1
+is_bitstring/1      is_boolean/1        is_builtin/3
+is_float/1          is_function/1       is_function/2
+is_integer/1        is_list/1           is_number/1
+is_pid/1            is_port/1           is_record/2
+is_record/3         is_reference/1      is_tuple/1
+#+END_SRC
+* types
+** =dialyzer=
+** =typer=
+
+* Recursion
+#+BEGIN_SRC erlang
+tail_fac(N) ->
+    tail_fac(N, 1).
+
+tail_fac(0, Acc) ->
+    Acc;
+tail_fac(N, Acc) when N > 0 ->
+    tail_fac(N - 1, Acc * N).
+
+zip([],_) -> [];
+zip(_,[]) -> [];
+zip([X|Xs],[Y|Ys]) -> [{X,Y}|zip(Xs,Ys)].
+#+END_SRC
+
+
+
+Note: tail recursion as seen here is not making the memory grow
+because when the virtual machine sees a function calling itself in a
+tail position (the last expression to be evaluated in a function), it
+eliminates the current stack frame. This is called tail-call
+optimisation (TCO) and it is a special case of a more general
+optimisation named Last Call Optimisation (LCO).
+
+LCO is done whenever the last expression to be evaluated in a function
+body is another function call. When that happens, as with TCO, the
+Erlang VM avoids storing the stack frame. As such tail recursion is
+also possible between multiple functions. As an example, the chain of
+functions =a() -> b(). b() -> c(). c() -> a().= will effectively create
+an infinite loop that won't go out of memory as LCO avoids overflowing
+the stack. This principle, combined with our use of accumulators is
+what makes tail recursion useful.
