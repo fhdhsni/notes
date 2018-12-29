@@ -504,9 +504,27 @@ tail_fac(N, Acc) when N > 0 ->
 zip([],_) -> [];
 zip(_,[]) -> [];
 zip([X|Xs],[Y|Ys]) -> [{X,Y}|zip(Xs,Ys)].
+
+
+qSort([]) ->
+    [];
+qSort(L) when is_list(L) ->
+    qSort(L, []).
+
+qSort([], Acc) ->
+    Acc;
+qSort([Pivot|Rest], Acc) ->
+    partition(Pivot, Rest, {[], [Pivot], []}, Acc).
+
+partition(_Pivot, [], {Smaller, Equal, Bigger}, Acc) ->
+    qSort(Smaller, Equal ++ qSort(Bigger, Acc));
+
+partition(Pivot, [H | T], {Smaller, Equal, Bigger}, Acc) ->
+    if H > Pivot -> partition(Pivot, T, {Smaller, Equal, [H | Bigger]}, Acc);
+       H < Pivot -> partition(Pivot, T, {[H | Smaller], Equal, Bigger}, Acc);
+       H =:= Pivot -> partition(Pivot, T, {Smaller, [H | Equal], Bigger}, Acc)
+    end.
 #+END_SRC
-
-
 
 Note: tail recursion as seen here is not making the memory grow
 because when the virtual machine sees a function calling itself in a
@@ -523,3 +541,71 @@ functions =a() -> b(). b() -> c(). c() -> a().= will effectively create
 an infinite loop that won't go out of memory as LCO avoids overflowing
 the stack. This principle, combined with our use of accumulators is
 what makes tail recursion useful.
+
+* Higher Order Functions
+
+#+BEGIN_SRC erlang
+-module(hhfuns).
+-compile(export_all).
+
+one() ->
+    1.
+two() ->
+    2.
+
+add(X, Y) ->
+    X() + Y().
+
+%% to call it `hhfuns:add(fun hhfuns:one/0, fun hhfuns:two/0).`
+#+END_SRC
+
+* Anonymous functions
+- syntax
+    #+BEGIN_SRC erlang
+fun(Args1) ->
+        Expression1, Exp2, ..., ExpN;
+   (Args2) ->
+        Expression1, Exp2, ..., ExpN;
+   (Args3) ->
+        Expression1, Exp2, ..., ExpN
+end
+#+END_SRC
+    e.g
+    #+BEGIN_SRC erlang
+fun(A,B) when A > B -> A; (_,B) -> B end
+#+END_SRC
+- You're most likely to use anonymous functions to carry state around
+- define and call immediately
+  #+BEGIN_SRC erlang
+  (fun(X) -> io:format("It's ~p~n", [X]) end)(42).
+  #+END_SRC
+- name 'em
+    the name is visible only within the function's scope
+    #+BEGIN_SRC erlang
+     fun Loop() ->
+        io:format("I'm loop~n"),
+        timer:sleep(500),
+         Loop()  %% <------- calling itself
+     end
+    #+END_SRC
+- look at =fold= beauty
+  #+BEGIN_SRC erlang
+    fold(_, Start, []) -> Start;
+    fold(F, Start, [H|T]) -> fold(F, F(H,Start), T).
+
+
+    reverse(L) ->
+        fold(fun(X,Acc) -> [X|Acc] end, [], L).
+
+    map2(F,L) ->
+        reverse(fold(fun(X,Acc) -> [F(X)|Acc] end, [], L)).
+
+    filter2(Pred, L) ->
+        F = fun(X,Acc) ->
+                    case Pred(X) of
+                        true  -> [X|Acc];
+                        false -> Acc
+                    end
+            end,
+        reverse(fold(F, [], L)).
+  #+END_SRC
