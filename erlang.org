@@ -4,6 +4,11 @@ My Erlang notes, mostly from [[https://learnyousomeerlang.com/][Learn You Some E
 - to get the documentation on lists =erl -man lists=
 - [[http://www.erlang.se/doc/programming_rules.shtml][Programming Rules and Conventions]]
 - Erlang functions and expressions must always return something.
+- command line
+  #+BEGIN_SRC sh
+   $ erlc road.erl
+   $ erl -noshell -run road main road.txt  # `main` is the main function, road.txt is the passing arg
+  #+END_SRC
 * Basics
 ** Numbers
 If you want to express integers in other bases than base 10, just
@@ -597,10 +602,10 @@ fun(A,B) when A > B -> A; (_,B) -> B end
     reverse(L) ->
         fold(fun(X,Acc) -> [X|Acc] end, [], L).
 
-    map2(F,L) ->
+    map(F,L) ->
         reverse(fold(fun(X,Acc) -> [F(X)|Acc] end, [], L)).
 
-    filter2(Pred, L) ->
+    filter(Pred, L) ->
         F = fun(X,Acc) ->
                     case Pred(X) of
                         true  -> [X|Acc];
@@ -609,3 +614,189 @@ fun(A,B) when A > B -> A; (_,B) -> B end
             end,
         reverse(fold(F, [], L)).
   #+END_SRC
+* Errors
+By default, Erlang's search path is set to be in the current
+directory. You can add paths by using =code:add_patha/1= or
+=code:add_pathz/1=.
+
+Calling =erlang:error(Reason)= will end the execution in the current process.
+#+BEGIN_SRC
+1> erlang:error(badarith).
+ exception error: bad argument in an arithmetic expression
+
+2> erlang:error(custom_error).
+ exception error: custom_error
+#+END_SRC
+* Exits
+- There are two kinds of exits: 'internal' exits and 'external' exits.
+- Internal exits are triggered by calling the function =exit/1= and
+  make the current process stop its execution.
+- External exits are called with =exit/2=
+- =erlang:error/1= returns a stack trace and =exit/1= doesn't
+* Throws
+A throw is a class of exceptions used for cases that the programmer
+can be expected to handle.
+
+In comparison with exits and errors, they don't really carry any
+'crash that process!' intent behind them, but rather control flow.
+
+#+BEGIN_SRC
+1> throw(permission_denied).
+ exception throw: permission_denied
+#+END_SRC
+
+Usecase: An example could be the array module, where there is a
+lookup function that can return a user-supplied default value if it
+can't find the element needed. When the element can't be found, the
+value default is thrown as an exception, and the top-level function
+handles that and substitutes it with the user-supplied default
+value. This keeps the programmer of the module from needing to pass
+the default value as a parameter of every function of the lookup
+algorithm, again focusing only on the successful cases.
+
+e.g
+#+BEGIN_SRC erlang
+  %% looks for a given value 'Val' in the tree.
+  has_value(_, {node, 'nil'}) ->
+      false;
+  has_value(Val, {node, {_, Val, _, _}}) ->
+      true;
+  has_value(Val, {node, {_, _, Left, Right}}) ->
+      case has_value(Val, Left) of
+          true -> true;
+          false -> has_value(Val, Right)
+      end.
+
+  %% -------------------- using throw --------------------
+  has_value(Val, Tree) ->
+      try has_value1(Val, Tree) of
+          false -> false
+      catch
+          true -> true
+      end.
+
+  has_value1(_, {node, 'nil'}) ->
+      false;
+  has_value1(Val, {node, {_, Val, _, _}}) ->
+      throw(true);
+  has_value1(Val, {node, {_, _, Left, Right}}) ->
+      has_value1(Val, Left),
+      has_value1(Val, Right).
+#+END_SRC
+
+* Dealing with Exceptions
+- The Expression in between try and of is said to be protected.
+- Note: It is important to know that the protected part of an
+  exception can't be tail recursive. The VM must always keep a
+  reference there in case there's an exception popping up.
+- Because the =try ... catch= construct without the =of= part has nothing
+  but a protected part, calling a recursive function from there might
+  be dangerous for programs supposed to run for a long time (which is
+  Erlang's niche). After enough iterations, you'll go out of memory or
+  your program will get slower without really knowing why. By putting
+  your recursive calls between the =of= and =catch=, you are not in a
+  protected part and you will benefit from Last Call Optimisation.
+
+You can replace =TypeOfError= by either =error=, =throw= or =exit=.
+#+BEGIN_SRC erlang
+  try Expression of
+      SuccessfulPattern1 [Guards] ->
+          Expression1;
+      SuccessfulPattern2 [Guards] ->
+          Expression2
+  catch
+      TypeOfError:ExceptionPattern1 ->
+          Expression3;
+      TypeOfError:ExceptionPattern2 ->
+          Expression4
+  end.
+#+END_SRC
+#+BEGIN_SRC erlang
+-module(errors).
+-compile(export_all).
+
+%% foo() -> exit(foobar).
+foo() -> erlang:error(badarith).
+
+bar() ->
+    try foo() of
+        _ -> io:format("all good")
+    catch
+        error:badarith -> io:format("you DON'T know math.~n");
+        error:Shit -> io:format("error -> ~p~n", [Shit]);
+        throw:Shit -> io:format("throw -> ~p~n", [Shit]);
+        exit:Shit -> io:format("exit -> ~p~n", [Shit])
+    end.
+#+END_SRC
+
+- it's possible to have more than one expression between the =try= and the =of=
+    #+BEGIN_SRC erlang
+      whoa() ->
+          try
+              talk(),
+              _Knight = "None shall Pass!",
+              _Doubles = [N*2 || N <- lists:seq(1,100)],
+              throw(up),
+              _WillReturnThis = tequila
+          of
+              tequila -> "hey this worked!"
+          catch
+              Exception:Reason -> {caught, Exception, Reason}
+          end.
+    #+END_SRC
+- it's possible to omit =of= part
+    #+BEGIN_SRC erlang
+      im_impressed() ->
+          try
+              talk(),
+              _Knight = "None shall Pass!",
+              _Doubles = [N*2 || N <- lists:seq(1,100)],
+              throw(up),
+              _WillReturnThis = tequila
+          catch
+              Exception:Reason -> {caught, Exception, Reason}
+          end.
+    #+END_SRC
+
+** after
+#+BEGIN_SRC erlang
+  try Expr of
+      Pattern -> Expr1
+  catch
+      Type:Exception -> Expr2
+  after % this always gets executed
+      Expr3
+  end
+#+END_SRC
+ You can NOT get any return value out of the =after=
+ construct. Therefore, =after= is mostly used to run code with side
+ effects. The canonical use of this is when you want to make sure a
+ file you were reading gets closed whether exceptions are raised or
+ not.
+** catch
+#+BEGIN_SRC
+erl> catch throw(whoa).
+whoa
+
+erl> catch exit(die).
+{'EXIT',die}
+
+erl> catch 1/0.
+{'EXIT',{badarith,[{erlang,'/',[1,0]},
+                   {erl_eval,do_apply,5},
+                   {erl_eval,expr,5},
+                   {shell,exprs,6},
+                   {shell,eval_exprs,6},
+                   {shell,eval_loop,3}]}}
+
+erl> catch 2+2.
+4
+#+END_SRC
+
+#+BEGIN_SRC erlang
+  catcher(X,Y) ->
+      case catch X/Y of
+          {'EXIT', {badarith,_}} -> "uh oh";
+          N -> N
+      end.
+#+END_SRC
