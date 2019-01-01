@@ -7,7 +7,7 @@ My Erlang notes, mostly from [[https://learnyousomeerlang.com/][Learn You Some E
 - command line
   #+BEGIN_SRC sh
    $ erlc road.erl
-   $ erl -noshell -run road main road.txt  # `main` is the main function, road.txt is the passing arg
+   $ erl -noshell -run road main road.txt  # `main` is the main function, road.txt is the passing arg, road is the name file/module
   #+END_SRC
 * Basics
 ** Numbers
@@ -328,15 +328,15 @@ attribute.
 
 You could also use =c(Module,[native])=.
 * Pattern Matching
-Get the secon element of a list
+Get the second element of a list
 #+BEGIN_SRC erlang
 second([_, X|_]) ->
     X.
 
 same(X,X) ->
-true;
+    true;
 same(_,_) ->
-false.
+    false.
 
 foo({First = {X,Y,Z}, Second = {H, S, M}}) ->
     io:format("X:~p, Y: ~p, Z: ~p, H: ~p, S: ~p, M: ~p~n", [X,Y,Z, H, S, M]),
@@ -800,3 +800,190 @@ erl> catch 2+2.
           N -> N
       end.
 #+END_SRC
+* Records
+Records are, first of all, a hack. Erlang records are just syntactic
+sugar on top of tuples.
+
+#+BEGIN_SRC erlang
+  -module(records).
+  -compile(export_all).
+
+  -record(robot, {name,
+                  type=industrial,
+                  hobbies,
+                  details=[]}).
+
+  first_robot() ->
+      #robot{name="Mechatron",
+             type=handmade,
+            details=["Moved by a small man inside"]}. %% hobbies will be undefined
+#+END_SRC
+#+BEGIN_SRC
+1> c(records).
+{ok,records}
+
+2> records:first_robot().
+{robot,"Mechatron",handmade,undefined,
+["Moved by a small man inside"]}
+
+3> rr(records).
+[robot]
+
+4> records:first_robot().
+#robot{name = "Mechatron",type = handmade,
+hobbies = undefined,
+details = ["Moved by a small man inside"]}
+
+5> Crusher = #robot{name="Crusher", hobbies=["Crushing people","petting cats"]}.
+#robot{name = "Crusher",type = industrial,
+hobbies = ["Crushing people","petting cats"],
+details = []}
+
+6> Crusher#robot.hobbies.
+["Crushing people","petting cats"]
+
+
+erl> Fuck = #robot{details=#robot{type="shitty"}}.
+#robot{name = undefined,type = industrial,
+       hobbies = undefined,
+       details = #robot{name = undefined,type = "shitty",
+                        hobbies = undefined,details = []}}
+
+erl> Fuck#robot.details#robot.type.
+"shitty"
+
+erl> #robot.type. %% What this outputs is which element of the underlying tuple it is.
+3
+#+END_SRC
+
+- Pattern Matching
+  #+BEGIN_SRC erlang
+    -record(user, {id, name, group, age}).
+
+    admin_panel(#user{name=Name, group=admin}) ->
+        Name ++ " is allowed!";
+    admin_panel(#user{name=Name}) ->
+        Name ++ " is not allowed".
+
+    adult_section(U = #user{}) when U#user.age >= 18 ->
+        allowed;
+
+    adult_section(_) ->
+        forbidden.
+  #+END_SRC
+- Update a record
+  #+BEGIN_SRC
+    erl> Me = #user{age=26}.
+    #user{id = undefined,name = undefined,group = undefined, age = 26}
+                                                                age = 27}
+    erl> MeOlder = #user{age=Me#user.age + 1}.
+    #user{id = undefined,name = undefined,group = undefined, age = 27}
+
+    erl> MeOlder#user.age.
+    27
+  #+END_SRC
+
+- share records across modules with the help of header files.
+  Erlang header files are pretty similar to their C counter-part:
+  they're nothing but a snippet of code that gets added to the module
+  as if it were written there in the first place.
+  #+BEGIN_SRC erlang
+    %% this is a .hrl (header) file.
+    -record(included, {some_field,
+                       some_default = "yeah!",
+                       unimaginative_name}).
+  #+END_SRC
+  To include it in a module, just add the following line to the module:
+  #+BEGIN_SRC erlang
+    -include("records.hrl").
+
+    %% use it as usual
+    included() -> #included{some_field="Some value"}.
+  #+END_SRC
+
+* Data Structures
+** proplist
+A proplist is any list of tuples of the form =[{Key,Value}]=.
+To work with proplists, you can use the =proplists= module.
+
+** orddict
+If you do want a more complete key-value store for small amounts of
+data, the =orddict= module is what you need. Orddicts (ordered
+dictionaries) are proplists with a taste for formality. Each key can
+be there once, the whole list is sorted for faster average lookup,
+etc.
+
+Orddicts are a generally good compromise between complexity and
+efficiency up to about 75 elements. After that amount, you should
+switch to different key-value stores.
+
+** =dicts=, =gb_trees= and =maps=
+These are basically key-value structures/modules to deal with
+larger amounts of data.
+
+** =arrays=
+Erlang arrays, at the opposite of their imperative counterparts, are
+not able to have such things as constant-time insertion or
+lookup. Because they're usually slower than those in languages which
+support destructive assignment and that the style of programming done
+with Erlang doesn't necessary lend itself too well to arrays and
+matrices, they are rarely used in practice.  Generally, Erlang
+programmers who need to do matrix manipulations and other uses
+requiring arrays tend to use concepts called Ports to let other
+languages do the heavy lifting, or C-Nodes, Linked in drivers and NIFs
+(Experimental, R13B03+).
+
+** Sets
+There are 4 main modules to deal with sets in Erlang. This is a bit
+weird at first, but it makes more sense once you realize that it's
+because it was agreed by implementers that there was no 'best' way to
+build a set. The four modules are =ordsets=, =sets=, =gb_sets= and =sofs=
+(sets of sets):
+
+- =ordsets=: Ordsets are implemented as a sorted list. They're mainly
+  useful for small sets, are the slowest kind of set, but they have
+  the simplest and most readable representation of all sets. There are
+  standard functions for them such as =ordsets:new/0=,
+  =ordsets:is_element/2=, =ordsets:add_element/2=, =ordsets:del_element/2=,
+  =ordsets:union/1=, =ordsets:intersection/1=, and a bunch more.
+
+- =sets=: Sets (the module) is implemented on top of a structure really
+  similar to the one used in dict. They implement the same interface
+  as ordsets, but they're going to scale much better. Like
+  dictionaries, they're especially good for read-intensive
+  manipulations, like checking whether some element is part of the set
+  or not.
+
+- =gb_sets=: =Gb_sets= themselves are constructed above a General
+  Balanced Tree structure similar to the one used in the =gb_trees=
+  module. =gb_sets= are to =sets= what =gb_tree= is to =dict=; an
+  implementation that is faster when considering operations different
+  than reading, leaving you with more control. While =gb_sets= implement
+  the same interface as =sets= and =ordsets=, they also add more
+  functions. Like =gb_trees=, you have smart vs. naive functions,
+  iterators, quick access to the smallest and largest values, etc.
+
+- =sofs= Sets of sets (sofs) are implemented with sorted lists, stuck
+  inside a tuple with some metadata. They're the module to use if you
+  want to have full control over relationships between sets, families,
+  enforce set types, etc. They're really what you want if you need
+  mathematics concept rather than 'just' groups of unique elements.
+
+  :NOTE:
+  Björn Gustavsson, from the Erlang/OTP team and programmer of Wings3D
+  mainly suggests using gb_sets in most circumstances, using ordset when
+  you need a clear representation that you want to process with your own
+  code and 'sets' when you need the \=:= operator (source.)
+  :END:
+
+** directed graphs (=digraph= and =digraph_utils=)
+
+*** =digraph=
+basically allows the construction and modification of a directed
+graph: manipulating edges and vertices, finding paths and cycles
+
+*** =digraph_utils=
+allows you to navigate a graph (postorder, preorder), testing for
+ cycles, arborescences or trees, finding neighbors, and so on.
+
+** Queues
