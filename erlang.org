@@ -987,3 +987,123 @@ allows you to navigate a graph (postorder, preorder), testing for
  cycles, arborescences or trees, finding neighbors, and so on.
 
 ** Queues
+* concurrency
+- the main sources of downtime in large scale software systems are
+  intermittent or transient bugs. [[http://dslab.epfl.ch/pubs/crashonly.pdf][Source]]
+- Erlang's processes take about 300 words of memory each (in a 32-bit
+  processor 4 byte and 8 byte in a 64-bit implementation. [[http://erlang.org/doc/efficiency_guide/advanced.html#id2265856][Memory]]) and
+  can be created in a matter of microseconds.
+- The VM starts one thread per core which acts as a scheduler. Each of
+  these schedulers has a run queue, or a list of Erlang processes on
+  which to spend a slice of time. When one of the schedulers has too
+  many tasks in its run queue, some are migrated to another one. This
+  is to say each Erlang VM takes care of doing all the load-balancing.
+- About linear scaling:
+  Amdahl's Law: It indicates how much of a speedup you can expect your
+  system to have whenever you add parallelism to it, and in what
+  proportion. According to Amdahl's law, code that is 50% parallel can
+  never get faster than twice what it was before, and code that is 95%
+  parallel can theoretically be expected to be about 20 times faster
+  if you add enough processors.
+- disabling symmetric multiprocessing =$ erl -smp disable= or =erl +S 1=
+  in erl =[smp:2:2]= means there are two cores available, with two schedulers.
+
+** =spawn=
+#+BEGIN_SRC erlang
+Pid_1 = spawn(fun() -> ... end)
+Pid_2 = spawn(module, fun, [args])
+#+END_SRC
+
+** =!=
+#+BEGIN_SRC
+9> self() ! hello.
+hello
+
+10> self() ! self() ! double.
+double
+#+END_SRC
+** =receive=
+#+BEGIN_SRC erlang
+receive
+  Pattern1 when Guard1 -> Expr1;
+  Pattern2 when Guard2 -> Expr2;
+  Pattern3 -> Expr3
+  after Delay -> Expression2
+end
+#+END_SRC
+** =after=
+two interesting use-case
+#+BEGIN_SRC erlang
+  sleep(T) ->
+      receive
+      after T -> ok
+      end.
+
+  flush() ->
+      receive
+          _ -> flush()
+      after 0 ->
+              ok
+      end.
+#+END_SRC
+** Selective Receives
+#+BEGIN_SRC erlang
+  important() ->
+      receive
+          {Priority, Message} when Priority > 10 ->
+              [Message | important()]
+      after 0 ->                                  % every message will be obtained until none is left
+              normal()
+      end.
+
+  normal() ->
+      receive
+          {_, Message} ->
+              [Message | normal()]
+      after 0 ->                                  % every message will be obtained until none is left
+              []
+      end.
+#+END_SRC
+- be aware that is is sometimes unsafe due to the way selective
+  receives work in Erlang.
+- When messages are sent to a process, they're stored in the mailbox
+  until the process reads them and they match a pattern there. As said
+  in the previous chapter, the messages are stored in the order they
+  were received. This means every time you match a message, it begins
+  by the oldest one.
+
+- That oldest message is then tried against every pattern of the
+  receive until one of them matches. When it does, the message is
+  removed from the mailbox and the code for the process executes
+  normally until the next receive. When this next receive is
+  evaluated, the VM will look for the oldest message currently in the
+  mailbox (the one after the one we removed), and so on.
+
+- When there is no way to match a given message, it is put in a save
+  queue and the next message is tried. If the second message matches,
+  the first message is put back on top of the mailbox to be retried
+  later.
+- This lets you only care about the messages that are useful. Ignoring
+  some messages to handle them later. While they're useful, the
+  problem with them is that if your process has a lot of messages you
+  never care about, reading useful messages will actually take longer
+  and longer (and the processes will grow in size too).
+
+- =make_ref=
+  #+BEGIN_SRC erlang
+  optimized(Pid) ->
+    Ref = make_ref(),
+    Pid ! {self(), Ref, hello},
+    receive
+        {Pid, Ref, Msg} ->
+            io:format("~p~n", [Msg])
+    end.
+  #+END_SRC
+  Since R14A, a new optimization has been added to Erlang's
+  compiler. It simplifies selective receives in very specific cases of
+  back-and-forth communications between processes. To make it work, a
+  reference (=make_ref()=) has to be created in a function and then sent
+  in a message. In the same function, a selective receive is then
+  made. If no message can match unless it contains the same reference,
+  the compiler automatically makes sure the VM will skip messages
+  received before the creation of that reference.
