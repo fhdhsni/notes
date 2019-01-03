@@ -1107,3 +1107,108 @@ two interesting use-case
   made. If no message can match unless it contains the same reference,
   the compiler automatically makes sure the VM will skip messages
   received before the creation of that reference.
+* Links
+- A link is a specific kind of relationship that can be created
+  between two processes. When that relationship is set up and one of
+  the processes dies from an unexpected =throw=, =error= or =exit=,
+  the other linked process also dies.
+
+- This function will take an integer N, start N processes linked one
+  to the other.
+  #+BEGIN_SRC erlang
+    chain(0) ->
+        receive
+            _ -> ok
+        after 2000 ->
+                exit("chain dies here")
+        end;
+    chain(N) ->
+        Pid = spawn(fun() -> chain(N-1) end),
+        link(Pid),
+        receive
+            _ -> ok
+        end.
+  #+END_SRC
+
+- links are bidirectional
+- To get rid of a =link=, use [[erldocs.com/18.0/erts/erlang.html#unlink/1][unlink/1]]
+- Links can not be stacked. If you call =link/1= 15 times for the
+  same two processes, only one link will still exist between them and
+  a single call to =unlink/1= will be enough to tear it down.
+- unlike =link(spawn(Function))= or =link(spawn(M,F,A))=,
+  =spawn_link/1-3= is atomic.
+
+* System processes
+- System processes are basically normal processes, except they can
+  convert exit signals to regular messages. This is done by calling
+  =process_flag(trap_exit, true)= in a running process.
+  #+BEGIN_SRC erlang
+    erl> spawn_link(fun() -> exit("I'm dying already.") end).
+     exception exit: "I'm dying already."
+
+    erl> process_flag(trap_exit, true).
+    false
+
+    erl> spawn_link(fun() -> exit("I'm dying already.") end).
+    <0.90.0>
+
+    erl> flush().
+    Shell got {'EXIT',<0.90.0>,"I'm dying already."}
+    ok
+  #+END_SRC
+- By writing programs using system processes, it is easy to create a
+  process whose only role is to check if something dies and then
+  restart it whenever it fails.
+- =exit/2=
+* Monitors
+- Monitors are a special type of link with two differences:
+  1. they are unidirectional.
+  2. they can be stacked.
+
+- Monitors are what you want when a process wants to know what's going
+  on with a second process, but neither of them really are vital to
+  each other.
+
+- =erlang:monitor/2=
+  #+BEGIN_SRC erlang
+    erl> Pid = spawn(fun() -> timer:sleep(5000) end).
+    <0.90.0>
+
+    erl>  erlang:monitor(process, Pid).
+    #Ref<0.2327554241.1187774465.188331>
+
+    erl>  erlang:monitor(process, Pid).
+    #Ref<0.2327554241.1187774465.188336>
+
+    erl> flush().
+    Shell got {'DOWN',#Ref<0.2327554241.1187774465.188331>,process,<0.90.0>,
+                      normal}
+    Shell got {'DOWN',#Ref<0.2327554241.1187774465.188336>,process,<0.90.0>,
+                      normal}
+    ok
+  #+END_SRC
+- Every time a process you monitor goes down, you will receive such a
+  message. The message is ={'DOWN', MonitorReference, process, Pid, Reason}=
+- The /reference/ is there to allow you to demonitor the
+  process. Remember, monitors are stackable, so it's possible to take
+  more than one down. References allow you to track each of them in a
+  unique manner.
+- There is an atomic function to spawn a process while monitoring it,
+  =spawn_monitor/1-3=
+
+- =demonitor/1=
+  #+BEGIN_SRC erlang
+    erl> {Pid, Ref} = spawn_monitor(fun() -> receive _ -> exit(boom) end end).
+    {<0.73.0>,#Ref<0.0.0.100>}
+
+    erl> erlang:demonitor(Ref).
+    true
+
+    erl> Pid ! die.
+    die
+
+    erl> flush().
+    ok
+  #+END_SRC
+
+* Naming Processes
