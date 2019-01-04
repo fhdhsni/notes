@@ -1212,3 +1212,116 @@ two interesting use-case
   #+END_SRC
 
 * Naming Processes
+- To give a process a name, the function =erlang:register/2= is used.
+- If the process dies, it will automatically lose its name or you can
+  also use =unregister/1= to do it manually.
+- You can get a list of all registered processes with =registered/0= or
+  a more detailed one with the shell command =regs()=.
+- =whereis(foo)= is used to find the foo's process identifier
+  #+BEGIN_SRC erlang
+    -module(linkmon).
+    -compile(export_all).
+
+    start_critic() ->
+        spawn(?MODULE, restarter, []).
+
+    restarter() ->
+        process_flag(trap_exit, true),
+        Pid = spawn_link(?MODULE, critic, []),
+        register(critic, Pid),
+        receive
+            {'EXIT', Pid, normal} ->
+                ok;
+            {'EXIT', Pid, _} ->
+                restarter()
+        end.
+
+
+    judge(Band, Album) ->
+        Ref = make_ref(),
+        critic ! {self(), Ref, {Band, Album}},
+        receive
+            {Ref, Criticism} ->
+                Criticism
+        after 2000 ->
+                timeout
+        end.
+
+    critic() ->
+        receive
+            {From, Ref, {"Johnny Crash", "The Token Ring of Fire"}} ->
+                From ! {Ref, "Simply incredible."};
+            {From, Ref, {_Band, _Album}} ->
+                From ! {Ref, "They are terrible!"}
+        end,
+        critic().
+  #+END_SRC
+  #+BEGIN_SRC erlang
+    erl> linkmon:start_critic().
+    <0.85.0>
+
+    erl> linkmon:judge("foo", "bar").
+    "They are terrible!"
+
+    erl> linkmon:judge("Johnny Crash", "The Token Ring of Fire").
+    "Simply incredible."
+  #+END_SRC
+
+- You shouldn't ever create dynamic atoms. atoms can be used in a
+  limited (though high) number.
+* Designing a Concurrent Application
+- if we monitor a process that doesn't exist, then we send it a
+  message we'll receive a message, something like
+  ={'DOWN',#Ref<0.2588815752.2474377217.6021>,process,<0.134.9>,noproc}=.
+  That's the second clause of the following receive is for. In case
+  the process associated with Pid doesn't exist.
+  #+BEGIN_SRC erlang
+    cancel(Pid) ->
+        %% Monitor in case the process is already dead
+        Ref = erlang:monitor(process, Pid),
+        Pid ! {self(), Ref, cancel},
+        receive
+            {Ref, ok} ->
+                erlang:demonitor(Ref, [flush]),
+                ok;
+            {'DOWN', Ref, process, Pid, _Reason} ->
+                ok
+        end.
+  #+END_SRC
+
+* Hot Code Loving
+- In order to do hot code loading, Erlang has a thing called the code
+  server. The code server is basically a VM process in charge of an
+  ETS table (in-memory database table, native to the VM.) The code
+  server can hold two versions of a single module in memory, and both
+  versions can run at once. A new version of a module is automatically
+  loaded when compiling it with =c(Module)=, loading with =l(Module)= or
+  loading it with one of the many functions of the [[http://erldocs.com/18.0/kernel/code.html][code module]].
+- local calls: function calls you can make with functions that might
+  not be exported. They're just of the format =Atom(Args)=.
+- external call: can only be done with exported functions and has the
+  form =Module:Function(Args)=
+
+- When there are two versions of a module loaded in the VM, all local
+  calls are done through the currently running version in a
+  process. However, external calls are always done on the newest
+  version of the code available in the code server. Then, if local
+  calls are made from within the external one, they are in the new
+  version of the code.
+  #+BEGIN_SRC erlang
+    -module(hotload).
+    -export([server/1, upgrade/1]).
+
+    server(State) ->
+        receive
+            update ->
+                NewState = ?MODULE:upgrade(State),
+                ?MODULE:server(NewState);  %% loop in the new version of the module
+            SomeMessage ->
+                %% do something here
+                server(State)  %% stay in the same version no matter what.
+        end.
+
+    upgrade(OldState) ->
+        %% transform and return the state here.
+  #+END_SRC
