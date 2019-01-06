@@ -1270,11 +1270,12 @@ two interesting use-case
 - You shouldn't ever create dynamic atoms. atoms can be used in a
   limited (though high) number.
 * Designing a Concurrent Application
-- if we monitor a process that doesn't exist, then we send it a
-  message we'll receive a message, something like
+- If we monitor a process that doesn't exist (we won't notice that by
+  just monitoring), then we send it a message we'll receive a message,
+  something like
   ={'DOWN',#Ref<0.2588815752.2474377217.6021>,process,<0.134.9>,noproc}=.
-  That's the second clause of the following receive is for. In case
-  the process associated with Pid doesn't exist.
+  That's the reason for the second clause of the following receive. In
+  case the process associated with Pid doesn't exist we get there.
   #+BEGIN_SRC erlang
     cancel(Pid) ->
         %% Monitor in case the process is already dead
@@ -1289,9 +1290,14 @@ two interesting use-case
         end.
   #+END_SRC
 
+- Most messages will be wrapped under the form ={Pid, Ref, Message}=,
+  where =Pid= is the sender and =Ref= is a unique message identifier to
+  help know what reply came from who. If we were to send many messages
+  before looking for replies, we would not know what reply went with
+  what message without a reference.
 * Hot Code Loving
-- In order to do hot code loading, Erlang has a thing called the code
-  server. The code server is basically a VM process in charge of an
+- In order to do hot code loading, Erlang has a thing called the *code server*.
+  The code server is basically a VM process in charge of an
   ETS table (in-memory database table, native to the VM.) The code
   server can hold two versions of a single module in memory, and both
   versions can run at once. A new version of a module is automatically
@@ -1325,3 +1331,296 @@ two interesting use-case
     upgrade(OldState) ->
         %% transform and return the state here.
   #+END_SRC
+* Namespaces
+- Erlang has a flat module structure
+- You can test for any clashes with the function =code:clash/0=.
+* OTP
+  a naive demonstration of core OTP
+
+  kitty_server
+  #+BEGIN_SRC erlang
+    -module(kitty_server).
+    -compile(export_all).
+    -record(cat, {name,color=green, description}).
+
+    %% ################################################################
+    %% CLIENT API
+    start_link() ->
+        my_server:start_link(?MODULE, []).
+
+    %% Synchronous call
+    order_cat(Pid, Name, Color, Description) ->
+        my_server:call(Pid, {order, Name, Color, Description}).
+
+    %% Synchronous call
+    close_shop(Pid) ->
+        my_server:call(Pid, terminate).
+
+    %% Asynchronous
+    return_cat(Pid, Cat = #cat{}) ->
+        my_server:cast(Pid, {return, Cat}).
+
+    %% ################################################################
+    %% called by server
+
+    init(InitialState) ->
+        InitialState.
+
+    handle_call({order, Name, Color, Description}, From, []) ->
+        my_server:reply(From, make_cat(Name, Color, Description)),
+        [];
+
+    handle_call({order, _Name, _Color, _Description}, From, Cats) ->
+        my_server:reply(From, {hd(Cats)}),
+        tl(Cats);
+
+    handle_call(terminate, From, Cats) ->
+        my_server:reply(From, ok),
+        terminate(Cats).
+
+    handle_cast({return, Cat}, Cats) ->
+        [Cat | Cats].
+
+    %% ################################################################
+    %% private helpers
+    make_cat(Name, Col, Desc) ->
+        #cat{name=Name, color=Col, description=Desc}.
+
+    terminate(Cats) ->
+        [io:format("~p was set free.~n", [C#cat.name]) || C <- Cats],
+        exit(normal).
+  #+END_SRC
+
+  my_server
+  #+BEGIN_SRC erlang
+    -module(my_server).
+    -compile(export_all).
+
+    %% Public API
+    start(Module, InitialState) ->
+        spawn(fun() -> init(Module, InitialState) end).
+
+    start_link(Module, InitialState) ->
+        spawn_link(fun() -> init(Module, InitialState) end).
+
+    call(LoopPid, Msg) ->
+        Ref = erlang:monitor(process, LoopPid),
+        LoopPid ! {sync, self(), Ref, Msg},
+        receive
+            {Ref, Reply} ->
+                erlang:demonitor(Ref, [flush]),
+                Reply;
+            {'DOWN', Ref, process, LoopPid, Reason} ->
+                erlang:error(Reason)
+        after 5000 ->
+                erlang:error(timeout)
+        end.
+
+    cast(LoopPid, Msg) ->
+        LoopPid ! {async, Msg},
+        ok.
+
+    reply({ClientPid, Ref}, Reply) ->
+        ClientPid ! {Ref, Reply}.
+
+    %% Private
+    loop(Module, State) ->
+        receive
+            {async, Msg} ->
+                loop(Module, Module:handle_cast(Msg, State));
+            {sync, ClientPid, Ref, Msg} ->
+                loop(Module, Module:handle_call(Msg, {ClientPid, Ref}, State))
+        end.
+
+    init(Module, InitialState) ->
+        loop(Module, Module:init(InitialState)).
+  #+END_SRC
+
+  1. To fire up the server: We call kitty's =start_link=
+     =kitty_server:start_link= -> =my_server:start_link= -> =my_server:init= -> =kitty_server:init=
+     and we get the Pid of our server(that is the Pid of the loop in my_server).
+  2. Let's order a cat by calling =order_cat=
+     =kitty_server:order_cat= ->
+     =my_server:call=, (sends a messeage the the loop and waits for a message) ~>
+     =my_server:loop= ->
+     =kitty_server:handle_call=, (sends a message to =my_server:call= which is waiting) ~>
+     =my_server:call=
+
+* =gen_server=
+| gen_server     | YourModule    |
+|----------------+---------------|
+| start/3-4      | init/1        |
+| start_link/3-4 | init/1        |
+| call/2-3       | handle_call/3 |
+| cast/2         | handle_cast/2 |
+
+And then you have the other callbacks, those that are more about
+special cases:
+ + =handle_info/2=
+ + =terminate/2=
+ + =code_change/3=
+
+** =init/1=
+- used to initialize the server's state and do all of these one-time
+  tasks that it will depend on
+- The function can return:
+  ={ok, State}=, ={ok, State, TimeOut}=, ={ok, State, hibernate}=, ={stop, Reason}= or =ignore=.
+- =TimeOut=: a deadline before which you expect the server to receive
+  a message. If no message is received before the deadline, the atom
+  =timeout= is sent to the server, which should be handled with
+  =handle_info/2=
+- =hibernate=:
+- On the other hand, if you do expect the process to take a long time
+  before getting a reply and are worried about memory, you can add the
+  =hibernate= atom to the tuple. Hibernation basically reduces the size
+  of the process' state until it gets a message, at the cost of some
+  processing power. If you are in doubt about using hibernation, you
+  probably don't need it. Search for =erlang:hibernate=
+- ={stop, Reduces}=, should be done when something went wrong during
+  the initialization.
+
+- While =init/1= is running, execution is blocked in the process that
+  spawned the server. This is because it is waiting for a '=ready='
+  message sent automatically by the =gen_server= module to make sure
+  everything went fine.
+** =handle_call/3=
+- is used to work with synchronous messages
+- There are 8 different return values possible, taking the form of
+  tuples:
+  1. ={reply, Reply, NewState}=
+  2. ={reply, Reply, NewState, Timeout}=
+  3. ={reply, Reply, NewState, hibernate}=
+
+  4. ={noreply, NewState}=
+  5. ={noreply, NewState, Timeout}=
+  6. ={noreply, NewState, hibernate}=
+
+  7. ={stop, Reason, Reply, NewState}=
+  8. ={stop, Reason, NewState}=
+
+- When you use =noreply=, the generic part of the server will assume
+  you're taking care of sending the reply back yourself. This can be
+  done with =gen_server:reply/2=
+** =handle_cast/2=
+- is used to handle asynchronous calls
+- return values
+  1. ={noreply, NewState}=
+  2. ={noreply, NewState, Timeout}=
+  3. ={noreply, NewState, hibernate}=
+  4. ={stop, Reason, NewState}=
+
+** =handle_info/2=
+- it returns the same tuples as =handle_cast=
+- But the difference is that this callback is only there for messages that
+  were sent directly with the =!= operator and special ones like
+  i=nit/1='s =timeout=, monitors' notifications and '=EXIT=' signals.
+** =terminate/2=
+- is called whenever one of the three =handle_Something= functions
+  returns a tuple of the form ={stop, Reason, NewState}= or ={stop, Reason, Reply, NewState}=.
+  It takes two parameters, =Reason= and =State=,
+- will also be called when its parent (the process that spawned it)
+  dies, if and only if the =gen_server= is trapping exits
+- return value of this function doesn't really matter
+
+** =code_change/3=
+- is there to let you upgrade code
+- takes the form =code_change(PreviousVersion, State, Extra)=
+- the variable =PreviousVersion= is either the version term itself in
+  the case of an upgrade (=myModule:module_info=), or ={down,
+  Version}= in the case of a downgrade (just reloading older
+  code). The =State= variable holds all of the current's server state so
+  you can convert it.
+
+* behaviour
+- A behaviour is basically a way for a module to specify functions it
+  expects another module to have. The behaviour is the contract
+  sealing the deal between the well-behaved generic part of the code
+  and the specific, error-prone part of the code
+- For defining your own behaviours you need to export a function
+  called =behaviour_info/1= implemented as follows:
+  #+BEGIN_SRC erlang
+    -module(my_behaviour).
+    -export([behaviour_info/1]).
+
+    %% init/1, some_fun/0 and other/3 are now expected callbacks
+    behaviour_info(callbacks) -> [{init,1}, {some_fun, 0}, {other, 3}];
+    behaviour_info(_) -> undefined.
+  #+END_SRC
+  use it like =-behaviour(my_behaviour)=.
+
+* Generic Finite-State Machines, =gen_fsm=
+- Somewhat similar to =gen_server= in that it is a specialised version
+  of it. The biggest difference is that rather than handling calls and
+  casts, we're handling synchronous and asynchronous events.
+** init
+- the return values accepted are:
+  + ={ok, StateName, Data}=
+  + ={ok, StateName, Data, Timeout}=
+  + ={ok, StateName, Data, hibernate}=
+  + ={stop, Reason}=
+
+- =StateName= is an atom and represents the next callback function to be called
+
+** StateName
+- The functions =StateName/2= and =StateName/3= are placeholder names
+  and you are to decide what they will be.
+
+- suppose the =init/1= function returns the tuple ={ok, sitting, dog}=.
+  This means the finite state machine will be in a =sitting=
+  state. This is not the same kind of state as we had seen with
+  =gen_server=; These states dictate a context in which you handle a
+  given event.
+
+- =StateName/2=
+  + is called for *asynchronous* events
+  + its arguments are =Event=, the actual message sent as an event, and
+    =StateData=, the data that was carried over the calls.
+  + can return:
+    * ={next_state, NextStateName, NewStateData}=
+    * ={next_state, NextStateName, NewStateData, Timeout}=
+    * ={next_state, NextStateName, NewStateData, hibernate}=
+    * ={stop, Reason, NewStateData}=
+
+- =StateName/3=
+  + is called for *synchronous* events
+  + its arguments are the same as =StateName/2= except there is a
+    =From= variable in between =Event= and =StateData=
+  + can return:
+    * ={reply, Reply, NextStateName, NewStateData}=
+    * ={reply, Reply, NextStateName, NewStateData, Timeout}=
+    * ={reply, Reply, NextStateName, NewStateData, hibernate}=
+
+    * ={next_state, NextStateName, NewStateData}=
+    * ={next_state, NextStateName, NewStateData, Timeout}=
+    * ={next_state, NextStateName, NewStateData, hibernate}=
+
+    * ={stop, Reason, Reply, NewStateData}=
+    * ={stop, Reason, NewStateData}=
+
+** =handle_event/3=
+- is used for global events that would trigger a specific reaction no
+  matter what state we're in
+- The function takes arguments similar to =StateName/2= with the
+  exception that it accepts a =StateName= variable in between them,
+  telling you what the state was when the event was received. It
+  returns the same values as =StateName/2=.
+** =handle_sync_event/4=
+- The =handle_sync_event/4= callback is to =StateName/3= what
+  =handle_event/2= is to =StateName/2=
+- It handles synchronous global events, takes the same parameters and
+  returns the same kind of tuples as =StateName/3=.
+** =send_event/2=
+- Asynchronous events aimed at any =StateName/2= function
+- its equivalent function for global events is  =send_all_state_event/2=
+
+** =sync_send_event/2-3=
+- Synchronous events to be picked up by =StateName/3= are to be sent
+  with =sync_send_event/2-3=.
+- its equivalent function for global events is  =sync_send_all_state_event/2-3=
+** =code_change=
+like =gen_servers= except that it takes an extra state parameter when
+called like =code_change(OldVersion, StateName, Data, Extra)=, and
+returns a tuple of the form ={ok, NextStateName, NewStateData}=.
+** =terminate/3=
+- like generic servers, =terminate/3= should do the opposite of =init/1=
+* A Trading System Specification
