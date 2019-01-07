@@ -1552,7 +1552,7 @@ special cases:
 - Somewhat similar to =gen_server= in that it is a specialised version
   of it. The biggest difference is that rather than handling calls and
   casts, we're handling synchronous and asynchronous events.
-** init
+** =init=
 - the return values accepted are:
   + ={ok, StateName, Data}=
   + ={ok, StateName, Data, Timeout}=
@@ -1561,7 +1561,7 @@ special cases:
 
 - =StateName= is an atom and represents the next callback function to be called
 
-** StateName
+** StateName Callbacks
 - The functions =StateName/2= and =StateName/3= are placeholder names
   and you are to decide what they will be.
 
@@ -1569,22 +1569,27 @@ special cases:
   This means the finite state machine will be in a =sitting=
   state. This is not the same kind of state as we had seen with
   =gen_server=; These states dictate a context in which you handle a
-  given event.
+  given event. Now whenever the =gen_fsm= process receives an event, either
+  the function =sitting/2= or =sitting/3= will be called. The =sitting/2=
+  function is called for *asynchronous* events and =sitting/3= for
+  *synchronous* ones.
 
-- =StateName/2=
+- *=StateName(Event, StateData)=*
   + is called for *asynchronous* events
-  + its arguments are =Event=, the actual message sent as an event, and
-    =StateData=, the data that was carried over the calls.
+  + Asynchronous events aimed at any =StateName/2= function are sent
+    with =gen_fsm:send_event/2=
+  + =Event= is the actual message sent as an event, and
+    =StateData= is the data that was carried over the calls
   + can return:
     * ={next_state, NextStateName, NewStateData}=
     * ={next_state, NextStateName, NewStateData, Timeout}=
     * ={next_state, NextStateName, NewStateData, hibernate}=
     * ={stop, Reason, NewStateData}=
 
-- =StateName/3=
+- *=StateName(Event, From, StateData)=*
   + is called for *synchronous* events
-  + its arguments are the same as =StateName/2= except there is a
-    =From= variable in between =Event= and =StateData=
+  + synchronous events to be picked up by =StateName/3= are to be sent
+    with =gen_fsm:sync_send_event/2-3=
   + can return:
     * ={reply, Reply, NextStateName, NewStateData}=
     * ={reply, Reply, NextStateName, NewStateData, Timeout}=
@@ -1597,30 +1602,36 @@ special cases:
     * ={stop, Reason, Reply, NewStateData}=
     * ={stop, Reason, NewStateData}=
 
-** =handle_event/3=
-- is used for global events that would trigger a specific reaction no
-  matter what state we're in
-- The function takes arguments similar to =StateName/2= with the
-  exception that it accepts a =StateName= variable in between them,
-  telling you what the state was when the event was received. It
-  returns the same values as =StateName/2=.
-** =handle_sync_event/4=
-- The =handle_sync_event/4= callback is to =StateName/3= what
-  =handle_event/2= is to =StateName/2=
-- It handles synchronous global events, takes the same parameters and
-  returns the same kind of tuples as =StateName/3=.
-** =send_event/2=
+** =handle_event(Event, StateName, Data)= callback
+- is used for asynchronous global events that would trigger a specific
+  reaction no matter what state we're in
+- =StateName= in parameters shows what the state was when the =Event=
+  was received
+- returns the same values as =StateName/2=.
+- =Event= is sent by =gen_fsm:send_all_state_event=
+
+** =handle_sync_event(Event, From, StateName, Data)= callback
+- It handles synchronous global events, and returns the same kind of
+  tuples as =StateName/3=.
+- =Event= is sent by =gen_fsm:sync_send_all_state_event=
+
+** =gen_fsm:send_event/2=
 - Asynchronous events aimed at any =StateName/2= function
 - its equivalent function for global events is  =send_all_state_event/2=
 
-** =sync_send_event/2-3=
+** =gen_fsm:sync_send_event/2-3=
 - Synchronous events to be picked up by =StateName/3= are to be sent
   with =sync_send_event/2-3=.
 - its equivalent function for global events is  =sync_send_all_state_event/2-3=
-** =code_change=
-like =gen_servers= except that it takes an extra state parameter when
-called like =code_change(OldVersion, StateName, Data, Extra)=, and
-returns a tuple of the form ={ok, NextStateName, NewStateData}=.
-** =terminate/3=
+** =gen_fsm:send_all_state_event=
+- for sending global asynchronous events, picked up by
+  =handle_event(Event, StateName, Data)=
+** =gen_fsm:sync_send_all_state_event=
+- for sending global synchronous events, picked up b
+  =handle_sync_event(Event, From, StateName, Data)=
+** =code_change= callback
+- like =gen_servers= except that it takes an extra state parameter
+  when called like =code_change(OldVersion, StateName, Data, Extra)=,
+  and returns a tuple of the form ={ok, NextStateName, NewStateData}=.
+** =terminate/3= callback
 - like generic servers, =terminate/3= should do the opposite of =init/1=
-* A Trading System Specification
