@@ -752,3 +752,56 @@ ghci> filter (`elem` ['a'..'z']) "u LaUgH aT mE BeCaUsE I aM diFfeRent"
 ghci> filter (`elem` ['A'..'Z']) "i lauGh At You BecAuse u r aLL the Same"
 "GAYBALLS"
 #+END_SRC
+* Microsoft Channel 9: Dr. Erik Meijer
+** Lazy
+#+BEGIN_SRC haskell
+Prelude> head []
+   Exception: Prelude.head: empty list
+
+Prelude> f x = 42
+
+Prelude> f 8
+42
+
+Prelude> f (head []) -- doesn't evaluate head []
+42
+#+END_SRC
+We can think: =head []= is =⊥= ([[https://en.wikipedia.org/wiki/Bottom_type][the bottom value]]), and =f ⊥= is 42
+
+** lambda
+#+BEGIN_SRC haskell
+--
+-- Int -> Int
+-- \x -> x + x
+--
+add x y = x + y
+add x = \y -> x + y
+add = \x -> \y -> x + y
+--
+const :: a -> b -> a
+const x _ = x
+const :: a -> (b -> a)
+const x = \_ -> x
+--
+odds n = map f [0..n-1]
+         where
+           f x = x*2 + 1
+
+odds n = map (\x -> x*2 + 1)  [0..n-1]
+#+END_SRC
+** sections
+#+BEGIN_SRC
+λ> 1+3
+4
+
+λ> (+) 1 3
+4
+
+λ> succ' = (+) 1
+λ> succ' 8
+9
+
+λ> succ'' = (1 +)
+λ> succ'' 8
+9
+#+END_SRC
