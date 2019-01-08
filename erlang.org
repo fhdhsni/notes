@@ -1552,7 +1552,25 @@ special cases:
 - Somewhat similar to =gen_server= in that it is a specialised version
   of it. The biggest difference is that rather than handling calls and
   casts, we're handling synchronous and asynchronous events.
-** =init=
+
+|-----------------------------------+----------------------------|
+| *gen_fsm module*                  | *Callback module*          |
+|-----------------------------------+----------------------------|
+| gen_fsm:start_link                | Module:init/1              |
+|-----------------------------------+----------------------------|
+| gen_fsm:send_event                | Module:StateName/2         |
+|-----------------------------------+----------------------------|
+| gen_fsm:send_all_state_event      | Module:handle_event/3      |
+|-----------------------------------+----------------------------|
+| gen_fsm:sync_send_event           | Module:StateName/3         |
+|-----------------------------------+----------------------------|
+| gen_fsm:sync_send_all_state_event | Module:handle_sync_event/4 |
+|-----------------------------------+----------------------------|
+| -                                 | Module:handle_info/3       |
+| -                                 | Module:terminate/3         |
+| -                                 | Module:code_change/4       |
+
+** =Module:init/1=
 - the return values accepted are:
   + ={ok, StateName, Data}=
   + ={ok, StateName, Data, Timeout}=
@@ -1561,7 +1579,7 @@ special cases:
 
 - =StateName= is an atom and represents the next callback function to be called
 
-** StateName Callbacks
+** =Module:StateName/2-3=
 - The functions =StateName/2= and =StateName/3= are placeholder names
   and you are to decide what they will be.
 
@@ -1602,7 +1620,7 @@ special cases:
     * ={stop, Reason, Reply, NewStateData}=
     * ={stop, Reason, NewStateData}=
 
-** =handle_event(Event, StateName, Data)= callback
+** =Module:handle_event(Event, StateName, Data)=
 - is used for asynchronous global events that would trigger a specific
   reaction no matter what state we're in
 - =StateName= in parameters shows what the state was when the =Event=
@@ -1610,28 +1628,29 @@ special cases:
 - returns the same values as =StateName/2=.
 - =Event= is sent by =gen_fsm:send_all_state_event=
 
-** =handle_sync_event(Event, From, StateName, Data)= callback
+** =Module:handle_sync_event(Event, From, StateName, Data)=
 - It handles synchronous global events, and returns the same kind of
   tuples as =StateName/3=.
 - =Event= is sent by =gen_fsm:sync_send_all_state_event=
-
-** =gen_fsm:send_event/2=
-- Asynchronous events aimed at any =StateName/2= function
-- its equivalent function for global events is  =send_all_state_event/2=
-
-** =gen_fsm:sync_send_event/2-3=
-- Synchronous events to be picked up by =StateName/3= are to be sent
-  with =sync_send_event/2-3=.
-- its equivalent function for global events is  =sync_send_all_state_event/2-3=
-** =gen_fsm:send_all_state_event=
-- for sending global asynchronous events, picked up by
-  =handle_event(Event, StateName, Data)=
-** =gen_fsm:sync_send_all_state_event=
-- for sending global synchronous events, picked up b
-  =handle_sync_event(Event, From, StateName, Data)=
-** =code_change= callback
+** =Module:code_change/4=
 - like =gen_servers= except that it takes an extra state parameter
   when called like =code_change(OldVersion, StateName, Data, Extra)=,
   and returns a tuple of the form ={ok, NextStateName, NewStateData}=.
-** =terminate/3= callback
+** =Module:terminate/3=
 - like generic servers, =terminate/3= should do the opposite of =init/1=
+
+** =gen_fsm:send_event(FsmRef, Event)=
+- Asynchronous events aimed at any =StateName/2= function
+- its equivalent function for global events is  =send_all_state_event/2=
+
+** =gen_fsm:sync_send_event(FsmRef, Event, [Timeout])=
+- Synchronous events to be picked up by =StateName/3= are to be sent
+  with =sync_send_event/2-3=.
+- its equivalent function for global events is  =sync_send_all_state_event/2-3=
+** =gen_fsm:send_all_state_event(FsmRef, Event)=
+- for sending global asynchronous events, picked up by
+  =handle_event(Event, StateName, Data)=
+** =gen_fsm:sync_send_all_state_event(FsmRef, Event, [Timeout])=
+- for sending global synchronous events, picked up b
+  =handle_sync_event(Event, From, StateName, Data)=
+** =gen_fsm:reply(Caller, Reply)=
