@@ -1,4 +1,4 @@
-My Erlang notes, mostly from [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book.
+My Erlang notes, From [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book, official doc and my own clarifications.
 
 * Miscellaneous
 - to get the documentation on lists =erl -man lists=
@@ -1654,3 +1654,124 @@ special cases:
 - for sending global synchronous events, picked up b
   =handle_sync_event(Event, From, StateName, Data)=
 ** =gen_fsm:reply(Caller, Reply)=
+* Generic Event Handlers =gen_event=
+:NOTE:
+    - Remember that event handlers run in the same process as their manager.
+:END:
+
+This behavior module provides event handling functionality. It
+consists of a generic event manager process with any number of event
+handlers that are added and deleted dynamically.
+
+| gen_event module           | Callback module       |
+|----------------------------+-----------------------|
+| gen_event:start            |                       |
+| gen_event:start_link       | -                     |
+|                            |                       |
+| gen_event:add_handler      |                       |
+| gen_event:add_sup_handler  | Module:init/1         |
+|                            |                       |
+| gen_event:notify           |                       |
+| gen_event:sync_notify      | Module:handle_event/2 |
+|                            |                       |
+| gen_event:call             | Module:handle_call/2  |
+|                            |                       |
+| -                          | Module:handle_info/2  |
+|                            |                       |
+| gen_event:delete_handler   | Module:terminate/2    |
+|                            |                       |
+| gen_event:swap_handler     |                       |
+| gen_event:swap_sup_handler | Module1:terminate/2   |
+|                            | Module2:init/1        |
+|                            |                       |
+| gen_event:which_handlers   | -                     |
+|                            |                       |
+| gen_event:stop             | Module:terminate/2    |
+|                            |                       |
+| -                          | Module:code_change/3  |
+
+** =Module:init/1= and =Module:terminate/2=
+- init/1 takes a list of arguments and returns ={ok, State}=.
+- Whatever happens in =init/1= should have its counterpart in =terminate/2=.
+** =Module:handle_event(Event, State)=
+- it works asynchronously, it means event manager doesn't block the
+  calling process for the event handler to fnish (don't get confused
+  by this. It does block event manager [event manager queues new
+  events] and other event handlers have to to get their event. If you
+  have more than one event handler, they are all running in one
+  process and that is process of event man anger)
+- can return:
+  + ={ok, NewState}=
+  + ={ok, NewState, hibernate}=, which puts the event manager itself into hibernation until the next event
+  + =remove_handler=
+  + ={ swap_handler, Args1, NewState, NewHandler, Args2}=
+
+- All incoming events can come from =gen_event:notify/2= which is
+  asynchronous like =gen_server:cast/2= is. There is also
+  =gen_event:sync_notify/2= which is synchronous. This is a bit funny to
+  say, because =handle_event/2= remains asynchronous. The idea here is
+  that the function call only returns once all event handlers have
+  seen and treated the new message. Until then, the event manager will
+  keep blocking the calling process by not replying.
+** =Module:handle_call(Event, State)=
+- This is similar to a =gen_server='s =handle_call= callback
+- can return
+  + ={ok, Reply, NewState}=
+  + ={ok, Reply, NewState, hibernate}=
+  + ={remove_handler, Reply}=
+  + ={swap_handler, Reply, Args1, NewState, Handler2, Args2}=
+- The =gen_event:call/3-4= function is used to make the call
+  + =gen_event:call(EventMgrRef, Handler, Request)=
+
+** =Module:handle_info(Event, State)=
+   The =handle_info/2= callback is pretty much the same as =handle_event=
+   (same return values and everything), with the exception that it
+   only treats out of band messages, such as exit signals, messages
+   sent directly to the event manager with the ! operator, etc.
+** =Module:code_change(OldVsn, State, Extra)=
+** example of callback module
+   #+BEGIN_SRC erlang
+     -module(mymodule).
+     -behaviour(gen_event).
+
+     -export([init/1, handle_event/2, handle_call/2, handle_info/2, code_change/3, terminate/2]).
+
+     init([]) ->
+     {ok, []}.
+
+     handle_event(_, State) ->
+     {ok, State}.
+
+     handle_call(_, State) ->
+     {ok, ok, State}.
+
+     handle_info(_, State) ->
+     {ok, State}.
+
+     code_change(_OldVsn, State, _Extra) ->
+     {ok, State}.
+
+     terminate(_Reason, _State) ->
+     ok.
+   #+END_SRC
+** =gen_event:start_link()=
+** =gen_event:add_handler(EventMgrRef, Handler, Args)=
+- Also possible =gen_event:add_handler(Pid, {Module, Ref}, Args)=
+  which is usefull If you want to call, add or delete a specific
+  handler when there's more than one instance of it.
+** =gen_event:add_sup_handler(EventMgrRef, Handler, Args)=
+- Adds a new event handler in the same way as =add_handler/3=, but also
+  supervises the connection between the event handler and the calling
+  process.
+** =gen_event:notify(EventMgrRef, Event)=
+** =gen_event:sync_notify(EventMgrRef, Event)=
+** =gen_event:delete_handler(EventMgrRef, Handler, Args)=
+- The event manager calls =Module:terminate/2= to terminate the event
+  handler.
+- The return value is the return value of =Module:terminate/2=.
+** =gen_event:call(EventMgrRef, Handler, Request)=
+- Makes a synchronous call to event handler =Handler= installed in event
+  manager =EventMgrRef= by sending a request and waiting until a reply
+  arrives or a time-out occurs. The event manager calls
+  =Module:handle_call/2= to handle the request.
+* supervisor
