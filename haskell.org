@@ -828,5 +828,48 @@ prime n = factors n == [1,n]
 
 primes :: Int -> [Int]
 primes n = [x | x <- [1..n], prime x]
+#+END_SRC
+** HOF
+#+BEGIN_SRC haskell
+map'' :: (t -> a) -> [t] -> [a]
+map'' f xs = [f x | x <- xs]
 
+map' :: (t -> a) -> [t] -> [a]
+map' _f [] =  []
+map' f (x:xs) = f x : map' f xs
+
+filter' :: (a -> Bool) -> [a] -> [a]
+filter' p xs = [x | x <- xs, p x]
+
+
+filter'' :: (a -> Bool) -> [a] -> [a]
+filter'' _p [] = []
+filter'' p (x:xs)
+  | p x       = x : filter'' p xs
+  | otherwise = filter'' p xs
+
+sum' :: (Foldable t, Num b) => t b -> b
+sum' = foldr (+) 0
+
+product' :: (Foldable t, Num b) => t b -> b
+product' = foldr (*) 1
+
+or' :: Foldable t => t Bool -> Bool
+or' = foldr (||) False
+
+
+and' :: Foldable t => t Bool -> Bool
+and' = foldr (&&) True
+
+foldr' :: (a -> b -> b) -> b -> [a] -> b
+foldr' f v [] = v
+foldr' f v (x:xs) = f x (foldr f v xs)
+
+length' = foldr (\_ v -> v + 1) 0
+
+reverse' :: Foldable t => t a -> [a]
+reverse' = foldr (\x xs -> xs ++ [x]) []
+
+-- same as ++ can be used like [1, 2] `glue` [3, 4]
+glue xs ys = foldr (:) ys xs
 #+END_SRC

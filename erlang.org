@@ -1476,7 +1476,7 @@ special cases:
   of the process' state until it gets a message, at the cost of some
   processing power. If you are in doubt about using hibernation, you
   probably don't need it. Search for =erlang:hibernate=
-- ={stop, Reduces}=, should be done when something went wrong during
+- ={stop, Reason}=, should be done when something went wrong during
   the initialization.
 
 - While =init/1= is running, execution is blocked in the process that
@@ -1513,7 +1513,7 @@ special cases:
 - it returns the same tuples as =handle_cast=
 - But the difference is that this callback is only there for messages that
   were sent directly with the =!= operator and special ones like
-  i=nit/1='s =timeout=, monitors' notifications and '=EXIT=' signals.
+  =init/1='s =timeout=, monitors' notifications and '=EXIT=' signals.
 ** =terminate/2=
 - is called whenever one of the three =handle_Something= functions
   returns a tuple of the form ={stop, Reason, NewState}= or ={stop, Reason, Reply, NewState}=.
@@ -1775,3 +1775,154 @@ handlers that are added and deleted dynamically.
   arrives or a time-out occurs. The event manager calls
   =Module:handle_call/2= to handle the request.
 * supervisor
+- If supervisors are supposed to be processes which do nothing but
+  make sure their children are restarted when they die, workers are
+  processes in charge of doing actual work, and that may die while
+  doing so. They are usually not trusted restarting the faulty
+  processes
+- workers should never be used in any position except under another
+  supervisor
+
+** init/1
+- should return
+  ={ok, {{RestartStrategy, MaxRestart, MaxTime},[ChildSpecs]}}=.
+- RestartStrategy can be any of =one_for_one=, =rest_for_one=, =one_for_all= and =simple_one_for_one=.
+  + =one_for_one=: if your supervisor supervises many workers and one of
+    them fails, only that one should be restarted.
+  + =one_for_all=: whenever all your processes under a single supervisor
+    heavily depend on each other to be able to work normally.
+  + =rest_for_one=: Whenever you have to start processes that depend on
+    each other in a chain (A starts B, which starts C, which starts D,
+    etc.), you can use =rest_for_one=. It's also useful in the case of
+    services where you have similar dependencies (X works alone, but Y
+    depends on X and Z depends on both). What a =rest_for_one= restarting
+    strategy does, basically, is make it so if a process dies, all the
+    ones that were started after it (depend on it) get restarted, but
+    not the other way around.
+  + =simple_one_for_one=:
+    * it basically makes it so it takes only one kind of children, and
+      it's to be used when you want to dynamically add them to the
+      supervisor, rather than having them started statically
+    * a =simple_one_for_one= supervisor just sits around there, and it
+      knows it can produce one kind of child only. Whenever you want a
+      new one, you ask for it and you get it.
+    * Note: it is important to note that =simple_one_for_one= children
+      are not respecting this rule with the *Shutdown* time. In the case
+      of =simple_one_for_one=, the supervisor will just exit and it will
+      be left to each of the workers to terminate on their own, after
+      their supervisor is gone.
+
+- Restart limits: if more than =MaxRestarts= happen within =MaxTime= (in
+  seconds), the supervisor just gives up on your code, shuts it down
+  then kills itself to never return.
+
+** Child Specifications
+#+BEGIN_SRC erlang
+  [{
+    fake_id,                                      %% ChildId
+    {fake_mod, start_link, [SomeArg]},            %% StartFunc
+    permanent,                                    %% Restart
+    5000,                                         %% Shutdown
+    worker,                                       %% Type
+    [fake_mod]                                    %% Modules
+   },
+   {other_id,
+    {event_manager_mod, start_link, []},
+    transient,
+    infinity,
+    worker,
+    dynamic}]
+#+END_SRC
+has the shape of ={ChildId, StartFunc, Restart, Shutdown, Type, Modules}=
+
+*** ChildId
+The =ChildId= is just an internal name used by the supervisor
+internally. You will rarely need to use it yourself, although it might
+be useful for debugging purposes and sometimes when you decide to
+actually get a list of all the children of a supervisor. Any term can
+be used for the Id.
+*** StartFunc
+=StartFunc= is a tuple that tells how to start the child. It's the
+standard ={M,F,A}= format we've used a few times already. Note that it
+is very important that the starting function here is OTP-compliant and
+links to its caller when executed (hint: use =gen_*:start_link()=
+wrapped in your own module, all the time).
+
+*** Restart
+Restart tells the supervisor how to react when that particular child
+dies. This can take three values:
+1. =permanent=: should always be restarted, no matter what.
+2. =temporary=: a process that should never be restarted
+3. =transient=: Transient processes are a bit of an
+   in-between. They're meant to run until they terminate normally and
+   then they won't be restarted. However, if they die of abnormal
+   causes (exit reason is anything but normal), they're going to be
+   restarted. This restart option is often used for workers that need
+   to succeed at their task, but won't be used after they do so.
+
+You can have children of all three kinds mixed under a single
+supervisor. This might affect the restart strategy: a one_for_all
+restart won't be triggered by a temporary process dying, but that
+temporary process might be restarted under the same supervisor if a
+permanent process dies first!
+
+*** Shutdown
+The Shutdown value of a child specification is us used to give a
+deadline on the termination. On certain workers, you know you might
+have to do things like properly close files, notify a service that
+you're leaving, etc. In these cases, you might want to use a certain
+cutoff time, either in milliseconds or infinity if you are really
+patient. If the time passes and nothing happens, the process is then
+brutally killed with =exit(Pid, kill)=. If you don't care about the
+child and it can pretty much die without any consequences without any
+timeout needed, the atom =brutal_kill= is also an acceptable
+value. =brutal_kill= will make it so the child is killed with
+=exit(Pid, kill)=, which is untrappable and instantaneous.
+*** Type
+Type simply lets the supervisor know whether the child is a worker or
+a supervisor.
+
+*** Modules
+- Modules is a list of one element, the name of the callback module
+  used by the child behavior.
+** Dynamic Supervision
+- in normal supervisors (none =simple_one_for_one=) we have have to
+  following facilities but because the internal representation is a
+  list, this won't work very well when you need quick access to many
+  children. For the we use =simple_one_for_one= strategy
+  + =start_child(SupervisorNameOrPid, ChildSpec)=
+    * This adds a child specification to the list and starts the child
+      with it
+  + =terminate_child(SupervisorNameOrPid, ChildId)=
+    * Terminates or =brutal_kills= the child. The child specification is
+      left in the supervisor
+  + =restart_child(SupervisorNameOrPid, ChildId)=
+    * Uses the child specification to get things rolling.
+  + =delete_child(SupervisorNameOrPid, ChildId)=
+    * Gets rid of the ChildSpec of the specified child
+  + =check_childspecs([ChildSpec])=
+    * Makes sure a child specification is valid. You can use this to try
+      it before using =start_child/2=.
+  + =count_children(SupervisorNameOrPid)=
+    * Counts all the children under the supervisor and gives you a
+      little comparative list of who's active, how many specs there are,
+      how many are supervisors and how many are workers.
+  + =which_children(SupervisorNameOrPid)=
+    * gives you a list of all the children under the supervisor.
+
+
+
+*** =simple_one_for_one=
+- The problem with =simple_one_for_one= is that it will not allow you
+  to manually restart a child, delete it or terminate it.
+- All the children are held in a dictionary (hence fast lookup)
+- There is a single child specification for all children
+- For the most part, writing a =simple_one_for_one= supervisor is
+  similar to writing any other type of supervisor, except for one
+  thing. The argument list in the ={M,F,A}= tuple is not the whole
+  thing, but is going to be appended to what you call it with when you
+  do =supervisor:start_child(Sup, Args)=. That's right,
+  =supervisor:start_child/2= changes API. So instead of doing
+  =supervisor:start_child(Sup, Spec)=, which would call
+  =erlang:apply(M,F,A)=, we now have =supervisor:start_child(Sup, Args)=,
+  which calls =erlang:apply(M,F,A++Args)=.
