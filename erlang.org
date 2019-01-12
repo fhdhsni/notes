@@ -1691,7 +1691,7 @@ handlers that are added and deleted dynamically.
 | -                          | Module:code_change/3  |
 
 ** =Module:init/1= and =Module:terminate/2=
-- init/1 takes a list of arguments and returns ={ok, State}=.
+- =init/1= takes a list of arguments and returns ={ok, State}=.
 - Whatever happens in =init/1= should have its counterpart in =terminate/2=.
 ** =Module:handle_event(Event, State)=
 - it works asynchronously, it means event manager doesn't block the
@@ -1775,15 +1775,11 @@ handlers that are added and deleted dynamically.
   arrives or a time-out occurs. The event manager calls
   =Module:handle_call/2= to handle the request.
 * supervisor
-- If supervisors are supposed to be processes which do nothing but
-  make sure their children are restarted when they die, workers are
-  processes in charge of doing actual work, and that may die while
-  doing so. They are usually not trusted restarting the faulty
-  processes
 - workers should never be used in any position except under another
   supervisor
-
-** init/1
+- - When we start our supervisor by calling =supervisor:start_link(Module, Args)= or
+  =supervisor:start_link(SupName, Module, Args)=, =init/1= function of =Module= is called
+** =Module:init/1=
 - should return
   ={ok, {{RestartStrategy, MaxRestart, MaxTime},[ChildSpecs]}}=.
 - RestartStrategy can be any of =one_for_one=, =rest_for_one=, =one_for_all= and =simple_one_for_one=.
@@ -1791,32 +1787,26 @@ handlers that are added and deleted dynamically.
     them fails, only that one should be restarted.
   + =one_for_all=: whenever all your processes under a single supervisor
     heavily depend on each other to be able to work normally.
-  + =rest_for_one=: Whenever you have to start processes that depend on
-    each other in a chain (A starts B, which starts C, which starts D,
-    etc.), you can use =rest_for_one=. It's also useful in the case of
-    services where you have similar dependencies (X works alone, but Y
-    depends on X and Z depends on both). What a =rest_for_one= restarting
-    strategy does, basically, is make it so if a process dies, all the
-    ones that were started after it (depend on it) get restarted, but
-    not the other way around.
+    + =rest_for_one=: Whenever you have to start processes that depend on
+     each other in a chain (A starts B, which starts C, which starts D,
+     etc.), you can use =rest_for_one=. It's also useful in the case of
+     services where you have similar dependencies (X works alone, but Y
+     depends on X and Z depends on both). What a =rest_for_one= restarting
+     strategy does, basically, is make it so if a process dies, all the
+     ones that were started after it (depend on it) get restarted, but
+     not the other way around.
   + =simple_one_for_one=:
-    * it basically makes it so it takes only one kind of children, and
-      it's to be used when you want to dynamically add them to the
-      supervisor, rather than having them started statically
-    * a =simple_one_for_one= supervisor just sits around there, and it
-      knows it can produce one kind of child only. Whenever you want a
-      new one, you ask for it and you get it.
-    * Note: it is important to note that =simple_one_for_one= children
-      are not respecting this rule with the *Shutdown* time. In the case
-      of =simple_one_for_one=, the supervisor will just exit and it will
-      be left to each of the workers to terminate on their own, after
-      their supervisor is gone.
+    * explained [[*=simple_one_for_one=][here]]
 
-- Restart limits: if more than =MaxRestarts= happen within =MaxTime= (in
-  seconds), the supervisor just gives up on your code, shuts it down
-  then kills itself to never return.
+
+- Restart limits: if more than =MaxRestarts= (all the children
+  combined) happen within =MaxTime= (in seconds), the supervisor just
+  gives up on your code, shuts it down then kills itself to never
+  return.
 
 ** Child Specifications
+- is like ={ChildId, StartFunc, Restart, Shutdown, Type, Modules}=
+
 #+BEGIN_SRC erlang
   [{
     fake_id,                                      %% ChildId
@@ -1833,7 +1823,6 @@ handlers that are added and deleted dynamically.
     worker,
     dynamic}]
 #+END_SRC
-has the shape of ={ChildId, StartFunc, Restart, Shutdown, Type, Modules}=
 
 *** ChildId
 The =ChildId= is just an internal name used by the supervisor
@@ -1853,15 +1842,14 @@ Restart tells the supervisor how to react when that particular child
 dies. This can take three values:
 1. =permanent=: should always be restarted, no matter what.
 2. =temporary=: a process that should never be restarted
-3. =transient=: Transient processes are a bit of an
-   in-between. They're meant to run until they terminate normally and
+3. =transient=: They're meant to run until they terminate normally and
    then they won't be restarted. However, if they die of abnormal
-   causes (exit reason is anything but normal), they're going to be
+   causes (exit reason is anything but =normal=), they're going to be
    restarted. This restart option is often used for workers that need
    to succeed at their task, but won't be used after they do so.
 
 You can have children of all three kinds mixed under a single
-supervisor. This might affect the restart strategy: a one_for_all
+supervisor. This might affect the restart strategy: a =one_for_all=
 restart won't be triggered by a temporary process dying, but that
 temporary process might be restarted under the same supervisor if a
 permanent process dies first!
@@ -1883,13 +1871,12 @@ Type simply lets the supervisor know whether the child is a worker or
 a supervisor.
 
 *** Modules
-- Modules is a list of one element, the name of the callback module
-  used by the child behavior.
+
 ** Dynamic Supervision
-- in normal supervisors (none =simple_one_for_one=) we have have to
+- in normal supervisors (none =simple_one_for_one=) we have have the
   following facilities but because the internal representation is a
   list, this won't work very well when you need quick access to many
-  children. For the we use =simple_one_for_one= strategy
+  children. For that we use =simple_one_for_one= strategy
   + =start_child(SupervisorNameOrPid, ChildSpec)=
     * This adds a child specification to the list and starts the child
       with it
@@ -1910,9 +1897,24 @@ a supervisor.
   + =which_children(SupervisorNameOrPid)=
     * gives you a list of all the children under the supervisor.
 
-
-
 *** =simple_one_for_one=
+- makes it so it takes only one kind of children, and
+  it's to be used when you want to dynamically add them to the
+  supervisor, rather than having them started statically
+- a =simple_one_for_one= supervisor just sits around there, and it
+  knows it can produce one kind of child only. Whenever you want a
+  new one, you ask for it and you get it.
+- =one_for_one= holds a *list* of all the children it has (and
+  had, if you don't clear it), started in order, while
+  =simple_one_for_one= holds a single definition for all its
+  children and works using a *dict* to hold its data. Basically,
+  when a process crashes, the =simple_one_for_one= supervisor will
+  be much faster when you have a large number of children.
+- Note: it is important to note that =simple_one_for_one= children
+  are not respecting this rule with the *Shutdown* time. In the case
+  of =simple_one_for_one=, the supervisor will just exit and it will
+  be left to each of the workers to terminate on their own, after
+  their supervisor is gone.
 - The problem with =simple_one_for_one= is that it will not allow you
   to manually restart a child, delete it or terminate it.
 - All the children are held in a dictionary (hence fast lookup)
@@ -1926,3 +1928,28 @@ a supervisor.
   =supervisor:start_child(Sup, Spec)=, which would call
   =erlang:apply(M,F,A)=, we now have =supervisor:start_child(Sup, Args)=,
   which calls =erlang:apply(M,F,A++Args)=.
+- to terminate a child =supervisor:terminate_child(SupRef, Id)=
+* how to cope with the loss of state
+Supervisors kill processes, state is lost, how to handle it?
+
+- different kinds of state:
+  + *Static state*: This type can easily be fetched from a config file,
+    another process or the supervisor restarting the application.
+  + *Dynamic state*: /composed of data you can re-compute./ This
+    includes state that you had to transform from its initial form to
+    get where it is right now
+  + *Dynamic data*: /you can not recompute./ This might include user
+    input, live data, sequences of external events, etc.
+
+- The idea of an onion layered system is to allow all of these
+  different states to be protected correctly by isolating different
+  kinds of code from each other. It's process segregation.
+- the most important data (or the hardest to find back) has to be the
+  most protected type. The places where you are actually not allowed
+  to fail is called the error kernel of your application. The error
+  kernel is likely the place where you'll want to use try...catches
+  more than anywhere else, where handling exceptional cases is vital.
+- all kinds of operations related together should be part of the same
+  supervision trees, and the unrelated ones should be kept in
+  different trees. Within the same tree, operations that are
+  failure-prone but not vital can be in a separate sub-tree.
