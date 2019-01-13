@@ -1953,3 +1953,164 @@ Supervisors kill processes, state is lost, how to handle it?
   supervision trees, and the unrelated ones should be kept in
   different trees. Within the same tree, operations that are
   failure-prone but not vital can be in a separate sub-tree.
+* OTP application
+#+BEGIN_SRC shell
+  ebin/           # compiled files
+  include/        # Erlang header (.hrl) files
+  priv/           # executables, other programs, and various specific files needed for the application to work
+  src/            # Erlang source files
+  test/
+#+END_SRC
+** The Application Resource File
+- This file will tell the Erlang VM what the application is, where it
+  begins and where it ends. This file lives on in the =ebin/= directory,
+  along with all the compiled modules.
+- This file is usually named =<yourapp>.app=
+- The basic structure of the application file is simply: ={application, ApplicationName, Properties}=.
+- =ApplicationName= is an atom
+- =Properties= is a list of ={Key, Value}= tuples describing the application.
+  + ={description, "Some description of your application"}= The field
+    is optional and defaults to an empty string.
+  + ={vsn, "1.2.3"}= to help with upgrades and downgrades, the string
+    is used to identify your application's version.
+  + ={modules, ModuleList}=
+    Contains a list of all the modules that your application
+    introduces to the system. A module always belongs to at most one
+    application and can not be present in two applications' app files
+    at once. This list lets the system and tools look at dependencies
+    of your application, making sure everything is where it needs to
+    be and that you have no conflicts with other applications already
+    loaded in the system. If you're using a standard OTP structure and
+    are using a build tool like =rebar3=, this is handled for you.
+  + ={registered, AtomList}= Contains a list of all the names
+    registered by the application. This lets OTP know when there will
+    be name clashes when you try to bundle a bunch of applications
+    together, but is entirely based on trusting the developers to give
+    good data. We all know this isn't always the case, so blind faith
+    shouldn't be used in this case.
+  + ={env, [{Key, Val}]}= This is a list of key/values that can be
+    used as a configuration for your application. They can be obtained
+    at run time by calling =application:get_env(Key)= or
+    =application:get_env(AppName, Key)=. The first one will try to find
+    the value in the application file of whatever application you are
+    in at the moment of the call, the second allows you to specify an
+    application in particular. This stuff can be overwritten as
+    required (either at boot time or by using =application:set_env/3-4=.
+  + ={maxT, Milliseconds}= This is the maximum time that the
+    application can run, after which it will be shut down. This is a
+    rather rarely used item and Milliseconds defaults to infinity, so
+    you often don't need to bother with this one at all.
+  + ={applications, AtomList}= A list of applications on which yours
+    depends. The application system of Erlang will make sure they were
+    loaded and/or started before allowing yours to do so. All
+    applications depend at least on =kernel= and =stdlib=.
+    :NOTE:
+    Even though all applications depend on the =kernel= and the
+    =stdlib= applications, We don't have to mention them and everything
+    works because starting the Erlang VM starts these applications
+    automatically. You might feel like adding them for the sake of
+    expliciteness, but there's no need for it right now.
+    :END:
+  + ={mod, {CallbackMod, Args}}= Defines a callback module for the
+    application, using the application behaviour. This tells OTP that
+    when starting your application, it should call
+    =CallbackMod:start(normal, Args)=. This function's return value will
+    be used when OTP will call =CallbackMod:stop(StartReturn)= when
+    stopping your application. People will tend to name =CallbackMod=
+    after their application.
+** The Application Behaviour
+- Remember that behaviours are always about splitting generic code
+  away from specific code.
+- They denote the idea that your specific code gives up its own
+  execution flow and inserts itself as a bunch of callbacks to be used
+  by the generic code.
+- In the case of applications, this generic part is quite complex and
+  not nearly as simple as other behaviours.
+- Whenever the VM first starts up, a process called the application
+  controller is started (with the name =application_controller=). It
+  starts all other applications and sits on top of most of them (well,
+  not all of them, check out the following NOTE). In fact, you could
+  say the application controller acts a bit like a supervisor for all
+  applications.
+  :Note:
+  - the Application Controller technically doesn't sit over all the
+    applications. One exception is the kernel application, which
+    itself starts a process named user. The user process in fact acts
+    as a group leader to the application controller and the kernel
+    application thus needs some special treatment.
+
+  - In Erlang, the IO system depends on a concept called a group
+    leader. The group leader represents standard input and output and
+    is inherited by all processes. There is a hidden IO protocol that
+    the group leader and any process calling IO functions communicate
+    with. The group leader then takes the responsibility of forwarding
+    these messages to whatever input/output channels there are
+
+  - The main task of the group leader is to collect the I/O output
+    from all the processes in its group and pass that I/O to or from
+    the underlying system. Basically the group leader owns stdin,
+    stdout, and stderr on behalf of the group and handles passing
+    information to and from channels like those. [[https://stackoverflow.com/questions/36318766/what-is-a-group-leader#comment60274161_36319970][SO comment]]
+
+  - Think about the group leader as a proxy, through which other
+    processes do their IO. So, instead of a group of developers all
+    talking to the accounting department, they appoint a group leader
+    who talks for them and they can continue hacking their code. [[https://stackoverflow.com/questions/36318766/what-is-a-group-leader#comment60279093_36319970][So Comment]]
+
+  :END:
+- when someone decides they want to start an application, the
+ application controller (AC) starts an
+ application master. The application master is in fact two processes
+ taking charge of each individual application: they set it up and act
+ like a middleman in between your application's top supervisor and
+ the application controller.
+ #+BEGIN_SRC
+                                     |------------------------|
+                ---------------------| Application Controller |------------------------
+                |                    |------------------------|                       |
+                |                                |                                    |
+                |                                |                                    |
+    |------------------------|      |------------------------|             |------------------------|
+    |   Application Master   |      |    Application Master  |             |    Application Master  |
+    |------------------------|      |------------------------|             |------------------------|
+                |                                |                                    |
+                |                                |                                    |
+    |------------------------|      |------------------------|             |------------------------|
+    |       supervisor       |      |      supervisor        |             |      supervisor        |
+    |------------------------|      |------------------------|             |------------------------|
+                |                                |                                    |
+                |                                |                                    |
+                .                                .                                    .
+                .                                .                                    .
+ #+END_SRC
+
+- the application callback module requires: =start/2= and =stop/1=.
+- =start/2=: =YourMod:start(Type, Args)=,
+  + the =Type= will always be =normal= (the other possibilities
+    accepted have to do with distributed applications)
+  + =Args= is what is coming from your app file.
+  + needs to return the Pid of the application's top-level supervisor
+    in one of the two following forms: ={ok, Pid}= or ={ok, Pid, SomeState}=.
+    If you don't return SomeState, it simply defaults to =[]=.
+- =stop/1=: takes the state returned by =start/2= as an argument.
+- we can start the app by =application:start(foobar).=
+  This tells the application controller to launch our =foobar=
+  application.
+- list running applications =application:which_applications()=
+- to stop an application =application:stop(foobar).=
+- we can give different arguments to =application:start=.
+  + Application started with: =application:start(AppName, temporary)=
+    * When ends normally: Nothing special happens, the application has stopped.
+    * When Ends abnormally: The error is reported, and the application terminates without restarting.
+  + Application started with: =application:start(AppName, transient)=
+    * When ends normally: Nothing special happens, the application has stopped.
+    * When ends abnormally: The error is reported, all the other applications are stopped and the VM shuts down.
+  + Application started with: =application:start(AppName, permanent)=
+    * When ends normally: All other applications are terminated and the VM shuts down.
+    * When ends abnormally: Same; all applications are terminated, the VM shuts down.
+*** Library Applications
+- What happens when we want to wrap flat modules in an application but
+  we have no process to start and thus no need for an application
+  callback module? the only thing is to remove the tuple
+  ={mod, {Module, Args}}= from the application file. This is
+  called a library application.

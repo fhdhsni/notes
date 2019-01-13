@@ -1,0 +1,13 @@
+Here I try to understand monad. From all over the Internet
+
+- The term monad is a bit vacuous if you are not a mathematician. An
+  alternative term is *computation builder* which is a bit more
+  descriptive of what they are actually useful for.
+
+
+* Functors
+- A Functor is any data type that defines how =fmap= applies to it.
+* Applicatives
+- Applicatives take it to the next level. With an applicative, our
+  values are wrapped in a context, just like Functors, but our
+  functions are wrapped in a context too!
