@@ -1,6 +1,4 @@
-Notes from  http://learnyouahaskell.com/
-
-Beginning of joy <2018-05-24 Thu 15:01>
+Mostly from  http://learnyouahaskell.com/
 
 - In Haskell =*= and =+= and... are also function. We call them infix
   function (normal functions are prefix functions)
@@ -752,6 +750,20 @@ ghci> filter (`elem` ['a'..'z']) "u LaUgH aT mE BeCaUsE I aM diFfeRent"
 ghci> filter (`elem` ['A'..'Z']) "i lauGh At You BecAuse u r aLL the Same"
 "GAYBALLS"
 #+END_SRC
+* Data Types
+#+BEGIN_SRC haskell
+data Color = Red | Blue | Green
+
+say :: Color -> String
+say Red   = "You are Red!"
+say Blue  = "You are Blue!"
+say Green = "You are Green!"
+
+
+-- Your data types can have parameters too:
+data Maybe a = Nothing | Just a
+#+END_SRC
+
 * Microsoft Channel 9: Dr. Erik Meijer
 ** Lazy
 #+BEGIN_SRC haskell
@@ -873,3 +885,4 @@ reverse' = foldr (\x xs -> xs ++ [x]) []
 -- same as ++ can be used like [1, 2] `glue` [3, 4]
 glue xs ys = foldr (:) ys xs
 #+END_SRC
+** monad

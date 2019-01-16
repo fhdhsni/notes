@@ -1,0 +1,91 @@
+#+BEGIN_SRC js
+  // unit takes a value and returns a monad
+  function unit(value)
+
+  // bind takes a monad and a function (this function takes a value and
+  // returns a monad of same type as the first argument to bind)
+  function bind(monad, funcation(value))
+#+END_SRC
+
+- Three Axioms
+  1.
+      #+BEGIN_SRC js
+      bind(unit(value), f) ==== f(value)
+      #+END_SRC
+  2.
+      #+BEGIN_SRC js
+      bind(monad, unit) ==== monad
+      #+END_SRC
+  3.
+      #+BEGIN_SRC js
+      bind(bind(monad, f), g) ==== bind(monad, function(value) { return bind(f(value), g)})
+                              ==== monad.bind(f).bind(g)
+      #+END_SRC
+
+- The OO transfrom
+  #+BEGIN_SRC
+  bind(monad, func) --> monad.bind(func)
+  #+END_SRC
+
+-
+   #+BEGIN_SRC js
+     function MONAD() {
+       return function unit(value) {
+         var moand = Object.create(null);
+         monad.bind = function (func) {
+           return func(value);
+         };
+
+         return monad;
+       }
+     }
+   #+END_SRC
+
+- identity monad
+  #+BEGIN_SRC js
+    var identity = MONAD();
+    var monad = identity("Hello world!");
+    monad.bind(console.log);
+  #+END_SRC
+
+- We want to have our own method and also being able to pass arguments
+  #+BEGIN_SRC js
+    function MONAD() {
+      var prototype = Object.create(null);
+
+      function unit(value) {
+        var monad = Object.create(prototype);
+
+        monad.bind = function(func, args) {
+          return func(value, ...args);
+        };
+
+        return monad;
+      }
+
+      unit.lift = function(name, func) {
+        prototype[name] = function(...args) {
+          return unit(this.bind(func, args));
+        };
+
+        return unit;
+      };
+
+      return unit;
+    }
+
+    var foo = MONAD()
+      .lift("upcase", function(x) {
+        return x.toUpperCase();
+      })
+      .lift("log", function(x) {
+        console.log(x);
+        return x;
+      });
+
+    var monad = foo("hi")
+      .upcase()
+      .log();
+  #+END_SRC
+
+- we want Maybe moand

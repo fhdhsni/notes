@@ -4,7 +4,94 @@ Here I try to understand monad. From all over the Internet
   alternative term is *computation builder* which is a bit more
   descriptive of what they are actually useful for.
 
+- What is a monad? The short answer: It's a specific way of chaining
+  operations together.
 
+- The bind function's job is to take the output from the previous
+  step, and feed it into the next step.
+
+- the bind function can just take the result from one step, and feed
+  it to the next step. But if that's "all" the monad does... that
+  actually isn't very useful. And that's important to understand:
+  Every useful monad does something else in addition to just being a
+  monad. Every useful monad has a "special power", which makes it
+  unique.
+
+- Basically, each monad has its own implementation of the bind function.
+
+- If each step returns a success/failure indicator, you can have bind
+  execute the next step only if the previous one succeeded. In this
+  way, a failing step aborts the whole sequence "automatically",
+  without any conditional testing from you. (The *Failure Monad*.)
+
+- You can make each step return multiple results, and have the bind
+  function loop over them, feeding each one into the next step for
+  you. In this way, you don't have to keep writing loops all over the
+  place when dealing with multiple results. The bind function
+  "automatically" does all that for you. (The *List Monad*.)
+
+- As well as passing a "result" from one step to another, you can have
+  the bind function pass extra data around as well. This data now
+  doesn't show up in your source code, but you can still access it
+  from anywhere, without having to manually pass it to every
+  function. (The *Reader Monad*.)
+
+- You can make it so that the "extra data" can be replaced. This
+  allows you to simulate destructive updates, without actually doing
+  destructive updates. (The State Monad and its cousin the Writer
+  Monad.)
+
+- You can make a monad where calculations can be paused, so you can
+  pause your program, go in and tinker with internal state data, and
+  then resume it.
+
+- Monads are simply a way to wrapping things and provide methods to do
+  operations on the wrapped stuff without unwrapping it.
+
+- A monad is a datatype (informally) that has two operations: >>= (aka =bind= or =flatMap=) and
+  =return= (aka =unit=, =fork= or =pure=)
+  + =return= takes an arbitrary value and creates an instance of the
+    monad with it
+  + >>= takes an instance of the monad and maps a function over it.
+
+  + example
+    #+BEGIN_SRC haskell
+      instance Monad [ ] where
+          []     >>= k = []
+          (x:xs) >>= k = k x ++ (xs >>= k)
+          return x     = [x]
+
+      instance Monad Maybe where
+          Just x  >>= k = k x
+          Nothing >>= k = Nothing
+          return x      = Just x
+    #+END_SRC
+
+- Monads are simply a way to wrapping things and provide methods to do
+  operations on the wrapped stuff without unwrapping it.
+
+- I just put this here
+  #+BEGIN_SRC  haskell
+  (>>=) :: Monad m => m a -> (a -> m b) -> m b
+  #+END_SRC
+  e.g
+  #+BEGIN_SRC haskell
+    λ> half x = if even x
+                then Just (x `div` 2)
+                else Nothing
+
+    λ> Just 8 >>= half
+    Just 4
+
+    λ> Just 20 >>= half >>= half >>= half
+    Nothing
+
+    λ> Just 8 >>= \i -> return (i + 3)
+    Just 11
+
+    λ> [1,2,3] >>= \i -> [1,2,3]
+    [1,2,3,1,2,3,1,2,3]
+  #+END_SRC
 * Functors
 - A Functor is any data type that defines how =fmap= applies to it.
 * Applicatives

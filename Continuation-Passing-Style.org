@@ -1,0 +1,129 @@
+* Continuation
+=call/cc= stands for call with current continuation
+
+#+BEGIN_SRC scheme
+  (define *k*)
+
+  (+ (call/cc
+      (lambda (k)
+        (begin
+          (set! *k* k)
+          (k (* 3 4))))) 10)              ;; 22
+#+END_SRC
+Now in the repl
+
+#+BEGIN_SRC
+scheme> *k*
+$7 = #<continuation 55bec9d17720>
+
+scheme> (*k* 1)
+((result "11") (output . ""))
+#+END_SRC
+
+Another example
+#+BEGIN_SRC scheme
+(define *r*)
+
+(call/cc
+ (lambda (k)
+   (set! *r* k)))
+
+9
+#+END_SRC
+Now in the repl
+
+#+BEGIN_SRC
+scheme> *r*
+$6 = #<continuation 55752e8764c0>
+
+scheme> (*r* 999999999999)
+((result "9") (output . ""))
+
+scheme> (*r* "whatever")
+((result "9") (output . ""))
+#+END_SRC
+
+#+BEGIN_SRC scheme
+(+ (* 3 4) 5)                           ; 17
+
+;; replacing (* 3 5)
+(+ (call/cc (lambda (k) (k (* 3 4)))) 5) ; 17
+
+;; replacing 4
+(+ (* 3 (call/cc (lambda (k) (k 4)))) 5) ; 17
+
+;; replacing 5
+(+ (* 3 4) (call/cc (lambda (k) (k 5)))) ; 17
+#+END_SRC
+
+Another example
+#+BEGIN_SRC scheme
+  (let ([x (call/cc (lambda (k) k))])
+    (x (lambda (ignore) "hi")))         ;; "hi"
+
+  ;; k is:
+  ;; (lambda (v)
+  ;;   (let ([x v])
+  ;;     (x (lambda (ignore) "hi"))))
+  ;;
+  ;; now we invoke (x (lambda (ignore) "hi")) while x is k, which becomes
+  ;; ((lambda (v)
+  ;;    (let ([x v])
+  ;;      (x (lambda (ignore) "hi")))) (lambda (ignore) "hi"))
+#+END_SRC
+
+Another example
+#+BEGIN_SRC scheme
+(((call/cc (lambda (k) k)) (lambda (x) x)) "hey") ;; "hey"
+#+END_SRC
+
+
+- So we know continuation is a procedure that represents the
+  rest the computation (the work remained to be done)
+
+* CPS
+** three approach to calculate factorial
+- naive
+  #+BEGIN_SRC elisp
+    (define sub1
+      (lambda (n) (- n 1)))
+
+    (define fact
+      (lambda (n)
+        (cond [(zero? n) 1]
+              [else (* (fact (sub1 n)) n)])))
+  #+END_SRC
+- APS (accumulator-passing style)
+  #+BEGIN_SRC elisp
+    (define fact-aps
+      (lambda (n acc)
+        (cond [(zero? n) acc]
+              [else (fact-aps (sub1 n) (* n acc))])))
+  #+END_SRC
+
+- CPS
+  #+BEGIN_SRC elisp
+    ; k is a procedure of one argument
+    (define fact-cps
+      (lambda (n k) ; k is a procedure of one argument
+        (cond [(zero? n) (k 1)]
+              [else
+               (fact-cps
+                (sub1 n)
+                (lambda (v) (k (* v n))))])))
+  #+END_SRC
+
+- In CPS, each procedure takes an extra argument representing what
+  should be done with the result the function is calculating.
+- The key to CPS is to remember that (a) every function takes an extra
+  argument, its continuation, and (b) every argument in a function
+  call must be either a variable or a lambda expression (not a more
+  complex expression). This has the effect of turning expressions
+  "inside-out" because the innermost parts of the expression must be
+  evaluated first, so CPS explicates the order of evaluation as well
+  as the control flow.
+- representing stack on the heap
+- The basic idea behind it is to take one function that's usually
+  deeply recursive and break every step down.
+- We return each step (which would usually be the accumulator), and
+  then a function that will allow us to keep going after that
