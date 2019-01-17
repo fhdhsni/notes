@@ -9,6 +9,13 @@ My Erlang notes, From [[https://learnyousomeerlang.com/][Learn You Some Erlang f
    $ erlc road.erl
    $ erl -noshell -run road main road.txt  # `main` is the main function, road.txt is the passing arg, road is the name file/module
   #+END_SRC
+- =ERL_LIBS= The =ERL_LIBS= variable is a special variable defined in
+  your environment that lets you specify where Erlang can find OTP
+  applications. The VM is then able to automatically look in there to
+  find the =ebin/= directories for you.
+- =erl -env NameOFVar Value=
+- =erl -AppName Key1 Val1 Key2 Val2 ... KeyN ValN=
+
 * Basics
 ** Numbers
 If you want to express integers in other bases than base 10, just
@@ -1641,7 +1648,7 @@ special cases:
 
 ** =gen_fsm:send_event(FsmRef, Event)=
 - Asynchronous events aimed at any =StateName/2= function
-- its equivalent function for global events is  =send_all_state_event/2=
+- its equivalent function for global events is =send_all_state_event/2=
 
 ** =gen_fsm:sync_send_event(FsmRef, Event, [Timeout])=
 - Synchronous events to be picked up by =StateName/3= are to be sent
@@ -2059,11 +2066,11 @@ Supervisors kill processes, state is lost, how to handle it?
 
   :END:
 - when someone decides they want to start an application, the
- application controller (AC) starts an
- application master. The application master is in fact two processes
- taking charge of each individual application: they set it up and act
- like a middleman in between your application's top supervisor and
- the application controller.
+  application controller (AC) starts an
+  application master. The application master is in fact two processes
+  taking charge of each individual application: they set it up and act
+  like a middleman in between your application's top supervisor and
+  the application controller.
  #+BEGIN_SRC
                                      |------------------------|
                 ---------------------| Application Controller |------------------------
@@ -2114,3 +2121,21 @@ Supervisors kill processes, state is lost, how to handle it?
   callback module? the only thing is to remove the tuple
   ={mod, {Module, Args}}= from the application file. This is
   called a library application.
+* Included Applications
+- It is more and more recommended *not* to use included applications for
+  a simple reason: they seriously limit code reuse.
+- eleases can basically help us do the same (and much more) in a more
+  generic manner.
+* Complex Terminations
+- There are cases where we need more steps to be done before
+  terminating our application. The =stop/1= function from the
+  application callback module might not be enough, especially since it
+  gets called after the application has already terminated. What do we
+  do if we need to clean things up before the application is actually
+  gone?
+- The trick is simple. Just add a function =prep_stop(State)= to your
+  application callback module. State will be the state returned by
+  your =start/2= function, and whatever =prep_stop/1= returns will be
+  passed to =stop/1=. The function =prep_stop/1= thus technically inserts
+  itself between =start/2= and =stop/1= and is executed while your
+  application is still alive, but just before it shuts down.
