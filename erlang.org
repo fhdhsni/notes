@@ -1,4 +1,5 @@
-My Erlang notes, From [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book, official doc and my own clarifications.
+My Erlang notes, From [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book,
+official doc and my own clarifications.
 
 * Miscellaneous
 - to get the documentation on lists =erl -man lists=
@@ -1670,32 +1671,32 @@ This behavior module provides event handling functionality. It
 consists of a generic event manager process with any number of event
 handlers that are added and deleted dynamically.
 
-| gen_event module           | Callback module       |
-|----------------------------+-----------------------|
-| gen_event:start            |                       |
-| gen_event:start_link       | -                     |
-|                            |                       |
-| gen_event:add_handler      |                       |
-| gen_event:add_sup_handler  | Module:init/1         |
-|                            |                       |
-| gen_event:notify           |                       |
-| gen_event:sync_notify      | Module:handle_event/2 |
-|                            |                       |
-| gen_event:call             | Module:handle_call/2  |
-|                            |                       |
-| -                          | Module:handle_info/2  |
-|                            |                       |
-| gen_event:delete_handler   | Module:terminate/2    |
-|                            |                       |
-| gen_event:swap_handler     |                       |
-| gen_event:swap_sup_handler | Module1:terminate/2   |
-|                            | Module2:init/1        |
-|                            |                       |
-| gen_event:which_handlers   | -                     |
-|                            |                       |
-| gen_event:stop             | Module:terminate/2    |
-|                            |                       |
-| -                          | Module:code_change/3  |
+| =gen_event= module           | Callback module         |
+|------------------------------+-------------------------|
+| =gen_event:start=            |                         |
+| =gen_event:start_link=       | -                       |
+|                              |                         |
+| =gen_event:add_handler=      |                         |
+| =gen_event:add_sup_handler=  | =Module:init/1=         |
+|                              |                         |
+| =gen_event:notify=           |                         |
+| =gen_event:sync_notify=      | =Module:handle_event/2= |
+|                              |                         |
+| =gen_event:call=             | =Module:handle_call/2=  |
+|                              |                         |
+| -                            | =Module:handle_info/2=  |
+|                              |                         |
+| =gen_event:delete_handler=   | =Module:terminate/2=    |
+|                              |                         |
+| =gen_event:swap_handler=     |                         |
+| =gen_event:swap_sup_handler= | =Module1:terminate/2=   |
+|                              | =Module2:init/1=        |
+|                              |                         |
+| =gen_event:which_handlers=   | -                       |
+|                              |                         |
+| =gen_event:stop=             | =Module:terminate/2=    |
+|                              |                         |
+| -                            | =Module:code_change/3=  |
 
 ** =Module:init/1= and =Module:terminate/2=
 - =init/1= takes a list of arguments and returns ={ok, State}=.
@@ -2139,3 +2140,386 @@ Supervisors kill processes, state is lost, how to handle it?
   passed to =stop/1=. The function =prep_stop/1= thus technically inserts
   itself between =start/2= and =stop/1= and is executed while your
   application is still alive, but just before it shuts down.
+* OTP releases
+- =init:stop()=
+  + All applications are taken down smoothly, all code is unloaded,
+    and all ports are closed before the system terminates by calling
+    =halt(Status)=. If command-line flag =-heart= was specified, the heart
+    program is terminated before the Erlang node terminates.
+
+** Releases With =systools=
+- The =systools= application is the simplest one to build Erlang releases.
+
+- =rel= file example
+  + We can get the =erts= (Erlang Run Time System) by oppening =erl=
+  + We can get the =stdlib= and =kernel= versions by =application:which_applications()=
+  #+BEGIN_SRC erlang
+    {release,
+     {"erlcount", "1.0.0"},
+     {erts, "10.2"},
+     [{kernel, "6.2"},
+      {stdlib, "3.7"},
+      {ppool, "1.0.0", permanent},
+      {erlcount, "1.0.0", transient}]}.
+  #+END_SRC
+  + we named the release =erlcount= and =made= it version =1.0.0=.
+
+***  boot file
+- Erlang's virtual machine can start itself with a basic configuration
+  taken from something called a boot file. In fact, when you start
+  your own erl application from the shell, it implicitly calls the
+  Erlang Run Time System with a default boot file. That boot file will
+  give basic instructions such as 'load the standard library', 'load
+  the kernel application', 'run a given function' and so on. That boot
+  file is a binary file created from something called a boot script,
+  which contains tuples that will represent these instructions.
+*** boot script
+- The boot script is something easy to generate from the =.rel= file.
+  1. open =erl= where there's your =.rel= file, =erl -env ERL_LIBS .=
+  2. generate the boot script and boot file via =systools:make_script("erlcount-1.0", [local]).=
+- the =local= option means that we want the release to be possible to run from anywhere,
+- created an archive file: =systools:make_tar("erlcount-1.0", [{erts, "/usr/lib/erlang/"}]).=
+  + systools will look for your release files and the Erlang Run Time
+    System (because of the erts option). If you omit the erts option,
+    the release won't be self-executable and will depend on the
+    presence of Erlang already being installed on a system
+  + to run it after extracting the archive
+    =$ ./erts-10.2/bin/erl -b releases/1.0.0/start=
+
+** Releases With =reltool=
+- [[http://erlang.org/doc/man/reltool.html][Fucking doc]]
+- [[Https://learnyousomeerlang.com/release-is-the-word][LYSE chapter]]
+- Reltool works from a config file that looks like this:
+  #+BEGIN_SRC erlang
+    {sys, [
+           {lib_dirs, ["/home/farhad/play/release/"]},
+           {rel, "erlcount", "1.0.0",
+            [kernel,
+             stdlib,
+             {ppool, permanent},
+             {erlcount, transient}
+            ]},
+           {boot_rel, "erlcount"},
+           {relocatable, true},
+           {profile, standalone},
+           {app, ppool, [{vsn, "1.0.0"},
+                         {app_file, all},
+                         {debug_info, keep}]},
+           {app, erlcount, [{vsn, "1.0.0"},
+                            {incl_cond, include},
+                            {app_file, strip},
+                            {debug_info, strip}]}
+          ]}.
+  #+END_SRC
+- =Reltool= will take different levels of information. The first
+ level will contain release-wide information. The second level will
+ be application-specific, and the third is control at a
+ module-specific level
+  + Release level: environment, applications of the releases,
+    properties of the releases
+  + Applications level: what to include, compression, debug-info, app files, etc.
+  + Modules level: what to include, debug-info
+- Some of the useful options
+  + =lib_dirs=: The option is =lib_dirs= and it takes a list of
+    directories where applications are sitting. So really, instead of
+    adding =-env ERL_LIBS <list of directories>=, you put in ={lib_dirs, [ListOfDirectories]}=
+    #+BEGIN_SRC erlang
+    {lib_dirs, ["/home/farhad/play/release/"]},
+    #+END_SRC
+  + =rel=: very similar to the =.rel= file for =systools=, that's what
+    we need to specify what apps need to be started correctly.
+    #+BEGIN_SRC erlang
+      {rel, "erlcount", "1.0.0",
+       [kernel,
+        stdlib,
+        {ppool, permanent},
+        {erlcount, transient}
+       ]},
+    #+END_SRC
+  + =boot_rel=:
+    #+BEGIN_SRC erlang
+    {boot_rel, "erlcount"}
+    #+END_SRC
+    This will tell Reltool that whenever someone runs the =erl= binary
+    included in the release, we want the apps from the =erlcount=
+    release to be started
+- With just these 3 options (=lib_dirs=, =rel= and =boot_rel=), we can get a valid release.
+
+  =/home/farhad/play/release/erlcount-1.0.config=:
+  #+BEGIN_SRC erlang
+  {sys, [
+       {lib_dirs, ["/home/farhad/play/release/"]},
+       {rel, "erlcount", "1.0.0",
+        [kernel,1
+         stdlib,
+         {ppool, permanent},
+         {erlcount, transient}
+        ]},
+       {boot_rel, "erlcount"}
+      ]}.
+  #+END_SRC
+  NOTE: create =rel= directory which is passed to =reltool:eval_target_spec= first =mkdir rel=
+  #+BEGIN_SRC shell
+    1> {ok, Conf} = file:consult("erlcount-1.0.config").
+    {ok,[{sys,[{lib_dirs,["/home/farhad/play/release/"]},
+    {rel,"erlcount","1.0.0",
+    [kernel,stdlib,{ppool,permanent},{erlcount,transient}]},
+    {boot_rel,"erlcount"}]}]}
+
+    2> {ok, Spec} = reltool:get_target_spec(Conf).
+    {ok,[{create_dir,"releases",
+    ...
+
+    3> reltool:eval_target_spec(Spec, code:root_dir(), "rel").
+    ok
+  #+END_SRC
+  to run it
+  #+BEGIN_SRC
+  $ cd rel
+  $ ./bin/erl -noshell
+    Regex if\s.+-> has 0 results
+    Regex case\s.+\sof has 0 results
+  #+END_SRC
+- to handle version with =reltool=
+  + If you have older versions of Erlang installed, you can add an
+    ={erts, [{vsn, Version}]}= like ={erts, [{vsn, "5.8.3"}]}= entry
+    to the config file:
+*** reltool config file options
+More thorough explanation of options in reltool config file
+**** Release-only options
+- ={lib_dirs, [ListOfDirs]}=
+  + What directories to look inside for libraries.
+- ={app, AppName, [AppOptions]}=
+  + Will let you specify application-wide options, usually more
+    specific than the release-wide options.
+- ={boot_rel, ReleaseName}=
+  + Default release to boot with the erl executable. This means we
+    won't need to specify the boot file when calling erl.
+- ={rel, Name, Vsn, [Apps]}=
+  + The applications to be included in the release.
+- ={profile, development | embedded | standalone}=
+  + This option will act as a way to specify default =*_filters=
+    based on your type of release. By default,
+    development is used. That one will include more files from each
+    app and ERTS blindly. The standalone profile will be more
+    restrictive, and the embedded profile even more so, dropping more
+    default ERTS applications and binaries.
+**** Release and Application-wide Options
+Note that for all of these, setting the option on the level of an
+application will simply override the value you gave at a system level.
+- ={incl_sys_filters, [RegularExpressions]}= and ={excl_sys_filters, [RegularExpressions]}=
+  + Checks whether a file matches the include filters without matching
+    the exclude filters before including it. You might drop or include
+    specific files that way.
+
+- ={incl_app_filters, [RegularExpressions]}= and ={excl_app_filters, [RegularExpressions]}=
+  + Similar to =incl_sys_filters= and =excl_sys_filters=, but for application-specific files
+
+- ={incl_archive_filters, [RegularExpressions]}= and
+  ={excl_archive_filters, [RegularExpressions]}=
+  + Specified what top-level directories have to be included or
+    excluded into .ez archive files.
+
+- ={incl_cond, include | exclude | derived}=
+  + Decides how to include applications not necessarily specified in
+    the =rel= tuple. Picking include means that Reltool will include
+    pretty much everything it can find. Picking derived means that
+    Reltool will only include applications that it detects can be used
+    by any of the applications in your rel tuple. This is the default
+    value. Picking exclude will mean that you will include no apps at
+    all by default. You usually set this on a release-level when you
+    want minimal includes, and then override it on an
+    application-by-application basis for the stuff you feel like
+    adding.
+- ={mod_cond, all | app | ebin | derived | none}=
+  + This controls the module inclusion policy. Picking none means no
+    modules will be kept. That's not very useful. The derived option
+    means that Reltool will try to figure out what modules are used by
+    other modules which are already included and add them in that
+    case. Setting the option to app will mean that Reltool keeps all
+    the modules mentioned in the app file and those that were
+    derived. Setting it to ebin will keep those in the ebin/ directory
+    and the derived ones. Using the option all will be a mix of using
+    ebin and app. That's the default value.
+- ={app_file, keep | strip | all}=
+  + This option manages how the app files are going to be managed for
+    you when you include an application. Picking keep will guarantee
+    that the app file used in the release is the same one you wrote
+    for your application. That's the default option. If you choose
+    strip, Reltool will try to generate a new app file that removes
+    the modules you don't want in there (those that were excluded by
+    filters and other options). Choosing all will keep the original
+    file, but will also add specifically included modules in
+    there. The nice thing with all is that it can generate app files
+    for you if none are available.
+**** Module-specific Options
+- ={incl_cond, include | exclude | derived}=
+  + This lets you override the mod_cond option defined at the release
+    level and application level.
+**** All-levels Options
+These options work on all levels. The lower the level, the more
+precedence it takes.
+- ={debug_info, keep | strip}=
+ + Assuming your files were compiled with debug_info on (which I
+   suggest you do), this option lets you decide whether to keep it or
+   drop it. The =debug_info= is useful when you want to decompile files,
+   debug them, etc. but will take some space
+**** Recipes
+***** Development versions
+- basic would suffice for development
+  #+BEGIN_SRC erlang
+    {sys, [
+           {lib_dirs, ["/home/farhad/play/release/"]},
+           {rel, "erlcount", "1.0.0", [kernel, stdlib, ppool, erlcount]},
+           {boot_rel, "erlcount"}
+          ]}.
+  #+END_SRC
+- you might want to have everything from a regular VM
+  #+BEGIN_SRC erlang
+  {sys, [
+           {lib_dirs, ["/home/farhad/play/release/"]},
+           {rel, "start_clean", "1.0.0", [kernel, stdlib]},
+           {incl_cond, include},
+           {debug_info, keep}
+          ]}.
+  #+END_SRC
+  By setting =incl_cond= to =include=, all applications found in the
+  current ERTS install and the lib_dirs will be part of your release.
+- we want to exclude a specific application, =foo=
+  #+BEGIN_SRC erlang
+    {sys, [
+           {lib_dirs, ["/home/farhad/play/release/"]},
+           {rel, "start_clean", "1.0.0", [kernel, stdlib]},
+           {incl_cond, include},
+           {debug_info, keep},
+           {app, foo, [{incl_cond, exclude}]}
+          ]}.
+  #+END_SRC
+  Here we can specify one or more applications (each having its own
+  =app= tuple), and each of them overrides the =incl_cond= setting put at
+  the release level. So in this case, we will include everything
+  except =foo=.
+
+***** Only importing or exporting part of a library
+- to exclude, let's say test files, because we don't need them in our
+  release
+  #+BEGIN_SRC erlang
+    {sys, [
+           {lib_dirs, ["/home/farhad/play/release/"]},
+           {rel, "start_clean", "1.0.0", [kernel, stdlib, ppool, erlcount]},
+           {excl_app_filters, ["_tests.beam$"]}
+          ]}.
+  #+END_SRC
+- when you want to only import specific files of an application, let's
+  say our =erlcount_lib=
+  #+BEGIN_SRC erlang
+    {sys, [
+           {lib_dirs, ["/home/farhad/play/release/"]},
+           {rel, "start_clean", "1.0.0", [kernel, stdlib]},
+           {incl_cond, derived}, % exclude would also work, but not include
+           {app, erlcount, [{incl_app_filters, ["^ebin/erlcount_lib.beam$"]},
+                            {incl_cond, include}]}
+          ]}.
+  #+END_SRC
+  In this case, we switched from ={incl_cond, include}= to more
+  restrictive =incl_cond=s. This is because if you go large and rake
+  everything is, then the only way to include a single lib is to
+  exclude all the others with an =excl_app_filters=. However, when our
+  selection is more restrictive (in this case we're =derived= and
+  wouldn't include =erlcount= because it's not part of the =rel= tuple),
+  we can specifically tell the release to include the =erlcount= app
+  with only files that match the regular expression having to do with
+  =erlcount_lib=.
+* Live code upgrade
+- if you're changing the interface your modules give to the
+  world: changing internal data structures, changing function names,
+  modifying records (remember, they're tuples!), etc. They all have
+  the potential to crash things.
+- you can suspend OTP processes by calling =sys:suspend(PidOrName)= (you
+  can find all of the processes using the supervision trees and
+  looking at the children each supervisor has). Then you use
+  =sys:change_code(PidOrName, Mod, OldVsn, Extra)= to force the process
+  to update itself, and finally, you call =sys:resume(PidOrName)= to
+  make things go again.
+- =appups=: files containing instructions on how to update individual applications
+- =relups= file containing instructions to update an entire release
+- SASL (System Architecture Support Libraries) is mandatory to be able
+  to do =appups= on a system. If you forget to include SASL in your
+  release, it will be impossible to upgrade the system
+- Without =debug_info=, doing an =appup= will fail
+** Appup Files
+- =appup= file must be named =NameOfYourApp.appup= and be put in the
+  app's =ebin/= directory.
+- Appup files are lists of Erlang commands that need to be done to
+  upgrade a given application. They contain lists of tuples and atoms
+  telling what to do and in what case. The general format for them is:
+  #+BEGIN_SRC erlang
+  {NewVersion,
+     [{VersionUpgradingFrom, [Instructions]}]
+     [{VersionDownGradingTo, [Instructions]}]}.
+  #+END_SRC
+- The instructions contain both high-level and low-level commands. We
+  usually only need to care about high-level ones, though.
+  + ={add_module, Mod}=
+    The module =Mod= is loaded for the first time.
+  + ={load_module, Mod}=
+    The module =Mod= is already loaded in the VM and has been modified.
+  + ={delete_module, Mod}=
+    The module =Mod= is removed from the VM.
+  + ={update, Mod, {advanced, Extra}}= This will suspend all processes
+    running =Mod=, call the code_change function of your module with
+    Extra as the last argument, then resume all processes running
+    =Mod=. Extra can be used to pass in arbitrary data to the
+    code_change function, in case it's required for upgrades.
+  + ={update, Mod, supervisor}= Calling this lets you re-define the
+    init function of a supervisor to influence its restart strategy
+    (one_for_one, rest_for_one, etc.) or change child specifications
+    (this will not affect existing processes).
+  + ={apply, {M, F, A}}=
+      Will call =apply(M,F,A)=.
+  + *Module dependencies*: You can use ={load_module, Mod, [ModDependencies]}= or
+    ={update, Mod, {advanced, Extra}, [ModDeps]}=
+    to make sure that a command happens only after some other modules
+    were handled beforehand. This is especially useful if =Mod= and its
+    dependencies are not part of the same application. There is sadly
+    no way to give similar dependencies to delete_module instructions.
+  + *Adding or removing an application*: When generating relups, we won't
+    need any special instructions to remove or add applications. The
+    function that generates =relup= files (files to upgrade releases)
+    will take care of detecting this for us.
+
+** so here's a list of all the actions that must be taken to have functional relups:
+
+1. Write OTP applications for your first software iteration
+2. Compile them
+3. Build a release (1.0.0) using Reltool. It must have debug info and no =.ez= archive.
+4. Make sure you create the RELEASES file at some point before
+   starting your production application. You can do it with
+   =release_handler:create_RELEASES(RootDir, ReleasesDir, Relfile,
+   [{AppName, Vsn, LibDir}]).=
+5. Run the release!
+6. Find bugs in it
+7. Fix bugs in new versions of applications
+8. Write =appup= files for each of the applications
+9. Compile the new applications
+10. Build a new release (1.1.0 in our case). It must have debug info and no =.ez= archive
+11. Copy =rel/releases/NewVsn/RelName.rel= as =rel/releases/NewVsn/RelName-NewVsn.rel=
+12. Copy =rel/releases/NewVsn/RelName.boot= as =rel/releases/NewVsn/RelName-NewVsn.boot=
+13. Copy =rel/releases/NewVsn/RelName.boot= as =rel/releases/NewVsn/start.boot=
+14. Copy =rel/releases/OldVsn/RelName.rel= as =rel/releases/OldVsn/RelName-OldVsn.rel=
+15. Copy =rel/releases/OldVsn/RelName.boot= as =rel/releases/OldVsn/RelName-OldVsn.boot=
+16. Copy =rel/releases/OldVsn/RelName.boot= as =rel/releases/OldVsn/start.boot=
+17. Generate a relup file with
+    #+BEGIN_SRC erlang
+    =systools:make_relup("rel/releases/Vsn/RelName-Vsn",
+                         ["rel/releases/OldVsn/RelName-OldVsn"],
+                         ["rel/releases/DownVsn/RelName-DownVsn"]).=
+    #+END_SRC
+18. Move the relup file to =rel/releases/Vsn=
+19. Generate a tar file of the new release with =systools:make_tar("rel/releases/Vsn/RelName-Vsn").=
+20. Move the tar file to =rel/releases/=
+21. Have some shell opened that still runs the first version of the release
+22. Call =release_handler:unpack_release("NameOfRel-Vsn").=
+23. Call =release_handler:install_release(Vsn).=
+24. Call =release_handler:make_permanent(Vsn).=
+25. Make sure things went fine. If not, rollback by installing an older version.
