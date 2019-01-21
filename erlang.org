@@ -125,7 +125,7 @@ NewList = [Expression || GeneratorExp1, GeneratorExp2, ..., GeneratorExpN, Condi
 #+END_SRC
 ** bit syntax
 #+BEGIN_SRC  erlang
-erl> Pixels = <<213,45,132,64,76,32,76,0,0,234,32,15>>. % declare 4 pixels of RGB colors in binary
+erl> Pixels = <<213,45,132, 64,76,32, 76,0,0, 234,32,15>>. % declare 4 pixels of RGB colors in binary
 <<213,45,132,64,76,32,76,0,0,234,32,15>>
 
 erl> <<Pix1,Pix2,Pix3,Pix4>> = Pixels. %  we have more than 4 segments
@@ -2488,8 +2488,7 @@ precedence it takes.
     function that generates =relup= files (files to upgrade releases)
     will take care of detecting this for us.
 
-** so here's a list of all the actions that must be taken to have functional relups:
-
+** a recipe for a functional relups:
 1. Write OTP applications for your first software iteration
 2. Compile them
 3. Build a release (1.0.0) using Reltool. It must have debug info and no =.ez= archive.
@@ -2523,3 +2522,207 @@ precedence it takes.
 23. Call =release_handler:install_release(Vsn).=
 24. Call =release_handler:make_permanent(Vsn).=
 25. Make sure things went fine. If not, rollback by installing an older version.
+
+* IO Lists
+- for text, we can use either strings (lists of integers) or
+  binaries (a binary data structure holding data).
+- IO lists are a type of data structure. They are lists of
+  either bytes (integers from 0 to 255), binaries, or other IO
+  lists. This means that functions that accept IO lists can accept
+  items such as =[$H, $e, [$l, <<"lo">>, " "], [[["W","o"], <<"rl">>]] | [<<"d">>]]=.
+  When this happens, the Erlang VM will just flatten the list as it needs to do it
+  to obtain the sequence of characters =Hello World=
+- What are the functions that accept such IO Lists? Most of the
+  functions that have to do with outputting data do. Any function from
+  the =io= module, =file= module, TCP and UDP sockets will be able to
+  handle them. Some library functions, such as some coming from the
+  =unicode= module and all of the functions from the =re= (for regular
+  expressions) module will also handle them, to name a few.
+  #+BEGIN_SRC
+    erl> IoList = [$H, $e, [$l, <<"lo">>, " "], [[["W","o"], <<"rl">>]] | [<<"d">>]].
+
+    erl> io:format("~s~n", [IoList]).
+    Hello World
+  #+END_SRC
+* UDP
+- opening a socket can be done by =gen_udp:open/1-2=
+  #+BEGIN_SRC erlang
+      {ok, Socket} = gen_udp:open(PortNumber).
+  #+END_SRC
+  + The second argument can be a list of options, specifying in what
+    type we want to receive data (=list= or =binary=), how we want them
+    received; as messages (={active, true}=) or as results of a function
+    call (={active, false}=). There are more options such as whether the
+    socket should be set with IPv4 (=inet4=) or IPv6 (=inet6=), whether
+    the UDP socket can be used to broadcast information (={broadcast,
+    true | false}=), the size of buffers, etc.
+
+- send and receive messages
+  #+BEGIN_SRC erlang
+
+  1> {ok, Socket} = gen_udp:open(8790).
+    {ok,#Port<0.587>}
+
+  % gen_udp:send(OwnSocket, RemoteAddress, RemotePort, Message)
+  2> gen_udp:send(Socket, {127,0,0,1}, 8789, "hey there!").
+    ok
+  #+END_SRC
+  The =RemoteAddress= can be either a string or an
+  atom containing a domain name ("example.org"), a 4-tuple describing
+  an IPv4 address or a 8-tuple describing an IPv6 address. Then we
+  specify the receiver's port number, and then the message, which can be a
+  string, a binary, or an IO list.
+  on the other side we get ={udp,#Port<0.6>,{127,0,0,1},8790,<<"hey there!">>}= that
+  is ={udp, Socket, FromIp, FromPort, Message}=
+  + receiving in passive mode (={active, false}=)
+    #+BEGIN_SRC erlang
+      erl> {ok, Socket} = gen_udp:open(8789, [binary, {active,false}]).
+       {ok,#Port<0.683>}
+
+      erl> gen_udp:recv(Socket, 0). % makes the shell stuck until it receives a msg
+    #+END_SRC
+    The function here is =recv/2=. This is the function used to poll a
+    passive socket for messages. The =0= here is the length of the
+    message we want. The funny thing is that the length is completely
+    ignored with =gen_udp=. =gen_tcp= has a similar function, and in
+    that case, it does have an impact. Anyway, if we never send a
+    message, =recv/2= is never going to return. There's also a
+    =recv/3= that you can specify how long do you want to wait.
+
+- close the socket
+  #+BEGIN_SRC erlang
+  gen_udp:close(Socket).
+  #+END_SRC
+* TCP
+- There's two kind of TCP socket, TCP client sockets and TCP accept sockets
+- start a /listen socket/ with =gen_tcp:listen(Port, Options)=:
+  #+BEGIN_SRC erlang
+  erl> {ok, ListenSocket} = gen_tcp:listen(8091, [{active,true}, binary]).
+
+  {ok,#Port<0.661>}
+  #+END_SRC
+  + The listen socket is just in charge of waiting for connection requests.
+  + TCP and UDP mostly have similar options. But the TCP ones do have
+    a few more specific options, including a connection backlog
+    (={backlog, N}=), keepalive sockets (={keepalive, true | false}=),
+    packet packaging (={packet, N}=, where =N= is the length of each
+    packet's header to be stripped and parsed for you), etc.
+- Once the listen socket is open, any process (and more than one) can
+  take the listen socket and fall into an 'accepting' state, locked up
+  until some client asks to talk with it:
+  #+BEGIN_SRC erlang
+    %% in shell 1
+    5> {ok, ListenSocket} = gen_tcp:listen(8091, [{active, true}, binary]).
+    {ok,#Port<0.728>}
+
+    6> {ok, AcceptSocket} = gen_tcp:accept(ListenSocket). % locked up until some client asks to talk with it
+  #+END_SRC
+  to connect to it from another shell
+  #+BEGIN_SRC erlang
+  %% in shell 2
+    erl> {ok, Socket} = gen_tcp:connect({127,0,0,1}, 8091, [binary, {active,true}]).
+    {ok,#Port<0.8>}
+  #+END_SRC
+  then we can send a msg
+  #+BEGIN_SRC erlang
+  %% in shell 2
+  erl> gen_tcp:send(Socket, "Hey there first shell!").
+  ok
+  #+END_SRC
+  we've received the message in shell one
+  #+BEGIN_SRC erlang
+    %% in shell 1
+    erl> flush().
+     Shell got {tcp,#Port<0.729>,<<"Hey there first shell!">>}
+     ok
+  #+END_SRC
+- Both sockets can send messages in the same way, and can then be
+  closed with =gen_tcp:close(Socket)=. Note that closing an accept
+  socket will close that socket alone, and closing a listen socket
+  will close none of the related and established accept sockets, but
+  will interrupt currently running accept calls by returning ={error, closed}=.
+
+** socket ownership
+- UDP sockets, TCP client sockets and TCP accept sockets can all have
+  messages sent through them from any process in existence, but
+  messages received can only be read by the process that started the
+  socket.
+- Both =gen_tcp= and =gen_udp= contain a function called
+  =controlling_process(Socket, Pid)=. This function has to be called by
+  the current socket owner. Then the process tells Erlang 'you know
+  what? Just let this =Pid= guy take over my socket. I give up'. From
+  now on, the =Pid= in the function is the one that can read and receive
+  messages from the socket.
+* inet
+- =inet= takes care of handling all operations that can be common to
+  both =gen_tcp= and =gen_udp= sockets. For changing between active
+  and passive modes, there's a function named =inet:setopts(Socket, Options)=.
+  The option list can contain any terms used at the setup
+  of a socket.
+
+- example
+  #+BEGIN_SRC erlang
+    1> {ok, Listen} = gen_tcp:listen(8088, [{active, false}]).
+    {ok,#Port<0.6>}
+
+    2> {ok, Accept} = gen_tcp:accept(Listen).
+    {ok,#Port<0.7>}
+
+    %%
+    %% from another shell we sent a msg
+    %% {ok, Socket} = gen_tcp:connect({127,0,0,1}, 8088, []), gen_tcp:send(Socket, "hey there").
+    %%
+    4> flush().
+    ok                                              %% oops, we weren't in active mode, let's fix it
+
+    6> inet:setopts(Accept, [{active, true}]).
+    ok
+
+    7> flush().
+    Shell got {tcp,#Port<0.7>,"hey there"}
+    ok
+  #+END_SRC
+- active once:
+  #+BEGIN_SRC erlang
+    %% shell 1
+    inet:setopts(Accept, [{active, once}]).
+  #+END_SRC
+  from another shell we send two messages
+  #+BEGIN_SRC erlang
+    %% shell 2
+    erl> gen_tcp:send(Socket, "one").
+      ok
+    erl> gen_tcp:send(Socket, "two").
+      ok
+  #+END_SRC
+  and we receive one of the message each time
+  #+BEGIN_SRC erlang
+    %% shell 1
+    erl> flush().
+    Shell got {tcp,#Port<0.598>,"one"}
+    ok
+
+    erl> flush().
+    ok
+
+    erl> inet:setopts(Accept, [{active, once}]).
+    ok
+
+    erl> flush().
+    Shell got {tcp,#Port<0.598>,"two"}
+    ok
+  #+END_SRC
+  Until we ask for ={active, once}= a second time, the message ="two"=
+  hasn't been converted to a message, which means the socket was back
+  to passive mode. So the active once mode allows us to do that
+  back-and-forth switch between active and passive in a safe way. Nice
+  semantics, plus the safety.
+
+- Starting with version 17.0, it is now possible to tell a port to be
+  active for N packets. The ={active, N}= option for TCP and UDP ports
+  has been added, where N can be any value from 0 to 32767. Once the
+  remaining message counter either reaches 0 or is explicitly set to 0
+  through =inet:setopts/2=, the socket transitions to passive (={active, false}=) mode.
+  At that point, a message is sent to the socket's
+  controlling process to inform it of the transition. The message will
+  be ={tcp_passive, Socket}=, and ={udp_passive, Socket}= for UDP.
