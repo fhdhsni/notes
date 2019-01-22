@@ -1,3 +1,4 @@
+#+PROPERTY: header-args :exports code
 My Erlang notes, From [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book,
 official doc and my own clarifications.
 
@@ -2726,3 +2727,235 @@ precedence it takes.
   At that point, a message is sent to the socket's
   controlling process to inform it of the transition. The message will
   be ={tcp_passive, Socket}=, and ={udp_passive, Socket}= for UDP.
+* EUnit
+- ~?assert(Expression)~, ~?assertNot(Expression)~
+  + Will test for boolean values. If any value other than true makes
+    it into ~?assert~, an error will be shown. Same for ~?assertNot~, but
+    for negative values. This macro is somewhat equivalent to ~true = X~
+    or ~false = Y~.
+- ~?assertEqual(A, B)~
+  + Does a strict comparison (equivalent to ~=:=~) between two
+    expressions, ~A~ and ~B~. If they are different, a failure will
+    occur. This is roughly equivalent to ~true = X =:= Y~.
+    ~?assertNotEqual~ is available to do the opposite of
+    ~?assertEqual~.
+- ~?assertMatch(Pattern, Expression)~
+  + This allows us to match in a form similar to ~Pattern = Expression~,
+    without variables ever binding. This means that I could do
+    something like ~?assertMatch({X,X}, some_function())~ and assert
+    that I receive a tuple with two elements being
+    identical. Moreover, I could later do ~?assertMatch(X,Y)~ and ~X~
+    would not be bound.  This is to say that rather than properly
+    being like ~Pattern = Expression~, what we have is closer to:
+    #+BEGIN_SRC erlang
+        (fun (Pattern) -> true; (_) -> erlang:error(nomatch) end)(Expression)
+    #+END_SRC
+    variables in the pattern's head never get bound across multiple
+    assertions. The macro ~?assertNotMatch~ is also available.
+- ~?assertError(Pattern, Expression)~
+  + Tells EUnit that Expression should result in an error. As an
+    example, ~?assertError(badarith, 1/0)~ would be a successful test
+
+- ~?assertThrow(Pattern, Expression)~
+  + Exactly the same as ~?assertError~, but with ~throw(Pattern)~
+    instead of ~erlang:error(Pattern)~.
+- ~?assertExit(Pattern, Expression)~
+  + Exactly the same as ~?assertError~, but with ~exit(Pattern)~ (and
+    not ~exit/2~) instead of ~erlang:error(Pattern)~.
+
+-  ~?assertException(Class, Pattern, Expression)~
+  + A general form of the three previous macros. As an example,
+    ~?assertException(error, Pattern, Expression)~ is the same as
+    ~?assertError(Pattern, Expression)~. ~?assertNotException/3~ is
+    also available.
+** Test Generators
+- Test generators are pretty much shorthand for assertions wrapped in
+  functions that can be run later, in clever manners.
+- Instead of having functions ending with ~_test()~ with macros that are
+  of the form ~?assertSomething~, we will use functions that end in
+  ~_test_()~ and macros of the form ~?_assertSomething~
+  #+BEGIN_SRC erlang
+    function_test() -> ?assert(A == B).             %% regular
+    function_test_() -> ?_assert(A == B).           %% generator
+  #+END_SRC
+  example
+  #+BEGIN_SRC erlang
+    %% only add_test_() ends in _test_()
+
+    add_test_() ->
+        [test_them_types(),
+         test_them_values(),
+         ?_assertError(badarith, 1/0)].
+
+    test_them_types() ->
+        ?_assert(is_number(ops:add(1,2))).
+
+    test_them_values() ->
+        [?_assertEqual(4, ops:add(2,2)),
+         ?_assertEqual(3, ops:add(1,2)),
+         ?_assertEqual(3, ops:add(1,1))].
+  #+END_SRC
+
+** test representation
+   example
+   #+BEGIN_SRC
+   eunit:test({generator, fun ops_tests:add_test_/0}).
+   #+END_SRC
+   + ~{module, Mod}~: runs all tests in ~Mod~
+   + ~{dir, Path}~: runs all the tests for the modules found in ~Path~
+   + ~{file, Path}~: runs all the tests found in a single compiled module
+   + ~{generator, Fun}~: runs a single generator function as a test
+   + ~{application, AppName}~: runs all the tests for all the modules
+     mentioned in ~AppName's~ ~.app~ file.
+** Fixtures
+- allows you to build a general structure that allows us to define
+  setup and teardown functions for each of the test. These functions
+  will allow you to build the state and environment required for each
+  of the tests to be useful. Moreover, the scaffolding will let you
+  specify how to run the tests (do you want to run them locally, in
+  separate processes, etc.?)
+*** setup fixture
+- A setup fixture takes one of the many following forms:
+  #+BEGIN_SRC erlang
+  {setup, Setup, Instantiator}
+  {setup, Setup, Cleanup, Instantiator}
+  {setup, Where, Setup, Instantiator}
+  {setup, Where, Setup, Cleanup, Instantiator}
+  #+END_SRC
+  example:
+  #+BEGIN_SRC erlang
+    double_register_test_() ->
+        {setup,
+         fun start/0,               % setup function
+         fun stop/1,                % teardown function
+         fun two_names_one_pid/1}.  % instantiator
+
+    start() ->
+        {ok, Pid} = registry:start_link(),
+        Pid.
+
+    stop(Pid) ->
+        registry:stop(Pid).
+
+    two_names_one_pid(Pid) ->
+        ok = registry:register(Pid, quite_a_unique_name, self()),
+        Res = registry:register(Pid, my_other_name_is_more_creative, self()),
+        [?_assertEqual({error, already_named}, Res)].
+  #+END_SRC
+  the whole fixture can be put inside a test:
+  #+BEGIN_SRC erlang
+    some_test_() ->
+        [{setup, fun start/0, fun stop/1, fun some_instantiator1/1},
+         {setup, fun start/0, fun stop/1, fun some_instantiator2/1},
+         ...
+         {setup, fun start/0, fun stop/1, fun some_instantiatorN/1}].
+  #+END_SRC
+
+- Setup
+  + A function that takes no argument. Each of the tests will be
+    passed the value returned by the setup function.
+- Cleanup
+  + A function that takes the result of a setup function as an
+    argument, and takes care of cleaning up whatever is needed. If in
+    OTP ~terminate~ does the opposite of ~init~, then cleanup functions
+    are the opposite of setup functions for EUnit.
+- Instantiator
+  + It's a function that takes the result of a setup function and
+    returns a test set (remember, test sets are possibly deeply nested
+    lists of ~?_Macro~ assertions).
+- Where
+  + Specifies how to run the tests: ~local~, ~spawn~, ~{spawn, node()}~.
+
+*** foreach fixture
+#+BEGIN_SRC erlang
+    {foreach, Where, Setup, Cleanup, [Instantiator]}
+    {foreach, Setup, Cleanup, [Instantiator]}
+    {foreach, Where, Setup, [Instantiator]}
+    {foreach, Setup, [Instantiator]}
+#+END_SRC
+- it's like the setup fixture with the difference that it takes lists
+  of instantiators.
+  #+BEGIN_SRC erlang
+    some2_test_() ->
+        {foreach,
+         fun start/0,
+         fun stop/1,
+         [fun some_instantiator1/1,
+          fun some_instantiator2/1,
+          ...
+          fun some_instantiatorN/1]}.
+  #+END_SRC
+
+- what if you want to run ~start/0~ and ~stop/1~ once for all the tests?
+  #+BEGIN_SRC erlang
+    some_tricky_test_() ->
+        {setup,
+         fun start/0,
+         fun stop/1,
+         fun (SetupData) ->
+                 [some_instantiator1(SetupData),
+                  some_instantiator2(SetupData),
+                  ...
+                  some_instantiatorN(SetupData)]
+         end}.
+  #+END_SRC
+** How tests should run?
+- ~{spawn, TestSet}~
+  + Runs tests in a separate process than the main test process. The
+    test process will wait for all of the spawned tests to finish
+- ~{timeout, Seconds, TestSet}~
+  + The tests will run for Seconds number of Seconds. If they take
+    longer than Seconds to finish, they will be terminated without
+    further ado.
+- ~{inorder, TestSet}~
+  + This tells EUnit to run the tests within the test set strictly in
+    the order they are returned.
+- ~{inparallel, Tests}~
+  + Where possible, the tests will be run in parallel.
+- example
+  #+BEGIN_SRC erlang
+    some_tricky2_test_() ->
+        {setup,
+         fun start/0,
+         fun stop/1,
+         fun(SetupData) ->
+                 {inparallel,
+                  [some_instantiator1(SetupData),
+                   some_instantiator2(SetupData),
+                   ...
+                   some_instantiatorN(SetupData)]}
+         end}.
+  #+END_SRC
+** add description to tests
+   #+BEGIN_SRC erlang
+     double_register_test_() ->
+         {"Verifies that the registry doesn't allow a single process to "
+          "be registered under two names. We assume that each pid has the "
+          "exclusive right to only one name",
+          {setup,
+           fun start/0,
+           fun stop/1,
+           fun two_names_one_pid/1}}.
+   #+END_SRC
+** to get the guts of a process
+#+BEGIN_SRC
+erl> regis_server:start_link().
+{ok,<0.160.0>}
+
+erl> regis_server:register(shell, self()).
+ok
+
+erl> sys:get_status(whereis(regis_server)).
+{status,<0.160.0>,
+        {module,gen_server},
+        [[{'$ancestors',[<0.31.0>]},
+          {'$initial_call',{regis_server,init,1}}],
+         running,<0.31.0>,[],
+         [{header,"Status for generic server regis_server"},
+          {data,[{"Status",running},
+                 {"Parent",<0.31.0>},
+                 {"Logged events",[]}]},
+          {data,[{"State",
+                  {state,{1,{<0.31.0>,{shell,#Ref<0.0.0.333>},nil,nil}},
+                         {1,{shell,{<0.31.0>,#Ref<0.0.0.333>},nil,nil}}}}]}]]}
+#+END_SRC
