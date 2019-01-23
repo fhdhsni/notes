@@ -2959,3 +2959,323 @@ erl> sys:get_status(whereis(regis_server)).
                   {state,{1,{<0.31.0>,{shell,#Ref<0.0.0.333>},nil,nil}},
                          {1,{shell,{<0.31.0>,#Ref<0.0.0.333>},nil,nil}}}}]}]]}
 #+END_SRC
+* ETS
+- ETS tables allow limited concurrency in reads and writes (much
+  better than none at all for a process' mailbox) in a way that could
+  let us optimize away a lot of the pain.
+- The main design objectives ETS had was to provide a way to store
+  large amounts of data in Erlang with constant access time
+  (functional data structures usually tend to flirt with logarithmic
+  access time) and to have such storage look as if it were implemented
+  as processes in order to keep their use simple and idiomatic.
+- ways to store data into tables:
+  + ~set~
+    * Sets are great when you need to use a standard key/value store
+      with constant time access
+  + ~ordered_set~
+    * The first element of the table is the smallest one, and the last
+      element is the largest one.
+    * If you traverse a table iteratively (jumping to the next element
+      over and over again), the values should be increasing, which is
+      not necessarily true of set tables. Ordered set tables are great
+      when you frequently need to operate on ranges (I want entries 12
+      to 50 !). They will, however, have the downside of being slower
+      in their access time (~O(log N)~).
+    * ~ordered_set~ tables will see the values ~1~ and ~1.0~ as identical
+      for all operations. Other tables will see them as different.
+
+  + ~bag~
+    * A bag table can have multiple entries with the same key, as long
+      as the tuples themselves are different. This means that the
+      table can have ~{key, some, values}~ and ~{key, other, values}~
+      inside of it without a problem, which would be impossible with
+      sets (they have the same key). However, you couldn't have ~{key, some, values}~
+      twice in the table as they would be entirely identical.
+  + ~duplicate_bag~
+    * The tables of this type work like bag tables, with the exception
+      that they do allow entirely identical tuples to be held multiple
+      time within the same table.
+- controlling process:
+  + much like sockets, when a process calls a function that starts a
+    new ETS table, that process is the owner of the table
+  + By default, only the owner of the table can write to it, but
+    everyone can read from it. This is known as the protected level of
+    permissions. You can also choose to set the permissions to public,
+    where everyone can read and write, or private, where only the
+    owner can read or write.
+  + The ETS table is intimately linked to the process. If the process
+    dies, the table disappears (and so does all of its
+    content). However, the table can be given away, much like we did
+    with sockets and their controlling processes, or a heir can be
+    determined so that if the owner process dies, the table is
+    automatically given away to the heir process.
+- ~ets:new/2~ options:
+  + ~Type = set | ordered_set | bag | duplicate_bag~
+    * default is ~set~
+  + ~Access = private | protected | public~
+    * default is ~protected~
+  + ~named_table~
+    * if you call ~ets:new(some_name, [])~, you'll be starting a
+      ~protected~ set table, without a name. For the name to be used as
+      a way to contact a table (and to be made unique), the option
+      ~named_table~ has to be passed to the function. Otherwise, the
+      name of the table will purely be for documentation purposes and
+      will appear in functions such as ~ets:i()~, which print
+      information about all ETS tables in the system.
+  + ~{keypos, Position}~
+    * The ~Position~ parameter holds an integer from 1 to N telling
+      which of each tuple's element shall act as the primary key of
+      the database table. The default key position is set to 1.
+    * This means you have to be careful if you're using records as
+      each record's first element is always going to be the record's
+      name (remember what they look like in their tuple form). If you
+      want to use any field as the key, use ~{keypos, #RecordName.FieldName}~,
+      as it will return the position of ~FieldName~ within the
+      record's tuple representation.
+    * The tuples do not have to all be of the same size in an ETS
+      table, although it should be seen as good practice to do so. It
+      is however necessary that the tuple is at least of the same size
+      (or greater) than whatever the key position is.
+  + ~{heir, Pid, Data} | {heir, none}~
+    * ETS tables have a process that acts as their parent. If the
+      process dies, the table disappears.
+    * If the process attached to a table dies, the heir receives a
+      message saying ~{'ETS-TRANSFER', TableId, FromPid, Data}~, where
+      ~Data~ is the element passed when the option was first
+      defined. The table is automatically inherited by the heir.
+    * By default, no heir is defined. It is possible to define or
+      change a heir at a later point in time by calling
+      ~ets:setopts(Table, {heir, Pid, Data})~ or ~ets:setopts(Table, {heir, none})~.
+      If you simply want to give the table away, call ~ets:give_away/3~.
+  + ~{read_concurrency, true | false}~
+    * optimize the table for read concurrency
+    * make switching to writes a lot more expensive
+    * If you do some reading, some writing and they are interleaved,
+      using this option might even hurt performance
+  + ~{write_concurrency, true | false}~
+    * Usually, writing to a table will lock the whole thing and nobody
+      else can access it, either for reading or writing to it, until
+      the write is done.
+    * Setting this option to 'true' lets both reads and writes be done
+      concurrently, without affecting the ACID properties of ETS.
+    * Doing this, however, will reduce the performance of sequential
+      writes by a single process and also the capacity of concurrent
+      reads. You can combine this option with '~read_concurrency~' when
+      both writes and reads come in large bursts.
+  + ~compressed~
+    * will allow the data in the table to be compressed for most
+      fields, but not the primary key. This comes at the cost of
+      performance when it comes to inspecting entire elements of the
+      table
+- ~ets:delete(Table)~
+  + where Table is either a table id or the name of a named table
+- ~ets:delete(Table, Key)~
+  + if you want to delete a single entry from the table
+- ~ets:insert(Table, ObjectOrObjects)~
+  + ~ObjectOrObjects~ can be either a single tuple or a list of tuples to insert
+  + inserting the same key twice overwrites it. This will always
+    happen in sets and ordered sets, but not in bags or duplicate
+    bags. If you want to avoid this use ~ets:insert_new/2~, as it will
+    only insert elements if they are not in the table already.
+- ~ets:lookup(Table, Key)~
+- ~ets:tab2list/1~
+- ~ets:tab2file/~
+- ~ets:file2tab/1~
+- ~ets:i/0~
+- ~ets:info(Table)~
+- ~ets:match/2~
+  + returns the variables of the pattern
+- ~ets:match_object/2~
+  + returns the whole entry that matched the pattern
+- ~ets:match_delete(Table, Pattern)~
+  + delete entries based on a pattern match
+
+- traversing tables:
+  Whenever you're trying to iterate outside of a table, you'll see
+  ~$end_of_table~ atoms.
+  + ~ets:next~
+  + ~ets:prev~
+  + ~ets:fist~
+  + ~ets:last~
+- pattern matching in ETS
+  + used with ~match/2~, ~match_object/2~, ~match/3~ and ~match_object/3~
+  + ~{items, '$3', '$1', '_', '$3'}~ roughly equivalent to saying
+    ~{items, C, A, _, C}~ with regular pattern matching. Numbers in
+    variables have no explicit meaning, but their order is important.
+  + example
+    #+BEGIN_SRC erlang
+      1> ets:new(table, [named_table, bag]).
+      table
+
+      2> ets:insert(table, [{items, a, b, c, d}, {items, a, b, c, a}, {cat, brown, soft, loveable, selfish}, {friends, [jenn,jeff,etc]}, {items, 1, 2, 3, 1}]).
+      true
+
+      3> ets:match(table, {items, '$1', '$2', '_', '$1'}).
+      [[a,b],[1,2]]
+
+      4> ets:match(table, {items, '$114', '$212', '_', '$6'}).
+      [[d,a,b],[a,a,b],[1,1,2]]
+
+      5> ets:match_object(table, {items, '$1', '$2', '_', '$1'}).
+      [{items,a,b,c,a},{items,1,2,3,1}]
+
+      6> ets:delete(table).
+      true
+    #+END_SRC
+** match specifications
+-
+    #+BEGIN_SRC erlang
+    [Clause1,
+     Clause2]
+    #+END_SRC
+-
+    #+BEGIN_SRC erlang
+    [{InitialPattern1, Guards1, ReturnedValue1},
+    {InitialPattern2, Guards2, ReturnedValue2}].
+    #+END_SRC
+
+-
+    #+BEGIN_SRC erlang
+      [
+       {                                              %% first clause begin
+        {'$1','$2',<<1>>,'$3','$4'},                  %% pattern
+        [{'andalso',{'>','$4',150},{'<','$4',500}},   %% guard
+         {'orelse',{'==','$2',meat},{'==','$2',dairy}}], %% another guard
+        ['$1']                                        %% return value
+       },                                             %% first clause ends
+       {
+        {'$1','$2',<<1>>,'$3','$4'},
+        [{'<','$3',4.0},{is_float,'$3'}],
+        ['$1']
+       }
+      ]
+    #+END_SRC
+- *guards*: Each operator or guard function works with a prefix syntax,
+  meaning that we use the order ~{FunctionOrOperator, Arg1, ..., ArgN}~. So
+  ~is_list(X)~ becomes ~{is_list, '$1'}~, ~X andalso Y~ becomes ~{'andalso', X, Y}~,
+  and so on. Reserved keywords such as ~andalso~, ~orelse~ and
+  operators like ~==~ need to be put into atoms so the Erlang parser
+  won't choke on them.
+- *return value*: If you want to return the full input of the match
+  specification, use the variable ~'$_'~ to do so
+** parse transform
+- They let Erlang programmers transform the code in a module to a new
+  alternative form. Parse transforms can be pretty much anything and
+  change existing Erlang code to almost anything else, as long as it
+  doesn't change the language's syntax or its tokens.
+- The parse transform coming with ETS needs to be enabled manually for
+  each module that needs it
+  #+BEGIN_SRC erlang
+    -module(SomeModule).
+    -include_lib("stdlib/include/ms_transform.hrl").
+    ...
+    some_function() ->
+    ets:fun2ms(fun(X) when X > 4 -> X end).         %% ms being match specification
+  #+END_SRC
+- The line ~-include_lib("stdlib/include/ms_transform.hrl").~ contains
+  some special code that will override the meaning of
+  ~ets:fun2ms(SomeLiteralFun)~ whenever it's being used in a
+  module. Rather than being a higher order function, the parse
+  transform will analyse what is in the fun (the pattern, the guards
+  and the return value), remove the function call to ~ets:fun2ms/1~, and
+  replace it all with an actual match specification.
+  + example
+    #+BEGIN_SRC erlang
+      1> ets:fun2ms(fun(X) -> X end).
+        [{'$1',[],['$1']}]
+
+      2> ets:fun2ms(fun({X,Y}) -> X+Y end).
+        [{{'$1','$2'},[],[{'+','$1','$2'}]}]
+
+      3> ets:fun2ms(fun({X,Y}) when X < Y -> X+Y end).
+        [{{'$1','$2'},[{'<','$1','$2'}],[{'+','$1','$2'}]}]
+
+      4> ets:fun2ms(fun({X,Y}) when X < Y, X rem 2 == 0 -> X+Y end).
+        [{{'$1','$2'},
+          [{'<','$1','$2'},{'==',{'rem','$1',2},0}],
+          [{'+','$1','$2'}]}]
+
+      5> ets:fun2ms(fun({X,Y}) when X < Y, X rem 2 == 0; Y == 0 -> X end).
+        [{{'$1','$2'},
+          [{'<','$1','$2'},{'==',{'rem','$1',2},0}],
+          ['$1']},
+         {{'$1','$2'},[{'==','$2',0}],['$1']}]
+    #+END_SRC
+
+- not all funs are valid match specifications
+  #+BEGIN_SRC erlang
+    erl> ets:fun2ms(fun(X) -> my_own_function(X) end).
+        Error: fun containing the local function call 'my_own_function/1' (called in body) cannot be translated into match_spec
+        {error,transform_error}
+
+    erl> ets:fun2ms(fun(X,Y) -> ok end).
+        Error: ets:fun2ms requires fun with single variable or tuple parameter
+        {error,transform_error}
+
+    erl> ets:fun2ms(fun([X,Y]) -> ok end).
+        Error: ets:fun2ms requires fun with single variable or tuple parameter
+        {error,transform_error}
+
+    erl> ets:fun2ms(fun({<<X/binary>>}) -> ok end).
+        Error: fun head contains bit syntax matching of variable 'X', which cannot be translated into match_spec
+        {error,transform_error}
+  #+END_SRC
+- using match specifications on ets
+  + ~ets:select/2~
+    * to fetch results,
+  + ~ets:select_reverse/2~
+    * to get results in reverse in ~ordered_set~ tables (for other
+      types, it's the same as ~select/2~),
+  + ~ets:select_count/2~
+    * to know how many results match the specification
+  + ~ets:select_delete/2~
+    * to delete records matching a match specification.
+    * Deleting has a little special twist to it. You have to return
+      ~true~ in the pattern instead of any kind of value
+    * example
+      #+BEGIN_SRC erlang
+        erl> ets:select_delete(food, ets:fun2ms(fun(#food{price=P}) when P > 5 -> true end)).
+        3
+      #+END_SRC
+  + example:
+    #+BEGIN_SRC erlang
+      11> rd(food, {name, calories, price, group}).   %% define a record
+      food
+
+      12> ets:new(food, [ordered_set, {keypos,#food.name}, named_table]).
+      food
+
+      13> ets:insert(food, [#food{name=salmon, calories=88, price=4.00, group=meat},
+      13>  #food{name=cereals, calories=178, price=2.79, group=bread},
+      13>  #food{name=milk, calories=150, price=3.23, group=dairy},
+      13>  #food{name=cake, calories=650, price=7.21, group=delicious},
+      13>  #food{name=bacon, calories=800, price=6.32, group=meat},
+      13>  #food{name=sandwich, calories=550, price=5.78, group=whatever}]).
+      true
+
+
+      14> ets:select(food, ets:fun2ms(fun(N = #food{calories=C}) when C < 600 -> N end)).
+      [#food{name = cereals,calories = 178,price = 2.79,group = bread},
+      #food{name = milk,calories = 150,price = 3.23,group = dairy},
+      #food{name = salmon,calories = 88,price = 4.0,group = meat},
+      #food{name = sandwich,calories = 550,price = 5.78,group = whatever}]
+
+
+      15> ets:select_reverse(food, ets:fun2ms(fun(N = #food{calories=C}) when C < 600 -> N end)).
+      [#food{name = sandwich,calories = 550,price = 5.78,group = whatever},
+      #food{name = salmon,calories = 88,price = 4.0,group = meat},
+      #food{name = milk,calories = 150,price = 3.23,group = dairy},
+      #food{name = cereals,calories = 178,price = 2.79,group = bread}]
+
+
+      16> ets:select(food, ets:fun2ms(fun(N = #food{group=delicious}) -> N end)).
+      [#food{name = cake,calories = 650,price = 7.21,group = delicious}]
+    #+END_SRC
+* DETS
+- DETS is a disk-based version of ETS, with a few key differences.
+  + There are no longer ~ordered_set~ tables, there is a disk-size limit
+    of 2GB for DETS files, and operations such as ~prev/1~ and ~next/1~
+    are not nearly as safe or fast.
+- A new database table is created by calling ~dets:open_file/2~, and is
+  closed by doing ~dets:close/1~. The table can later be re-opened by
+  calling ~dets:open_file/1~.
