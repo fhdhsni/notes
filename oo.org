@@ -16,7 +16,7 @@ The most common relationships between classes are
 
 - Dependence (“uses–a”)
 
-- Aggregation (“has–a”):
+- Aggregation (“has–a”) ~-->~:
   The aggregation, or “has–a” relationship, is easy to understand
   because it is concrete; for example, an Order object contains Item
   objects. Containment means that objects of class A contain objects
@@ -26,4 +26,4 @@ The most common relationships between classes are
   is understandable. But for programmers, the “has–a” relationship
   makes a lot of sense.
 
-- Inheritance (“is–a”)
+- Inheritance (“is–a”) ~--⮞~

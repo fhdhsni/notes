@@ -37,8 +37,6 @@ Animation in Design:
 - =animationiteration=
 - =transitionend=
 
-
-
 I fucking forget this:
 ease-out => fast -> slow;
 ease-in => slow -> fast;

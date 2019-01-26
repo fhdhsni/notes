@@ -1,6 +1,6 @@
 #+PROPERTY: header-args :exports code
 My Erlang notes, From [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book,
-official doc and my own clarifications.
+official doc, some talks on youtube and my own clarifications.
 
 * Miscellaneous
 - to get the documentation on lists =erl -man lists=
@@ -2960,7 +2960,7 @@ erl> sys:get_status(whereis(regis_server)).
                          {1,{shell,{<0.31.0>,#Ref<0.0.0.333>},nil,nil}}}}]}]]}
 #+END_SRC
 * ETS
-- ETS tables allow limited concurrency in reads and writes (much
+- ETS (Erlang Term Storage) tables allow limited concurrency in reads and writes (much
   better than none at all for a process' mailbox) in a way that could
   let us optimize away a lot of the pain.
 - The main design objectives ETS had was to provide a way to store
@@ -3279,3 +3279,738 @@ erl> sys:get_status(whereis(regis_server)).
 - A new database table is created by calling ~dets:open_file/2~, and is
   closed by doing ~dets:close/1~. The table can later be re-opened by
   calling ~dets:open_file/1~.
+* distributed programming
+- in Erlang, each VM is a node
+- When you start a node, you give it a name and it will connect to an
+  application called ~EPMD~ (Erlang Port Mapper Daemon), which will run
+  on each of the computers which are part of your Erlang cluster. EPMD
+  will act as a name server that lets nodes register themselves,
+  contact other nodes, and warn you about name clashes if there are
+  any.
+- From this point on, a node can decide to set up a connection to
+  another one. When it does so, both nodes automatically start
+  monitoring each other, and they can know if the connection is
+  dropped, or if a node disappears. More importantly, when a new node
+  joins another node which is already part of a group of nodes
+  connected together, the new node gets connected to the entire group.
+** False assumptions made distributed computing
+1) The Network is Reliable
+   + You shouldn't assume the network is reliable. Erlang doesn't have
+     any special measure for that except detecting that something went
+     wrong for you.
+2) There is no Latency
+3) Bandwidth is Infinite
+   + If two nodes are connected together, all their
+     communications will tend to happen over a single TCP
+     connection. That's because we generally want to maintain message
+     ordering between two processes (even across the network), messages
+     will be sent sequentially over the connection. That means that if
+     you have one very large message, you might be blocking the channel
+     for all the other messages.
+   + also heartbeats are sent over the same channel as regular messages
+   + too many large messages keeping heartbeats at bay for too long and
+     either of the nodes will eventually assume the other is
+     unresponsive and disconnect from each other.
+4) The Network is Secure
+   + The network isn't secure, and Erlang doesn't have anything to
+     offer by default for this.
+5) Topology Doesn't Change
+   + The topology of your network will constantly change. If your
+     application works with any of these topological details
+     hard-coded, then it won't easily handle these kinds of changes in
+     the network.
+6) There is Only One Administrator
+7) Transport Cost is Zero
+   + Both in terms of time (serializing and deserializing data) and
+     money (the cost of bandwidth)
+8) The Network is Homogeneous
+   + thinking that all components of a networked application will
+     speak the same language, or will use the same formats to operate
+     together.
+   + we have things like [[http://www.erlang.org/doc/tutorial/cnode.html][C-nodes]]. C-nodes (or nodes in other
+    languages than C) are built on the idea that any language and
+    application can implement Erlang's protocol and then pretend it
+    is an Erlang node in a cluster.
+   + Another solution for data exchange is to use something called
+     BERT or [[http://bert-rpc.org/][BERT-RPC]]. This is an exchange format like XML or JSON,
+     but specified as something similar to the [[http://www.erlang.org/doc/apps/erts/erl_ext_dist.html][Erlang External Term Format]].
+** CAP Theorem
+- A shared-data system can have at most two of the three following properties:
+  + Consistency
+    * once an operation is complete it will be visible to all.
+    * the idea of consistency is that all operations look as if they
+      were completed as a single indivisible block even across many
+      nodes
+  + Availability
+    * if you ask the system for some piece of data, you're able to get
+      a response back. If you don't get an answer back, the system
+      isn't available to you
+    * in the CAP theorem the availability is only a concern to
+      nodes that are not dead. A dead node cannot send responses
+      because it can't receive queries in the first place. This isn't
+      the same as a node that can't send a reply because a thing it
+      depends on is no longer there! If the node can't take requests,
+      change data or return erroneous results, it isn't technically a
+      threat to the balance of the system in terms of correctness. The
+      rest of the cluster just has to handle more load until it comes
+      back up and can be synchronized.
+  + tolerance to network Partitions
+    * when a network is partitioned, all messages sent from nodes in
+      one component of the partition to nodes in another component are
+      lost.
+- CA
+  + partitions /can't/ or /won't/ happen!
+  + You can't have CA. Network failure happens.
+- CP
+  + it should seem like there is one node
+  + the CP approach is usually all about stopping modifications to the
+    data so it remains consistent
+- AP
+  + Every request received by a non-failing node in the system must
+    result in a response.
+
+- AP to CP is a spectrum
+  #+BEGIN_SRC
+  Availability <--AP----------------------------------------CP--> Consistency
+  #+END_SRC
+- in summary only two combinations of the CAP theorem is possible: AP or
+  CP. A system torn apart by a netsplit can either remain available or
+  consistent, but not both.
+** PACELC (read pass-elk)
+If there is a Partition
+    How does the system trade-off *A*vailability & *C*onsistency
+Else
+    How does the system trade-off *L*atency & *C*onsistency
+
+
+Horizontal line is for when there is a partition
+Vertical line when there's no partition
+#+BEGIN_SRC
+                              Consistency
+                                   |
+                                   |
+                                   |
+                                   |
+                                   |
+                                   |
+Availability <--AP-----------------|-----------------------CP--> Consistency
+                                   |
+                                   |
+                                   |
+                                   |
+                                   |
+                                   |
+                                 Latency
+#+END_SRC
+** conflict resolution
+   + Last Write Wins is a conflict resolution method where whatever
+     the last update was is the one to be kept. This one can be tricky
+     because in distributed settings, timestamps can be off or things
+     can happen at exactly the same time.
+   + A winner can be picked randomly.
+   + More sophisticated methods to help reduce conflicts include
+     time-based methods such as last write wins, but with relative
+     clocks. Relative clocks do not work with absolute time values,
+     but with incrementing values every time someone modifies a
+     file. If you want to know more about this, read up on Lamport
+     clocks or vector clocks.
+   + The onus of picking what to do with the conflict can be pushed
+     back to the application (or in our case, to the survivors). The
+     receiving end will just have to choose which of the conflicting
+     entries is the right one. This is a bit what happens when you
+     have merge conflicts with source control with SVN, Mercurial,
+     Git, etc.
+** Setting up an Erlang Cluster
+- Erlang gives names to each of the nodes to be able to locate and
+  contact them. The names are of the form ~Name@Host~, where the host is
+  based on available DNS entries. All names need to be unique to avoid conflicts.
+- names
+  + Short Name
+    * Long names are based on fully qualified domain names (~aaa.bbb.ccc~)
+  + Long Name
+    * based on host names without a period, and are resolved going
+      through your host file or through any possible DNS entry
+  + nodes with short names cannot communicate with nodes that have
+    long names, and the opposite is also true.
+- To pick between long and short names, you can start the Erlang VM
+  with two different options: ~erl -sname short_name@domain~ or
+  ~erl -name long_name@some.domain~. Note that you can also start nodes with
+  only the names: ~erl -sname short_name~ or ~erl -name long_name~. Erlang
+  will automatically attribute a host name based on your operating
+  system's configuration. Lastly, you also have the option of starting
+  a node with a name such as ~erl -name name@127.0.0.1~ to give a direct
+  IP.
+- to connect nodes
+  #+BEGIN_SRC
+  (ketchup@farhad)1> net_kernel:connect_node(fries@farhad).
+  true
+  #+END_SRC
+- your own node name by calling the BIF ~node()~ and see who
+  you're connecting to by calling the BIF ~nodes()~:
+- send a msg to ~{RegisteredName, NodeName}~
+  #+BEGIN_SRC erlang
+    (ketchup@farhad)5> {shell, fries@farhad} ! {hello, from, self()}.
+    {hello,from,<0.52.0>}
+
+    %% other node
+    (fries@farhad)2> receive {hello, from, OtherShell} -> OtherShell ! <<"hey there!">> end.
+    <<"hey there!">>
+
+    %% other node
+    (ketchup@ferdmbp)6> flush().
+    Shell got <<"hey there!">>
+    ok
+  #+END_SRC
+- ~erlang:monitor_node(NodeName, Bool)~. This function will let the
+  process that calls it with true as a value for ~Bool~ receive a
+  message of the format ~{nodedown, NodeName}~ if the node dies.
+- Unless you're writing a special library that relies on checking the
+  life of other nodes, you will rarely need to use
+  ~erlang:monitor_node/2~. The reason for this is that functions like
+  ~link/1~ and ~monitor/2~ still work across nodes.
+  #+BEGIN_SRC erlang
+    (fries@farhad)> process_flag(trap_exit, true).
+    false
+
+    (fries@farhad)> link(OtherShell).
+    true
+
+    (fries@farhad)> erlang:monitor(process, OtherShell).
+    #Ref<0.1153803198.241172483.31434>
+
+    %% OtherShell dies
+    (fries@farhad)> flush().
+    Shell got {'EXIT',<8203.84.0>,noproc}
+    Shell got {'DOWN',#Ref<0.1153803198.241172483.31434>,process,<8203.84.0>, noproc}
+    ok
+  #+END_SRC
+- Pid of remote nodes
+  #+BEGIN_SRC erlang
+    (fries@farhad-pc)> OtherShell.
+    <8203.84.0>
+  #+END_SRC
+  + what we see as a pid is just some kind of visual
+    representation of what a process identifier is really like
+  + The first number represents the node (where 0 means the process is
+    coming from the current node), the second one is a counter, and
+    the third one is a second counter for when you have so many
+    processes created that the first counter is not enough.
+- ~erlang:disconnect_node(Node)~: to get rid of the node without
+  shutting it down.
+- spawn functions on remote nodes via ~spawn/2~, ~spawn/4~, ~spawn_link/2~ and ~spawn_link/4~.
+  #+BEGIN_SRC erlang
+    (ketchup@farhad)> spawn(fries@farhad, fun() -> io:format("I'm on ~p~n", [node()]) end).
+    I'm on fries@farhad
+    <6448.50.0>
+  #+END_SRC
+*** Cookies
+- Cookie is a little unique value that must be shared between nodes to
+  allow them to connect together.
+- Cookies are a mechanism used to divide clusters of nodes
+- use ~-setcookie~ like ~erl -sname myawesomenode -setcookie 'awesomecookie'~
+- to get cookie use ~erlang:get_cookie()~
+- ~erlang:set_cookie/2~ to change the cookie. If you call
+  ~erlang:set_cookie(OtherNode, Cookie)~, you will use that cookie only
+  when connecting to that other node. If you instead use
+  ~erlang:set_cookie(node(), Cookie)~, you'll be changing the node's
+  current cookie for all future connections.
+** Remote Shells
+#+BEGIN_SRC
+(one@farhad)1>
+User switch command
+--> r two@farhad
+--> j
+1  {shell,start,[init]}
+2* {two@farhad,shell,start,[]}
+--> c
+Eshell V10.2  (abort with ^G)
+(two@farhad)1> node().
+two@farhad
+#+END_SRC
+- By using ~^G~ again, you can go back to your original node. Be careful
+  when you stop your session though. If you call ~q()~ or ~init:stop()~,
+  you'll be *terminating* the remote node!
+** Hidden Nodes
+- any interaction between nodes will get them to set up a
+  connection. Calling ~spawn/2~ or sending a message to a foreign Pid
+  are going to automatically set up connections.
+- ~erlang:send(Dest, Message, [noconnect])~ function sends a
+  message without creating a connection, but this is rather error
+  prone.
+- to connect to a node inside a cluster without connecting to all the
+  nodes in that cluster we can use ~-hidden~ flag
+  #+BEGIN_SRC erlang
+    ▶ erl -sname three -hidden
+    Erlang/OTP 21 [erts-10.2] [source] [64-bit] [smp:4:4] [ds:4:4:10] [
+    async-threads:1] [hipe]
+
+    Eshell V10.2  (abort with ^G)
+    three@farhad)> net_kernel:connect_node(one@farhad).
+
+    (three@farhad)> nodes().
+    []
+
+    (three@farhad)> nodes(hidden).
+    [one@farhad]
+  #+END_SRC
+  in node one@farhad
+  #+BEGIN_SRC
+  (one@farhad)> nodes().
+  [two@farhad]
+
+  (one@farhad)> nodes(hidden).
+  [three@farhad]
+
+  (one@farhad)> nodes(connected).
+  [two@farhad,three@farhad]
+  #+END_SRC
+  in node two@farhad
+  #+BEGIN_SRC
+  (two@farhad)> nodes().
+  [one@farhad]
+
+  (two@farhad)> nodes(hidden).
+  []
+  #+END_SRC
+
+** net_kernel
+- transform a non-distributed node into a distributed one:
+  #+BEGIN_SRC erlang
+  Erlang/OTP 21 [erts-10.2] [source] [64-bit] [smp:4:4] [ds:4:4:10] [async-threads:1] [hipe]
+
+  Eshell V10.2  (abort with ^G)
+
+  1> net_kernel:start([four, shortnames]).
+  {ok,<0.80.0>}
+
+  (four@farhad)2>
+  #+END_SRC
+  use either ~shortnames~ or ~longnames~ to define whether you want to
+  have the equivalent of ~-sname~ or ~-name~
+- ~net_kernel:start([Name, Type, HeartbeatInMilliseconds])~
+  + By default, the heartbeat delay is set to 15 seconds, or 15,000
+    milliseconds. After 4 failed heartbeats, a remote node is
+    considered dead. The heartbeat delay multiplied by 4 is called the
+    tick time.
+- ~net_kernel:stop()~ to stop being distributed and go back to being a
+  normal node:
+
+** global
+- The ~global~ module is a new alternative process registry. It
+  automatically spreads its data to all connected nodes, replicates
+  data there, handles node failures and supports different conflict
+  resolution strategies when nodes get back online again.
+- the names you use to register the processes can be any term at all.
+- ~global:register_name(Name, Pid)~
+- ~global:unregister_name(Name)~
+- transfer a name without ever having it point to nothing ~global:re_register_name(Name, Pid)~.
+- ~global:whereis_name(Name)~
+- ~global:send(Name, Message)~
+- A naming conflict will happen when two nodes get connected and both
+  of them have two different processes sharing the same name. In
+  these cases, global will kill one of them randomly by default. to override it
+  #+BEGIN_SRC erlang
+    5> Resolve = fun(_Name,Pid1,Pid2) ->            %% pick the process with the most messages in its mailbox
+    5>     case process_info(Pid1, message_queue_len) > process_info(Pid2, message_queue_len) of
+    5>         true -> Pid1;
+    5>         false -> Pid2
+    5>     end
+    5> end.
+    #Fun<erl_eval.18.59269574>
+
+    6> global:register_name({zombie, 12}, self(), Resolve).
+    yes
+  #+END_SRC
+  Some helpers provided by Erlang
+  1. ~fun global:random_exit_name/3~ will kill a process
+     randomly. This is the default option.
+  2. ~fun global:random_notify_name/3~ will randomly pick one of the
+     two processes as the one to survive, and it will send
+     ~{global_name_conflict, Name}~ to the process that lost.
+  3. ~fun global:notify_all_name/3~ it unregisters both pids, and
+     sends the message ~{global_name_conflict, Name, OtherPid}~ to both
+     processes and lets them resolve the issue themselves so they
+     re-register again.
+** rpc
+- It contains functions that let you execute commands on remote nodes,
+  and a few which facilitate parallel operations.
+- ~rpc:call/4-5~: It allows you to run a given operation on a remote
+  node and get the results locally
+  #+BEGIN_SRC erlang
+  (one@farhad)> rpc:call(two@farhad, lists, sort, [[a,e,f,t,h,s,a]]).
+  [a,a,e,f,h,s,t]
+  #+END_SRC
+- Promises:
+  #+BEGIN_SRC erlang
+  (one@farhad)> Key = rpc:async_call(two@farhad, erlang, node, []).
+  <0.102.0>
+
+  (one@farhad)> rpc:yield(Key).
+  two@farhad
+  #+END_SRC
+  + If you don't care about the result, then you can use
+    ~rpc:cast(Node, Mod, Fun, Args)~ to send a command to another node
+    and forget about it.
+  + ~rpc:multicall(Nodes, Mod, Fun, Args)~
+  + ~rpc:eval_everywhere(Nodes, Mod, Fun, Args)~
+* Distributed OTP
+- In standard OTP applications, the application can be loaded,
+  started, stopped or unloaded. In distributed applications, we change
+  how things work; now the application controller shares its work with
+  the distributed application controller, another process sitting next
+  to it (usually called dist_ac)
+
+- There are two important concepts handled by distributed
+  applications
+  1. /failover/: This is a particularly valid strategy when you have
+     redundant hardware. You run something on a 'main' computer or
+     server, and if it fails, you move it to a backup one. In larger
+     scale deployments, you might instead have 50 servers running your
+     software (all at maybe 60-70% load) and expect the running ones
+     to absorb the load of the failing ones. The concept of failing
+     over is mostly important in the former case, and somewhat least
+     interesting in the latter one.
+  2. /takeover/: The second important concept of distributed OTP
+     applications is the takeover. Taking over is the act of a dead
+     node coming back from the dead, being known to be more important
+     than the backup nodes (maybe it has better hardware), and
+     deciding to run the application again. This is usually done by
+     gracefully terminating the backup application and starting the
+     main one instead.
+- config file structure
+  #+BEGIN_SRC erlang
+    [{kernel,
+      [{distributed, [{AppName,
+                       TimeOutBeforeRestart,
+                       NodeList}]},
+       {sync_nodes_mandatory, NecessaryNodes},
+       {sync_nodes_optional, OptionalNodes},
+       {sync_nodes_timeout, MaxTime}
+      ]}].
+  #+END_SRC
+  + The ~sync_nodes_mandatory~ tuple will work in conjunction with
+    ~sync_nodes_timeout~. When you start a distributed virtual machine
+    with values set for this, it will stay locked up until all the
+    mandatory nodes are also up and locked. Then they get synchronized
+    and things start going. If it takes more than ~MaxTime~ to get all
+    the nodes up, then they will all crash before starting.
+- distributed OTP applications work best when working with releases
+  that ensure that all the relevant parts of the system are in place.
+* Common Test
+- the smaller what you test is, the more appropriate EUnit will
+  be. The larger your test is, the more appropriate Common Test will
+  be.
+- Since Common Test is appropriate for system testing, it will assume
+  two things:
+  1. We will need data to instantiate our stuff
+  2. We will need a place to store all that side-effecty stuff we do,
+     because we're messy people.
+
+- Common Test will regularly be organized as follows
+  #+BEGIN_SRC
+        +-----------------------------------------------+
+        |                 test root                     |
+        |   +---------------------------------------+   |
+        |   |             test object directory     |   |
+        |   |   +-------------------------------+   |   |
+        |   |   |         test suite            |   |   |
+        |   |   |   +------------------------+  |   |   |
+        |   |   |   |     test case          |  |   |   |
+        |   |   |   +------------------------+  |   |   |
+        |   |   +-------------------------------+   |   |
+        |   +---------------------------------------+   |
+        +-----------------------------------------------+
+  #+END_SRC
+  + The *test case* is the simplest one. It's a bit of code that either
+    fails or succeeds. If the case crashes, the test is unsuccessful
+    Otherwise, the test case is thought to be successful. In Common
+    Test, test cases are single functions. All these functions live in
+    a *test suite*, a module that takes care of regrouping related
+    test cases together. Each test suite will then live in a
+    directory, the *Test Object Directory*. The *test root* is a
+    directory that contains many test object directories, but due to
+    the nature of OTP applications often being developed individually,
+    many Erlang programmers tend to omit that layer.
+
+- Each test suite is a module that ends with ~_SUITE~.
+  + Each suite is allowed to have one /data directory/, usually named
+    ~Module_SUITE_data/~
+- Whenever you run the tests, Common Test will find some place to log
+  stuff
+- sample test suite
+  #+BEGIN_SRC erlang
+    -module(basic_SUITE).
+    -include_lib("common_test/include/ct.hrl").
+    -export([all/0]).
+    -export([test1/1, test2/1]).
+
+
+    all() -> [test1,test2].
+
+    test1(_Config) ->
+        1 = 1.
+
+    test2(_Config) ->
+        A = 0,
+        1/A.
+  #+END_SRC
+  + ~_Config~ variables contain the initial state your test cases will
+    require. That state is literally a proplist, and it initially
+    contains two values, ~data_dir~ and ~priv_dir~, the two directories we
+    have for our static data and the one where we can mess around.
+  + to run from command line: ~ct_run -suite Name_SUITE~
+  + from Erlang shell
+    #+BEGIN_SRC erlang
+    $ erl
+    ...
+    1> ct:run_test([{suite, basic_SUITE}]).
+    #+END_SRC
+- Testing With State
+  #+BEGIN_SRC erlang
+    -module(state_SUITE).
+    -include_lib("common_test/include/ct.hrl").
+
+    -export([all/0, init_per_testcase/2, end_per_testcase/2]).
+    -export([ets_tests/1]).
+
+    all() -> [ets_tests].
+
+    init_per_testcase(ets_tests, Config) ->
+        TabId = ets:new(account, [ordered_set, public]),
+        ets:insert(TabId, {andy, 2131}),
+        ets:insert(TabId, {david, 12}),
+        ets:insert(TabId, {steve, 12943752}),
+        [{table,TabId} | Config].
+
+    end_per_testcase(ets_tests, Config) ->
+        ets:delete(?config(table, Config)).
+
+    ets_tests(Config) ->
+        TabId = ?config(table, Config),
+        [{david, 12}] = ets:lookup(TabId, david),
+        steve = ets:last(TabId),
+        true = ets:insert(TabId, {zachary, 99}),
+        zachary = ets:last(TabId).
+  #+END_SRC
+  + The ~init_per_testcase~ and ~end_per_testcase~ functions run in
+    the same process as the test case itself
+** Test Groups
+- Common Test test groups allow us to regroup some tests
+  hierarchically. Even more, they can regroup some groups within other
+  groups
+  #+BEGIN_SRC erlang
+    groups() -> [{GroupName, GroupProperties, GroupMembers}].
+    %% e.g.
+    groups() ->
+        [{test_case_street_gang,
+          [shuffle, sequence],
+          [simple_case, more_complex_case,
+           emotionally_complex_case,
+           {group, name_of_another_test_group}]}].
+  #+END_SRC
+  + group properties can be
+    * empty list / no option
+    * ~shuffle~
+    * ~parallel~
+    * ~sequence~
+    * ~{repeat, Times}~
+    * ~{repeat_until_any_fail, N}~
+    * ~{repeat_until_all_fail, N}~
+    * ~{repeat_until_any_succeed, N}~
+    * ~{repeat_until_all_succeed, N}~
+- example
+  + meeting.erl
+    #+BEGIN_SRC erlang
+      -module(meeting).
+      -export([rent_projector/1, use_chairs/1, book_room/1, get_all_bookings/0, start/0, stop/0]).
+      -record(bookings, {projector, room, chairs}).
+
+      start() ->
+          Pid = spawn(fun() -> loop(#bookings{}) end),
+          register(?MODULE, Pid).
+
+      stop() ->
+          ?MODULE ! stop.
+
+      rent_projector(Group) ->
+          ?MODULE ! {projector, Group}.
+
+      book_room(Group) ->
+          ?MODULE ! {room, Group}.
+
+      use_chairs(Group) ->
+          ?MODULE ! {chairs, Group}.
+
+      get_all_bookings() ->
+          Ref = make_ref(),
+          ?MODULE ! {self(), Ref, get_bookings},
+          receive
+              {Ref, Reply} ->
+                  Reply
+          end.
+
+      loop(B = #bookings{}) ->
+          receive
+              stop -> ok;
+              {From, Ref, get_bookings} ->
+                  From ! {Ref, [{room, B#bookings.room},
+                                {chairs, B#bookings.chairs},
+                                {projector, B#bookings.projector}]},
+                  loop(B);
+              {room, Group} ->
+                  loop(B#bookings{room=Group});
+              {chairs, Group} ->
+                  loop(B#bookings{chairs=Group});
+              {projector, Group} ->
+                  loop(B#bookings{projector=Group})
+          end.
+    #+END_SRC
+  + meeting_SUITE.erl
+    #+BEGIN_SRC erlang
+      -module(meeting_SUITE).
+      -include_lib("common_test/include/ct.hrl").
+      -export([all/0, groups/0, init_per_group/2, end_per_group/2]).
+      -export([carla/1, mark/1, dog/1, all_same_owner/1]).
+
+      %% Regroup the tests as groups that will let you try to see if the 'meeting.erl'
+      %% modules contains concurrency errors or not.
+
+      all() -> [{group, session}].
+
+      groups() -> [{session,
+                    [],
+                    [{group, clients}, all_same_owner]},
+                   {clients,
+                    [parallel, {repeat, 10}],
+                    [carla, mark, dog]}].
+
+      init_per_group(session, Config) ->
+          meeting:start(),
+          Config;
+      init_per_group(_, Config) ->
+          Config.
+
+      end_per_group(session, _Config) ->
+          meeting:stop();
+      end_per_group(_, _Config) ->
+          ok.
+
+      carla(_Config) ->
+          meeting:book_room(women),
+          timer:sleep(10),
+          meeting:rent_projector(women),
+          timer:sleep(10),
+          meeting:use_chairs(women).
+
+      mark(_Config) ->
+          meeting:rent_projector(men),
+          timer:sleep(10),
+          meeting:use_chairs(men),
+          timer:sleep(10),
+          meeting:book_room(men).
+
+      dog(_Config) ->
+          meeting:rent_projector(animals),
+          timer:sleep(10),
+          meeting:use_chairs(animals),
+          timer:sleep(10),
+          meeting:book_room(animals).
+
+      all_same_owner(_Config) ->
+          [{_,Owner}, {_, Owner}, {_, Owner}] = meeting:get_all_bookings().
+    #+END_SRC
+  + result
+    #+BEGIN_SRC shell
+      erl> ct_run:run_test([{suite, meeting_SUITE}]).
+      ct_run:run_test([{suite, meeting_SUITE}]).
+
+      Common Test starting (cwd is /home/farhad/play/erlang/commonTest)
+
+
+      Common Test: Running make in test directories...
+
+      CWD set to: "/home/farhad/play/erlang/commonTest/ct_run.nonode@nohost.2019-01-26_20.43.22"
+
+      TEST INFO: 1 test(s), 1 suite(s)
+
+      Testing erlang.commonTest.meeting_SUITE: Starting test (with repeated test cases)
+
+      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      meeting_SUITE:all_same_owner failed on line 51
+      Reason: {badmatch,[{room,animals},{chairs,women},{projector,women}]}
+      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+      Testing erlang.commonTest.meeting_SUITE: *** FAILED test case 31 ***
+      Testing erlang.commonTest.meeting_SUITE: TEST COMPLETE, 30 ok, 1 failed of 31 test cases
+
+      Updating /home/farhad/play/erlang/commonTest/index.html ... done
+      Updating /home/farhad/play/erlang/commonTest/all_runs.html ... done
+      {30,1,{0,0}}
+    #+END_SRC
+- while the init functions of test cases ran in the same process as
+  the test case, the init functions of groups run in distinct
+  processes from the tests. This means that whenever you initialize
+  actors that get linked to the process that spawned them, you have to
+  make sure to first unlink them. In the case of ETS tables, you have
+  to define a heir to make sure it doesn't disappear. And so on for
+  all other concepts that get attached to a process (sockets, file
+  descriptors, etc.).
+** Test Suites
+- The ~init_per_suite/1~ and ~end_per_suite/1~ functions will run only
+  once, respectively before and after all of the groups or test
+  cases. They'll be mostly useful when dealing with general state and
+  dependencies that will be required for all tests. This can include
+  manually starting applications you depend on, for example.
+** Test Specifications
+- Test specifications are special files that let you detail everything
+  about how you want to have the tests run, and they work with the
+  Erlang shell and the command line.
+- Here's a few of the items it can have
+  + ~{include, IncludeDirectories}~
+    * When Common Test automatically compiles suites, this option
+      lets you specify where it should look for include files in order
+      to make sure they're there. The ~IncludeDirectories~ value has to
+      be a string (list) or a list of strings (list of lists).
+  + ~{logdir, LoggingDirectory}~
+    * When logging, all logs should be moved to the ~LoggingDirectory~,
+      a string. Note that the directory must exist before the tests
+      are run, otherwise Common Test will complain.
+  + ~{suites, Directory, Suites}~
+    * Finds the given suites in ~Directory~. Suites can be an atom
+      (~some_SUITE~), a list of atoms, or the atom all to run all the
+      suites in a directory.
+  + ~{skip_suites, Directory, Suites, Comment}~
+    * This subtracts a list of suites from those previously declared
+      and skips them. The ~Comment~ argument is a string explaining why
+      you decided to skip them. This comment will be put in the final
+      HTML logs. The tables will show a yellow 'SKIPPED: Reason' where
+      Reason is whatever ~Comment~ contained.
+  + ~{groups, Directory, Suite, Groups}~
+    * This is an option to pick only a few groups from a given
+      suite. The ~Groups~ variable can be a single atom (the group name)
+      or all for all groups. The value can also be more complex,
+      letting you override the group definitions inside ~groups()~
+      within the test case by picking a value like ~{GroupName, [parallel]}~,
+      which will override ~GroupName's~ options for ~parallel~, without needing
+      to recompile tests.
+  + ~{groups, Directory, Suite, Groups, {cases,Cases}}~
+    * Similar to the one above, but it lets you specify some test
+      cases to include in the tests by substituting ~Cases~ by a single
+      case name (an atom), a list of names, or the atom ~all~.
+  + ~{skip_groups, Directory, Suite, Groups, Comment}~
+    * It allows one to skip test groups, much like the skip_suites for
+      suites.
+  + ~{skip_groups, Directory, Suite, Groups, {cases,Cases}, Comment}~
+    * Similar to the one above, but with specific test cases to skip
+      on top of it.
+  + ~{cases, Directory, Suite, Cases}~
+    * Runs specific test cases from a given suite. Cases can be an
+      atom, a list of atoms, or all.
+  + ~{skip_cases, Directory, Suite, Cases, Comment}~
+    * This is similar to ~skip_suites~, except we choose specific test
+      cases to avoid with this one.
+  + ~{alias, Alias, Directory}~
+    * Because it gets very annoying to write all these directory names
+      (especially if they're full names), Common Test lets you
+      substitute them with aliases (atoms). This is pretty useful in
+      order to be concise.
