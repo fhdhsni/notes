@@ -1,6 +1,6 @@
 #+PROPERTY: header-args :exports code
 My Erlang notes, From [[https://learnyousomeerlang.com/][Learn You Some Erlang for Great Good]] book,
-official doc, some talks on youtube and my own clarifications.
+[[http://erlang.org/doc/index.html][official doc]], some talks on youtube and my own clarifications.
 
 * Miscellaneous
 - to get the documentation on lists =erl -man lists=
@@ -3697,6 +3697,7 @@ two@farhad
 - distributed OTP applications work best when working with releases
   that ensure that all the relevant parts of the system are in place.
 * Common Test
+- [[http://erlang.org/doc/apps/common_test/users_guide.html][Common Test]] user's guide (fucking complicated)
 - the smaller what you test is, the more appropriate EUnit will
   be. The larger your test is, the more appropriate Common Test will
   be.
@@ -4014,3 +4015,215 @@ two@farhad
       (especially if they're full names), Common Test lets you
       substitute them with aliases (atoms). This is pretty useful in
       order to be concise.
+  + sample
+    spec.spec
+    #+BEGIN_SRC erlang
+      {alias, demo, "./demo/"}.
+      {alias, meeting, "./meeting/"}.
+      {logdir, "./logs/"}.
+
+      {suites, meeting, all}.
+      {suites, demo, all}.
+      {skip_cases, demo, basic_SUITE, test2, "This test fails on purpose"}.
+    #+END_SRC
+    to run the tests ~ct_run -spec spec.spec~
+** Large-Scale Testing: Common Test goes distributed
+- Common Test lets you start tests on many different nodes, but also
+  has ways to dynamically start these nodes and have them watch each
+  other.
+- Common Test requires the presence of a central node (the CT master)
+  in charge of all the other ones. Everything's going to be directed
+  from there, from starting nodes, ordering tests to be run, gathering
+  logs, etc.
+- spec needs to have
+  + ~{node, NodeAlias, NodeName}~
+    * Much like ~{alias, AliasAtom, Directory}~ for test suites, groups,
+      and cases, except it's used for node names. Both NodeAlias and
+      NodeName need to be atoms. This tuple is especially useful
+      because ~NodeName~ needs to be a *long node* name, and in some cases
+      this can be quite long.
+  + ~{init, NodeAlias, Options}~
+    * This is the option that lets you start nodes. ~NodeAlias~ can be
+      a single node alias, or a list of many of them. The ~Options~
+      are those available to the [[http://erlang.org/doc/man/ct_slave.html][ct_slave]] module
+      - Here are a few of the options available:
+        + ~{username, UserName}~ and ~{password, Password}~
+          * Using the host part of the node given by ~NodeAlias~,
+            Common Test will try to connect to the given host over
+            SSH (on port 22) using the user name and password and run
+            from there.
+        + ~{startup_functions, [{M,F,A}]}~
+          * This option defines a list of functions to be called as
+            soon as the other node has booted.
+        + ~{erl_flags, String}~
+          * This sets standard flags that we'd want to pass to the erl
+            application when we start it. For example, if we wanted to
+            start a node with ~erl -env ERL_LIBS ../ -config conf_file~,
+            the option would be ~{erl_flags, "-env ERL_LIBS ../ -config config_file"}~.
+        + ~{monitor_master, true | false}~
+          * If the CT master stops running and the option is set to
+            ~true~, then the slave node will also be taken down. I do
+            recommend using this option if you're spawning the remote
+            nodes; otherwise they'll keep running in the background if
+            the master dies. Moreover, if you run tests again, Common
+            Test will be able to connect to these nodes, and there
+            will be some state attached to them.
+        + ~{boot_timeout, Seconds}~, ~{init_timeout, Seconds}~, ~{startup_timeout, Seconds}~
+          * These three options let you wait for different parts of
+            the starting of a remote node. The boot timeout is about
+            how long it takes before the node becomes pingable, with a
+            default value of 3 seconds. The init timeout is an
+            internal timer where the new remote node calls back the CT
+            master to tell it it's up. By default, it lasts one
+            second. Finally, the startup timeout tells Common Test how
+            long to wait for the functions we defined earlier as part
+            of the ~startup_functions~ tuple.
+        + ~{kill_if_fail, true | false}~
+          * This option will react to one of the three timeouts
+            above. If any of them are triggered, Common Test will
+            abort the connection, skip tests, etc. but not necessarily
+            kill the node, unless the option is set to
+            ~true~. That's the default value.
+- sample
+  dist.spec
+  #+BEGIN_SRC erlang
+    {node, a, 'a@farhad.local'}.
+    {node, b, 'b@farhad.local'}.
+
+    {init, [a,b], [{node_start, [{monitor_master, true}]}]}.
+
+    {alias, demo, "./demo/"}.
+    {alias, meeting, "./meeting/"}.
+
+    {logdir, all_nodes, "./logs/"}.
+    {logdir, master, "./logs/"}.
+
+    {suites, [b], meeting, all}.
+    {suites, [a], demo, all}.
+    {skip_cases, [a], demo, basic_SUITE, test2, "This test fails on purpose"}.
+  #+END_SRC
+  how to run? having ~a@farhad.local~ and ~a@farhad.local~ up and
+  running we can run the tests like:
+  #+BEGIN_SRC shell
+    erlang/commonTest/ct ▶ erl -name ct@farhad.local
+    ...
+    (ct@farhad.local)1> ct_master:run("dist.spec").
+  #+END_SRC
+* Mnesia
+- Mnesia is a layer built on top of ETS and DETS to add a lot of
+  functionality to these two databases like:
+  1. the ability to write to both ETS and DETS automatically
+  2. to both have DETS' persistence and ETS' performance
+  3. having the possibility to replicate the database to many
+     different Erlang nodes automatically.
+  4. transactions (basically means that you're going to be able to do
+     multiple operations on one or more tables as if the process doing
+     them were the only one to have access to the tables)
+- If we refer to the CAP theorem, Mnesia sits on the CP side, rather
+  than the AP side,
+- Mnesia tables have no built-in type constraints
+- Mnesia is centered around the idea of using a record to define a
+  table's structure.
+  #+BEGIN_SRC erlang
+  -record(recipe, {name, ingredients=[], instructions=[]}).
+  #+END_SRC
+  + then we can then tell Mnesia to create a recipe table, which would
+    store any number of ~#recipe{}~ records as table rows.
+  + The primary key, the field by which it is the fastest to look
+    things up in a table, would be the recipe ~name~. that's because
+    ~name~ is the first item in the record definition for ~#recipe{}~.
+
+- strategies
+  + ~ram_copies~
+    * This option makes it so all data is stored exclusively in ETS,
+      so memory only. Memory should be limited to a theoretical 4GB
+      (and practically around 3GB) for virtual machines compiled on 32
+      bits, but this limit is pushed further away on 64 bits virtual
+      machines, assuming there is more than 4GB of memory available.
+  + ~disc_only_copies~
+    * This option means that the data is stored only in DETS. Disc
+      only, and as such the storage is limited to DETS' 2GB limit.
+  + ~disc_copies~
+    * This option means that the data is stored both in ETS and on
+      disk, so both memory and the hard disk. ~disc_copies~ tables are
+      not limited by DETS limits, as Mnesia uses a complex system of
+      transaction logs and checkpoints that allow to create a
+      disk-based backup of the table in memory.
+- table type
+  + ~set~
+  + ~bag~
+  + ~ordered_set~: not supported for ~disc_only_copies~ tables
+- schema
+  + To know how to store tables on disk, how to load them, and what
+    other nodes they should be synchronized with
+  + ~mnesia:create_schema(ListOfNodes)~
+    * will create a bunch of files on each node, storing all the table
+      information required
+  + By default, the schema will be created in the current working
+    directory, wherever the Erlang node is running. To change this,
+    the Mnesia application has a ~dir~ variable that can be set to pick
+    where the schema will be stored. You can thus start your node as
+    ~erl -name SomeName -mnesia dir where/to/store/the/db~ or set it
+    dynamically with ~application:set_env(mnesia, dir, "where/to/store/the/db").~
+
+- ~mnesia:create_table/2~
+- ~mnesia:wait_for_tables/2~
+** Access And Context
+- All modifications or even reads to a database table need to be done
+  in something called activity access context. Those are different
+  types of transactions or 'ways' to run queries:
+  + ~transaction~
+    * This type of activity context is partially asynchronous: it will
+      be synchronous for operations on the local node, but it will
+      only wait for the confirmation from other nodes that they will
+      commit the transaction, not that they have done it. The way
+      Mnesia works, if the transaction worked locally and everyone
+      else agreed to do it, it should work everywhere else. If it
+      doesn't, possibly due to failures in the network or hardware,
+      the transaction will be reverted at a later point in time; the
+      protocol tolerates this for some efficiency reasons, but might
+      give you confirmation that a transaction succeeded when it will
+      be rolled back later
+  + ~sync_transaction~
+    * This activity context is pretty much the same as transaction,
+      but it is synchronous. If the guarantees of transaction aren't
+      enough for you because you don't like the idea of a transaction
+      telling you it succeeded when it may have failed due to weird
+      errors, especially if you want to do things that have side
+      effects (like notifying external services, spawning processes,
+      and so on) related to the transaction's success, using
+      sync_transaction is what you want. Synchronous transactions will
+      wait for the final confirmation for all other nodes before
+      returning, making sure everything went fine 100% of the way.
+  + ~async_dirty~
+    * The ~async_dirty~ activity context basically bypasses all the
+      transaction protocols and locking activities (note that it will,
+      however, wait for active transactions to finish before
+      proceeding). It will however keep on doing everything that
+      includes logging, replication, etc. An ~async_dirty~ activity
+      context will try to perform all actions locally, and then
+      return, leaving other nodes' replication take place
+      asynchronously.
+  + ~sync_dirty~
+    * This activity context is to ~async_dirty~ what ~sync_transaction~
+      was to transaction. It will wait for the confirmation that
+      things went fine on remote nodes, but will still stay out of all
+      locking or transaction contexts. Dirty contexts are generally
+      faster than transactions, but absolutely riskier by
+      design.
+  + These operations are to be wrapped in a ~fun~ and executed by
+    calling ~mnesia:activity(Context, Fun).~. The ~fun~ can contain
+    any Erlang function call, though be aware that it is possible for
+    a transaction to be executed many times in case of failures or
+    interruption by other transactions. This means that if a
+    transaction that reads a value from a table also sends a message
+    before writing something back in, it is entirely possible for the
+    message to be sent dozens of times. As such, no side effects of
+    the kind should be included in the transaction.
+** Reads, Writes, and More
+- *write*: By calling ~mnesia:write(Record)~, where the name of the record
+  is the name of the table, we're able to insert ~Record~ in the
+  table. If the table is of type set or ordered_set and the primary
+  key (the second field of the record, not its name, under a tuple
+  form), the element will be replaced. For bag tables, the whole
+  record will need to be similar.
