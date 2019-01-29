@@ -4125,15 +4125,19 @@ two@farhad
 - Mnesia is centered around the idea of using a record to define a
   table's structure.
   #+BEGIN_SRC erlang
-  -record(recipe, {name, ingredients=[], instructions=[]}).
+  -record(recipe, {name, ingredients=[], instructions=[], time}).
   #+END_SRC
   + then we can then tell Mnesia to create a recipe table, which would
     store any number of ~#recipe{}~ records as table rows.
   + The primary key, the field by which it is the fastest to look
     things up in a table, would be the recipe ~name~. that's because
     ~name~ is the first item in the record definition for ~#recipe{}~.
-
-- strategies
+- Mnesia tables are global to all the nodes that will be part of its
+  cluster. This implies a high potential for name clashes if you're
+  not careful.
+- Mnesia is built using ETS and DETS tables. This gives us two means
+  of storage: on disk, or in memory. We have to pick a strategy! Here
+  are the options:
   + ~ram_copies~
     * This option makes it so all data is stored exclusively in ETS,
       so memory only. Memory should be limited to a theoretical 4GB
@@ -4153,30 +4157,97 @@ two@farhad
   + ~set~
   + ~bag~
   + ~ordered_set~: not supported for ~disc_only_copies~ tables
-- schema
-  + To know how to store tables on disk, how to load them, and what
-    other nodes they should be synchronized with
-  + ~mnesia:create_schema(ListOfNodes)~
-    * will create a bunch of files on each node, storing all the table
-      information required
-  + By default, the schema will be created in the current working
-    directory, wherever the Erlang node is running. To change this,
-    the Mnesia application has a ~dir~ variable that can be set to pick
-    where the schema will be stored. You can thus start your node as
-    ~erl -name SomeName -mnesia dir where/to/store/the/db~ or set it
-    dynamically with ~application:set_env(mnesia, dir, "where/to/store/the/db").~
+** Schemas
+- Although Mnesia can work fine on isolated nodes, it does support
+  distribution and replication to many nodes. To know how to store
+  tables on disk, how to load them, and what other nodes they should
+  be synchronized with, Mnesia needs to have something called a
+  schema, holding all that information. By default, Mnesia creates a
+  schema directly in memory when it's created. It works fine for
+  tables that need to live in RAM only, but when your schema needs to
+  survive across many VM restarts, on all the nodes part of the Mnesia
+  cluster, things get a bit more complex.
 
-- ~mnesia:create_table/2~
-- ~mnesia:wait_for_tables/2~
+- Mnesia depends on the schema, but Mnesia should also create the
+  schema. This creates a weird situation where the schema needs to be
+  created by Mnesia without running Mnesia first!
+  + We have to call the function ~mnesia:create_schema(ListOfNodes)~
+    before starting Mnesia, it will create a bunch of files on each
+    node, storing all the table information required. You don't need
+    to be connected to the other nodes when calling it, but they need
+    to be running; the function will set the connections up and get
+    everything working for you.
+
+- Starting Mnesia for the first time creates a schema in memory, which
+  is good for ~ram_copies~. Other kinds of tables won't work with it.
+- If you create a schema manually before starting Mnesia (or after
+  stopping it), you will be able to create tables that sit on disk.
+- Start Mnesia, and you can then start creating tables. Tables can't
+  be created while Mnesia is not running
+
+- By default, the schema will be created in the current working
+  directory, wherever the Erlang node is running. To change this,
+  the Mnesia application has a ~dir~ variable that can be set to pick
+  where the schema will be stored. You can thus start your node as
+  ~erl -name SomeName -mnesia dir where/to/store/the/db~ or set it
+  dynamically with ~application:set_env(mnesia, dir, "where/to/store/the/db").~
+
+- For the tables to be created on all nodes, Mnesia needs to run on
+  all nodes. For the schema to be created, Mnesia needs to run on no
+  nodes.
+
+** Creating
+-Once the schema has been created and we've started Mnesia
+  (for e.g. by ~application:start(mnesia)~) we can create our tables
+  + ~mnesia:create_table/2~
+    * ~{attributes, List}~
+      - This is a list of all the items in a table. By default it
+        takes the form ~[key, value]~, meaning you would need a record
+        of the form ~-record(TableName, {key,val})~. to work. Pretty
+        much everyone cheats a little bit and uses a special construct
+        (a compiler-supported macro, in fact) that extracts the
+        element names from a record. The construct looks like a
+        function call. To do it with our recpie record, we would pass
+        it as ~{attributes, record_info(fields, recipe)}~.
+        #+BEGIN_SRC erlang
+          erl> rd(foo, {bar,zoo}).
+          foo
+
+          erl> #foo{}.
+          #foo{bar = undefined,zoo = undefined}
+
+          erl> record_info(fields, foo).
+          [bar,zoo]
+        #+END_SRC
+    * ~{disc_copies, NodeList}~, ~{disc_only_copies, NodeList}~, ~{ram_copies, NodeList}~
+      - This is where you specify how to store the tables, Note that
+        you can have many of these options present at once.
+    * ~{index, ListOfIntegers}~
+      - Mnesia tables let you have /indexes/ on top of the basic ETS and
+        DETS functionality. This is useful in cases where you are
+        planning to build searches on record fields other than the
+        primary key.
+        #+BEGIN_SRC erlang
+        {index, [#recipe.time]}.
+        #+END_SRC
+    * ~{type, Type}~
+      - Type is either ~set~, ~ordered_set~ or ~bag~ tables.
+    * ~{local_content, true}~: will let the table be private to each
+      node (although RPC would make it trivial to circumvent)
+  + ~mnesia:wait_for_tables(TableList, TimeOut)~
+    * wait for at most ~TimeOut~ seconds or until the tables are
+      available.
 ** Access And Context
 - All modifications or even reads to a database table need to be done
   in something called activity access context. Those are different
   types of transactions or 'ways' to run queries:
   + ~transaction~
+    * will run on all nodes or none of them; it succeeds entirely or
+      fails entirely.
     * This type of activity context is partially asynchronous: it will
       be synchronous for operations on the local node, but it will
-      only wait for the confirmation from other nodes that they will
-      commit the transaction, not that they have done it. The way
+      only wait for the confirmation from other nodes that they /will/
+      commit the transaction, *not that they have done it*. The way
       Mnesia works, if the transaction worked locally and everyone
       else agreed to do it, it should work everywhere else. If it
       doesn't, possibly due to failures in the network or hardware,
@@ -4185,7 +4256,7 @@ two@farhad
       give you confirmation that a transaction succeeded when it will
       be rolled back later
   + ~sync_transaction~
-    * This activity context is pretty much the same as transaction,
+    * This activity context is pretty much the same as ~transaction~,
       but it is synchronous. If the guarantees of transaction aren't
       enough for you because you don't like the idea of a transaction
       telling you it succeeded when it may have failed due to weird
@@ -4206,7 +4277,7 @@ two@farhad
       asynchronously.
   + ~sync_dirty~
     * This activity context is to ~async_dirty~ what ~sync_transaction~
-      was to transaction. It will wait for the confirmation that
+      was to ~transaction~. It will wait for the confirmation that
       things went fine on remote nodes, but will still stay out of all
       locking or transaction contexts. Dirty contexts are generally
       faster than transactions, but absolutely riskier by
@@ -4223,7 +4294,70 @@ two@farhad
 ** Reads, Writes, and More
 - *write*: By calling ~mnesia:write(Record)~, where the name of the record
   is the name of the table, we're able to insert ~Record~ in the
-  table. If the table is of type set or ordered_set and the primary
-  key (the second field of the record, not its name, under a tuple
-  form), the element will be replaced. For bag tables, the whole
-  record will need to be similar.
+  table. If the table is of type ~set~ or ~ordered_set~ and the primary
+  key (the second field of the record, not its name, under a tuple form),
+  the element will be replaced. For ~bag~ tables, the whole record will need to be similar.
+- *delete*: ~mnesia:delete(TableName, Key)~
+- *read*: ~mnesia:read({TableName, Key})~
+- *match_object*:
+    + similar to ETS' ~match_object~ function. It uses patterns to
+    return entire records from the database table. For example, a
+    quick way to look for recipes with a ~given~ time could be done
+    with ~mnesia:match_object(#recipe{_ = '_', time = ~given~}).~ It
+    will then return a list of all matching entries in the table.
+- *select*:
+  + can be called as ~mnesia:select(TableName, MatchSpec)~
+  + This is similar to the ETS ~select~ function. It works using match
+    specifications or ~ets:fun2ms~ as a way to do queries.
+** Query List Comprehensions
+- Query List Comprehensions are basically a compiler trick using parse
+  transforms that let you use list comprehensions for any data
+  structure that can be searched and iterated through. They're
+  implemented for Mnesia, DETS, and ETS, but can also be implemented
+  for things like ~gb_trees~.
+- Once you add ~-include_lib("stdlib/include/qlc.hrl").~ to your
+  module, you can start using list comprehensions with something
+  called a query handle (QH for short) as a generator. The query handle is what
+  allows any iterable data structure to work with QLC. In the case of
+  Mnesia, what you can do is use ~mnesia:table(TableName)~ as a list
+  comprehension generator, and from that point on, you can use list
+  comprehensions to query any database table by wrapping them in a
+  call to ~qlc:q(...)~. This will in turn return a modified query
+  handle, with more details than the one returned by the table. This
+  newest one can subsequently be modified some more by using functions
+  like ~qlc:sort/1-2~, and can be evaluated by using ~qlc:eval/1~ or
+  ~qlc:fold/1~.
+- example
+  #+BEGIN_SRC erlang
+    friend_by_expertise(Expertise) ->
+        F = fun() ->
+                    qlc:eval(qlc:q(
+                               [{Name,C,I,E,find_services(Name)} ||
+                                   #mafiapp_friends{name=Name,
+                                                    contact=C,
+                                                    info=I,
+                                                    expertise=E} <- mnesia:table(mafiapp_friends),
+                                   E =:= Expertise]))
+            end,
+        mnesia:activity(transaction, F).
+  #+END_SRC
+- another example
+
+  #+BEGIN_SRC erlang
+    debts(Name) ->
+        F = fun() ->
+                    QH = qlc:q(
+                           [if Name =:= To -> {From,1};
+                               Name =:= From -> {To,-1}
+                            end || #mafiapp_services{from=From, to=To} <-
+                                       mnesia:table(mafiapp_services),
+                                   Name =:= To orelse Name =:= From]),
+                    qlc:fold(fun({Person,N}, Dict) ->
+                                     dict:update(Person, fun(X) -> X + N end, N, Dict)
+                             end,
+                             dict:new(),
+                             QH)
+            end,
+        lists:sort([{V,K} || {K,V} <- dict:to_list(mnesia:activity(transaction, F))]).
+  #+END_SRC
+  + The ~qlc:fold~ is used as a way to evaluate the query handle (QH).
