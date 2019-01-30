@@ -4361,3 +4361,113 @@ two@farhad
         lists:sort([{V,K} || {K,V} <- dict:to_list(mnesia:activity(transaction, F))]).
   #+END_SRC
   + The ~qlc:fold~ is used as a way to evaluate the query handle (QH).
+* Type Specification and Dialyzer
+- Dialyzer's Persistent Lookup Table (PLT):
+  #+BEGIN_SRC
+  dialyzer --build_plt --apps erts kernel stdlib crypto mnesia sasl common_test eunit
+  #+END_SRC
+  PLT is a compilation of all the details Dialyzer can
+  identify about the applications and modules that are part of your
+  standard Erlang distribution, and code outside of OTP too.
+  + add additional
+    #+BEGIN_SRC
+    dialyzer --add_to_plt --apps ssl reltool
+    #+END_SRC
+  + If you want to add your own applications or modules to the PLT,
+    you can do so by using ~-r Directories~, which will look for all
+    ~.erl~ or ~.beam~ files (as long as they're compiled with ~debug_info~)
+    to add them to the PLT.
+  + run over a bunch of libraries
+    #+BEGIN_SRC
+    dialyzer -r processquest-1.1.0/src regis-1.1.0/src sockserv-1.0.1/src --src
+    #+END_SRC
+    By default, dialyzer will look for ~.beam~ files. We need to add the
+    ~--src~ flag to tell Dialyzer to use ~.erl~ files for its analysis
+
+** types
+*** Singleton types
+- they refer to a value itself
+  | 'some atom' | Any atom can be its own singleton type |
+  | 42          | A given integer                        |
+  | []          | An empty list                          |
+  | {}          | An empty tuple                         |
+  | <<>>        | an empty binary                        |
+
+*** Union types built-in types
+- Union types is a type that has two atoms in it. We can define them ourselves
+- Union types and built-in types generally share a similar syntax, and
+  they're noted with the form ~TypeName()~.
+- built-in types are pre-defined types, not necessarily possible to build by hand
+- a table of built-in types (Note that they do not all have the same
+  syntax as union types do. Some of them, like binaries and tuples,
+  have a special syntax to make them friendlier to use)
+  |-------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+  | built-in                                  | description                                                                                                                                                                                                                              |
+  |-------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+  | ~any()~                                   | Any Erlang term at all                                                                                                                                                                                                                   |
+  | ~none()~                                  | This is a special type that means that no term or type is valid. Usually, when Dialyzer boils down the possible return values of a function to none(), it means the function should crash. It is synonymous with "this stuff won't work. |
+  | ~pid()~                                   | A process identifier.                                                                                                                                                                                                                    |
+  | ~port()~                                  | P.S.1                                                                                                                                                                                                                                    |
+  | ~reference()~                             | Unique values returned by ~make_ref()~ or ~erlang:monitor/2~                                                                                                                                                                             |
+  | ~atom()~                                  | Atoms in general                                                                                                                                                                                                                         |
+  | ~binary()~                                | A blob of binary data                                                                                                                                                                                                                    |
+  | ~<<_:Integer>>~                           | A binary of a known size, where /Integer/ is the size                                                                                                                                                                                    |
+  | ~<<_:_*Integer>>~                         | A binary that has a given unit size, but of unspecified length                                                                                                                                                                           |
+  | ~<<_:Integer, _:_*OtherInteger>>~         | A mix of both previous forms to specify that a binary can have a minimum length                                                                                                                                                          |
+  | ~integer()~                               | Any integer                                                                                                                                                                                                                              |
+  | ~N..M~                                    | A range of integers. For example, if you wanted to represent a number of months in a year, the range ~1..12~ could be defined. Note that Dialyzer reserves the right to expand this range into a bigger one                              |
+  | ~non_neg_integer()~                       | ntegers that are greater or equal to 0                                                                                                                                                                                                   |
+  | ~pos_integer()~                           | Integers greater than 0                                                                                                                                                                                                                  |
+  | ~neg_integer()~                           | Integers up to -1                                                                                                                                                                                                                        |
+  | ~float()~                                 | Any floating point number                                                                                                                                                                                                                |
+  | ~fun()~                                   | Any kind of function                                                                                                                                                                                                                     |
+  | ~fun((...) -> Type)~                      | An anonymous function of any arity that returns a given type. A given function that returns lists could be noted as ~fun((...) -> list())~                                                                                               |
+  | ~fun(() -> Type)~                         | An anonymous function with no arguments, returning a term of a given type.                                                                                                                                                               |
+  | ~fun((Type1, Type2, ..., TypeN) -> Type)~ | An anonymous function taking a given number of arguments of a known type. An example could be a function that handles an integer and a floating point value, which could be declared as ~fun((integer(), float()) -> any())~             |
+  | ~[]~                                      | An empty list                                                                                                                                                                                                                            |
+  | ~[Type()]~                                | P.S.2                                                                                                                                                                                                                                    |
+  | ~[Type(), ...]~                           | This special case of ~[Type()]~ mentions that the list can not be empty.                                                                                                                                                                 |
+  | ~tuple()~                                 | Any tuple                                                                                                                                                                                                                                |
+  | ~{Type1, Type2, ..., TypeN}~              | A tuple of a known size, with known types. For example, a binary tree node could be defined as ~{'node', any(), any(), any(), any()}~, corresponding to ~{'node', LeftTree, RightTree, Key, Value}~.                                     |
+  |                                           |                                                                                                                                                                                                                                          |
+  P.S.1: A port is the underlying representation of file descriptors
+  (which we rarely see unless we go dig deep inside the innards of
+  Erlang libraries), sockets, or generally things that allow Erlang to
+  communicate with the outside world, such as the ~erlang:open_port/2~
+  function. In the Erlang shell, they look like ~#Port<0.638>~
+
+  P.S.2: A list containing a given type. A list of integers could be
+  defined as ~[integer()]~. Alternatively, it can be written as
+  ~list(Type())~. Lists can sometimes be improper (like ~[1, 2|a]~).
+  As such, Dialyzer has types declared for improper lists with
+  ~improper_list(TypeList, TypeEnd)~. The improper list ~[1, 2|a]~
+  could be typed as ~improper_list(integer(), atom())~, for
+  example. Then, to make matters more complex, it is possible to have
+  lists where we are not actually sure whether the list will be proper
+  or not. In such circumstances, the type ~maybe_improper_list(TypeList, TypeEnd)~ can be used.
+
+- The notation to represent the union of types is the pipe (~|~). this
+  lets us say that a given type /TypeName/ is represented as the union
+  of ~Type1 | Type2 | ... | TypeN~
+
+- pre-defined unions
+  | Union                    | Descriptin                                                                                                                                                                                                                                                                                  |
+  |--------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+  | ~term()~                 | This is equivalent to ~any()~ and was added because other tools used ~term()~ before. Alternatively, the ~_~ variable can be used as an alias of both ~term()~ and ~any()~                                                                                                                  |
+  | ~boolean()~              | ~'true'∣'false'~                                                                                                                                                                                                                                                                            |
+  | ~byte()~                 | Defined as ~0..255~, it's any valid byte in existence                                                                                                                                                                                                                                       |
+  | ~char()~                 | It's defined as ~0..16#10ffff~, but it isn't clear whether this type refers to specific standards for characters or not. It's extremely general in its approach to avoid conflicts                                                                                                          |
+  | ~number()~               | ~integer()∣float()~                                                                                                                                                                                                                                                                         |
+  | ~maybe_improper_list()~  | This is a quick alias for ~maybe_improper_list(any(), any())~ for improper lists in general                                                                                                                                                                                                 |
+  | ~maybe_improper_list(T)~ | Where /T/ is any given type. This is an alias for ~maybe_improper_list(T, any())~                                                                                                                                                                                                           |
+  | ~string()~               | A string is defined as ~[char()]~, a list of characters. There is also ~nonempty_string()~, defined as ~[char(), ...]~. Sadly, there is so far no string type for binary strings only, but that's more because they're blobs of data that are to be interpreted in whatever type you choose |
+  | ~iolist()~               | They're defined as ~maybe_improper_list(char()∣binary()∣iolist(), binary()∣[])~. you can see that the iolist is itself defined in terms of iolists                                                                                                                                          |
+  | ~module()~               | This is a type standing for module names, and is currently an alias of atom()                                                                                                                                                                                                               |
+  | ~timeout()~              | ~non_neg_integer()∣'infinity'~                                                                                                                                                                                                                                                              |
+  | ~node()~                 | An Erlang's node name, which is an atom                                                                                                                                                                                                                                                     |
+  | ~no_return()~            | This is an alias of ~none()~ intended to be used in the return type of functions. It is particularly meant to annotate functions that loop (hopefully) forever, and thus never return                                                                                                       |
+  |                          |                                                                                                                                                                                                                                                                                             |
+- The syntax for type declaration in a module is:
+  #+BEGIN_SRC erlang
+  -type TypeName() :: TypeDefinition.
+  #+END_SRC
