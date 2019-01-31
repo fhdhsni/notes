@@ -75,7 +75,7 @@ true
 #+END_SRC
 
 Note: The correct ordering of each element in a comparison is the following:
-=number < atom < reference < fun < port < pid < tuple < list < bit string=
+~number < atom < reference < fun < port < pid < tuple < map < list < bit string~
 
 Erlang has no such things as boolean true and false. The terms =true=
 and =false= are atoms,
@@ -4385,6 +4385,12 @@ two@farhad
     ~--src~ flag to tell Dialyzer to use ~.erl~ files for its analysis
 
 ** types
+- A success typing is a type signature that over-approximates the set
+  of types for which the function can evaluate to a value. The domain
+  of the signature includes all possible values that the function
+  could accept as parameters, and its range includes all possible
+  return values for this domain.
+
 *** Singleton types
 - they refer to a value itself
   | 'some atom' | Any atom can be its own singleton type |
@@ -4451,23 +4457,445 @@ two@farhad
   of ~Type1 | Type2 | ... | TypeN~
 
 - pre-defined unions
-  | Union                    | Descriptin                                                                                                                                                                                                                                                                                  |
-  |--------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-  | ~term()~                 | This is equivalent to ~any()~ and was added because other tools used ~term()~ before. Alternatively, the ~_~ variable can be used as an alias of both ~term()~ and ~any()~                                                                                                                  |
-  | ~boolean()~              | ~'true'∣'false'~                                                                                                                                                                                                                                                                            |
-  | ~byte()~                 | Defined as ~0..255~, it's any valid byte in existence                                                                                                                                                                                                                                       |
-  | ~char()~                 | It's defined as ~0..16#10ffff~, but it isn't clear whether this type refers to specific standards for characters or not. It's extremely general in its approach to avoid conflicts                                                                                                          |
-  | ~number()~               | ~integer()∣float()~                                                                                                                                                                                                                                                                         |
-  | ~maybe_improper_list()~  | This is a quick alias for ~maybe_improper_list(any(), any())~ for improper lists in general                                                                                                                                                                                                 |
-  | ~maybe_improper_list(T)~ | Where /T/ is any given type. This is an alias for ~maybe_improper_list(T, any())~                                                                                                                                                                                                           |
-  | ~string()~               | A string is defined as ~[char()]~, a list of characters. There is also ~nonempty_string()~, defined as ~[char(), ...]~. Sadly, there is so far no string type for binary strings only, but that's more because they're blobs of data that are to be interpreted in whatever type you choose |
-  | ~iolist()~               | They're defined as ~maybe_improper_list(char()∣binary()∣iolist(), binary()∣[])~. you can see that the iolist is itself defined in terms of iolists                                                                                                                                          |
-  | ~module()~               | This is a type standing for module names, and is currently an alias of atom()                                                                                                                                                                                                               |
-  | ~timeout()~              | ~non_neg_integer()∣'infinity'~                                                                                                                                                                                                                                                              |
-  | ~node()~                 | An Erlang's node name, which is an atom                                                                                                                                                                                                                                                     |
-  | ~no_return()~            | This is an alias of ~none()~ intended to be used in the return type of functions. It is particularly meant to annotate functions that loop (hopefully) forever, and thus never return                                                                                                       |
-  |                          |                                                                                                                                                                                                                                                                                             |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | Union                    | Descriptin                                                                          |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~term()~                 |This is equivalent to ~any()~ and was added because other tools used ~term()~        |
+  |                          |before. Alternatively, the ~_~ variable can be used as an alias of both ~term()~ and |
+  |                          |~any()~                                                                              |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~boolean()~              | ~'true'∣'false'~                                                                    |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~byte()~                 | Defined as ~0..255~, it's any valid byte in existence                               |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~char()~                 |It's defined as ~0..16#10ffff~, but it isn't clear whether this type refers to       |
+  |                          |specific standards for characters or not. It's extremely general in its approach to  |
+  |                          |avoid conflicts                                                                      |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~number()~               | ~integer()∣float()~                                                                 |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~maybe_improper_list()~  |This is a quick alias for ~maybe_improper_list(any(), any())~ for improper lists in  |
+  |                          |general                                                                              |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~maybe_improper_list(T)~ | Where /T/ is any given type. This is an alias for ~maybe_improper_list(T, any())~   |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~string()~               |       A string is defined as ~[char()]~, a list of characters. There is also        |
+  |                          |          ~nonempty_string()~, defined as ~[char(), ...]~. Sadly, there is           |
+  |                          |                   so far no string type for binary strings only,                    |
+  |                          |                 but that's more because they're blobs of data that                  |
+  |                          |                  are to be interpreted in whatever type yo uchoose                  |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~iolist()~               |They're defined as ~maybe_improper_list(char()∣binary()∣iolist(), binary()∣[])~. you |
+  |                          |can see that the iolist is itself defined in terms of iolists                        |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~module()~               | This is a type standing for module names, and is currently an alias of atom()       |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~timeout()~              | ~non_neg_integer()∣'infinity'~                                                      |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~node()~                 | An Erlang's node name, which is an atom                                             |
+  +--------------------------+-------------------------------------------------------------------------------------+
+  | ~no_return()~            |This is an alias of ~none()~ intended to be used in the return type of functions. It |
+  |                          |is particularly meant to annotate functions that loop (hopefully) forever, and thus  |
+  |                          |never return                                                                         |
+  +--------------------------+-------------------------------------------------------------------------------------+
+
 - The syntax for type declaration in a module is:
   #+BEGIN_SRC erlang
   -type TypeName() :: TypeDefinition.
   #+END_SRC
+  so a BST can be defined like
+  #+BEGIN_SRC erlang
+  -type tree() :: {'node', tree(), tree(), any(), any()}.
+  #+END_SRC
+  Or, by using a special syntax that allows to use variable names as type comments:
+  #+BEGIN_SRC erlang
+  -type tree() :: {'node', Left::tree(), Right::tree(), Key::any(), Value::any()}.
+  #+END_SRC
+  to count for empty nodes
+  #+BEGIN_SRC erlang
+  -type tree() :: {'node', 'nil'} | {'node', Key::any(), Val::any(), Left::tree(), Right::tree()}.
+  #+END_SRC
+
+** Typing records
+- general record syntax for type declarations is ~Field::Type~ and
+  if there's a default value to be given, it becomes ~Field = Default::Type~
+- example
+  #+BEGIN_SRC erlang
+    -record(user, {name="" :: string(),
+                   notes :: tree(),
+                   age :: non_neg_integer(),
+                   friends=[] :: [#user{}],
+                   bio :: string() | binary()}).
+  #+END_SRC
+- a record can be used as a type by writing it as ~#RecordName{}~, people usually ad an alias
+  #+BEGIN_SRC erlang
+  -type user() :: #user{}.
+  #+END_SRC
+  If I were to create a user record instance as ~#user{age=5}~, there
+  would be no type error. All record field definitions have an
+  implicit ~'undefined'~ union added to them if no default value is
+  provided for them.
+
+** Typing functions
+- type signature has the form
+  #+BEGIN_SRC erlang
+  -spec FunctionName(ArgumentTypes) -> ReturnTypes.
+  #+END_SRC
+- example
+  #+BEGIN_SRC erlang
+    -module(cards).
+    -export([kind/1, main/0]).
+
+    -type suit() :: spades | clubs | hearts | diamonds.
+    -type value() :: 1..10 | j | q | k.
+    -type card() :: {suit(), value()}.
+
+    -spec kind(card()) -> face | number.
+    kind({_, A}) when A >= 1, A =< 10 -> number;
+    kind(_) -> face.
+
+    main() ->
+        number = kind({spades, 7}),
+        face   = kind({hearts, k}),
+        number = kind({rubies, 4}),                 %% oops
+        face   = kind({clubs, q}).
+  #+END_SRC
+  dialyzer will complain
+  #+BEGIN_SRC
+  cards.erl:12: Function main/0 has no local return
+  cards.erl:15: The call cards:kind({'rubies',4}) breaks the contract (card()) -> 'face' | 'number'
+  #+END_SRC
+- Typing functions with two clause
+  #+BEGIN_SRC erlang
+    -module(convert).
+    -export([main/0, convert/1]).
+
+    main() ->
+        [_,_] = convert({a,b}),
+        {_,_} = convert([a,b]),
+        [_,_] = convert([a,b]),
+        {_,_} = convert({a,b}).
+
+    -spec convert(tuple()) -> list();
+                 (list()) -> tuple().
+    convert(Tup) when is_tuple(Tup) -> tuple_to_list(Tup);
+    convert(L = [_|_]) -> list_to_tuple(L).
+  #+END_SRC
+  will find
+  #+BEGIN_SRC
+  convert.erl:4: Function main/0 has no local return
+  convert.erl:7: The pattern [_, _] can never match the type tuple()
+  #+END_SRC
+- The type ~none()~ is a type that means a given function will not
+  return. If the function might either fail or return a value, it is
+  useless to type it as returning both a value and ~none()~. The
+  ~none()~ type is always assumed to be there, and as such, the union
+  ~Type() | none()~ is the same as ~Type()~ alone.The circumstances
+  where none() is warranted is whenever you're writing a function that
+  always fails when call, such as if you were implementing
+  erlang:error/1 yourself.
+- example
+  #+BEGIN_SRC erlang
+    -module(fifo_types).
+    -export([new/0, push/2, pop/1, empty/1]).
+    -export([test/0]).
+
+    -spec new() -> {fifo, [], []}.
+    new() -> {fifo, [], []}.
+
+    -spec push({fifo, In::list(), Out::list()}, term()) -> {fifo, list(), list()}.
+    push({fifo, In, Out}, X) -> {fifo, [X|In], Out}.
+
+    -spec pop({fifo, In::list(), Out::list()}) -> {term(), {fifo, list(), list()}}.
+    pop({fifo, [], []}) -> erlang:error('empty fifo');
+    pop({fifo, In, []}) -> pop({fifo, [], lists:reverse(In)});
+    pop({fifo, In, [H|T]}) -> {H, {fifo, In, T}}.
+
+    %-spec empty({fifo, [], []}) -> true;
+    %           ({fifo, list(), list()}) -> false.
+    %-spec empty({fifo, [], []}) -> true;
+    %           ({fifo, [any(), ...], [any(), ...]}) -> false.
+    -spec empty({fifo, [], []}) -> true;
+               ({fifo, [any(), ...], []}) -> false;
+               ({fifo, [], [any(), ...]}) -> false;
+               ({fifo, [any(), ...], [any(), ...]}) -> false.
+    empty({fifo, [], []}) -> true;
+    empty({fifo, _, _}) -> false.
+
+    test() ->
+        N = new(),
+        {2, N2} = pop(push(push(new(), 2), 5)),
+        {5, N3} = pop(N2),
+        N = N3,
+        true = empty(N3),
+        false = empty(N2),
+        %pop({fifo, [a|b], [e]}).
+        pop({fifo, [a, b], [e]}).
+  #+END_SRC
+** Exporting Types
+- ~-export_type([TypeName/Arity]).~
+  e.g.
+  #+BEGIN_SRC erlang
+    -module(cards).
+    -export([kind/1, main/0]).
+
+    -type suit() :: spades | clubs | hearts | diamonds.
+    -type value() :: 1..10 | j | q | k.
+    -type card() :: {suit(), value()}.
+
+    -export_type([card/0]).
+    ...
+  #+END_SRC
+  You can reference it from any other bit of code as ~cards:card()~
+  in type specifications.
+- opaque
+  #+BEGIN_SRC
+  -export_type([fifo/0]).
+  -opaque fifo() :: {fifo, list(), list()}.
+  #+END_SRC
+  + Declaring a type as ~opaque~ means that only the module that
+    defined the type has the right to look at how it's made and make
+    modifications to it. It forbids other modules from pattern
+    matching on the values other than the whole thing, guaranteeing
+    (if they use Dialyzer) that they will never be bit by a sudden
+    change of implementation.
+
+  + Types declared as ~opaque~ represent sets of terms whose structure
+    is not supposed to be visible from outside of their defining
+    module. That is, only the module defining them is allowed to
+    depend on their term structure. Consequently, such types do not
+    make much sense as module local - module local types are not
+    accessible by other modules anyway - and is always to be exported.
+  + e.g.
+    #+BEGIN_SRC erlang
+      7
+
+      %% module1.erl
+      -export_type([my_tup1/0, my_tup2/0]).
+      -type my_tup1() :: {any(), any()}.
+      -opaque my_tup2() :: {any(), any()}.
+
+      %% module2.erl
+      -spec foo1(module1:my_tup1()) -> ok.
+      foo1({_, _}) -> ok. %% fine
+
+      -spec foo2(module1:my_tup2()) -> ok.
+      foo2({_, _}) -> ok.
+      %% Dialyzer warning, because you are looking at
+      %% the internal structure of a my_tup2() term.
+      %% If you defined the same function in the module module1, it wouldn't give a warning.
+
+      foo2(_) -> ok. %% no warning again.
+    #+END_SRC
+** Typed Behaviours
+- We could declare behaviours using the ~behaviour_info/1~
+  function. The module exporting this function would give its name to
+  the behaviour, and a second module could implement callbacks by
+  adding ~-behaviour(ModName)~. as a module attribute. The problem is
+  that there is no way for Dialyzer to check type
+  definitions. Solution is ~-callback~
+- The ~-callback~ module attribute has a similar syntax to spec. When
+  you specify function types with it, the ~behaviour_info/1~ function
+  gets automatically declared for you, and the specifications get
+  added to the module metadata in a way that lets Dialyzer do its
+  work. For example, here's the declaration of the ~gen_server~
+  #+BEGIN_SRC erlang
+    -callback init(Args :: term()) ->
+        {ok, State :: term()} | {ok, State :: term(), timeout() | hibernate} |
+        {stop, Reason :: term()} | ignore.
+
+    -callback handle_call(Request :: term(), From :: {pid(), Tag :: term()},
+                          State :: term()) ->
+        {reply, Reply :: term(), NewState :: term()} |
+        {reply, Reply :: term(), NewState :: term(), timeout() | hibernate} |
+        {noreply, NewState :: term()} |
+        {noreply, NewState :: term(), timeout() | hibernate} |
+        {stop, Reason :: term(), Reply :: term(), NewState :: term()} |
+        {stop, Reason :: term(), NewState :: term()}.
+
+    -callback handle_cast(Request :: term(), State :: term()) ->
+        {noreply, NewState :: term()} |
+        {noreply, NewState :: term(), timeout() | hibernate} |
+        {stop, Reason :: term(), NewState :: term()}.
+
+    -callback handle_info(Info :: timeout() | term(), State :: term()) ->
+        {noreply, NewState :: term()} |
+        {noreply, NewState :: term(), timeout() | hibernate} |
+        {stop, Reason :: term(), NewState :: term()}.
+
+    -callback terminate(Reason :: (normal | shutdown | {shutdown, term()} |
+                                   term()),
+                        State :: term()) ->
+        term().
+
+    -callback code_change(OldVsn :: (term() | {down, term()}), State :: term(),
+                          Extra :: term()) ->
+        {ok, NewState :: term()} | {error, Reason :: term()}.
+  #+END_SRC
+- A module cannot use both the ~-callback~ form and the
+  ~behaviour_info/1~ function at once.
+** Polymorphic Types (Parameterized Types)
+- It's a type that accepts a type as an argument. e.g. ~[integer()]~ or
+  ~list(integer())~.
+- Example
+  #+BEGIN_SRC erlang
+  -type queue(Type) :: {fifo, list(Type), list(Type)}.
+  -export_type([queue/1]).
+  #+END_SRC
+  and to use it we have to parameterize it
+  #+BEGIN_SRC erlang
+    -spec new() -> fifo:queue(card()). %% <--
+
+    -type card() :: {suit(), value()}.
+    -type value() :: 1..10 | j | q | k.
+    -type suit() :: spades | clubs | hearts | diamonds.
+  #+END_SRC
+- Example 2
+  #+BEGIN_SRC erlang
+    -module(zoo).
+    -export([main/0]).
+
+    -type red_panda() :: bamboo | birds | eggs | berries.
+    -type squid() :: sperm_whale.
+    -type food(A) :: fun(() -> A).
+
+    -spec feeder(red_panda) -> food(red_panda());
+                (squid) -> food(squid()).
+    feeder(red_panda) ->
+        fun() ->
+            element(random:uniform(4), {bamboo, birds, eggs, berries})
+        end;
+    feeder(squid) ->
+        fun() -> sperm_whale end.
+
+    -spec feed_red_panda(food(red_panda())) -> red_panda().
+    feed_red_panda(Generator) ->
+        Food = Generator(),
+        io:format("feeding ~p to the red panda~n", [Food]),
+        Food.
+
+    -spec feed_squid(food(squid())) -> squid().
+    feed_squid(Generator) ->
+        Food = Generator(),
+        io:format("feeding ~p to the squid~n", [Food]),
+        Food.
+
+    main() ->
+        <<A:32, B:32, C:32>> = crypto:strong_rand_bytes(12),
+        random:seed(A, B, C),
+        FeederRP = feeder(red_panda),
+        FeederSquid = feeder(squid),
+        feed_squid(FeederSquid),
+        feed_red_panda(FeederRP),
+
+        %% This should not be right! but dialyzer doesn't catch it, to get some warning use `-Woverspecs` flag
+        feed_squid(FeederRP),
+        feed_red_panda(FeederSquid).
+  #+END_SRC
+* Maps
+- maps are intended to be very flexible hash maps to replace ~dict~s and
+  ~gb_trees~
+
+- ~maps:new()~: returns a new, empty map.
+
+- ~maps:put(Key, Val, Map)~: adds an entry to a map.
+
+- ~maps:update(Key, Val, Map)~: returns a map with ~Key~'s entry
+  modified or raises the error ~badarg~ if it's not there.
+
+- ~maps:get(Key, Map)~ and ~maps:find(Key, Map)~: find items in a
+  map. The former returns the value if present or raises the ~badkey~
+  error otherwise, whereas the latter returns ~{ok, Val}~ or
+  error. Another version of the function is ~maps:get(Key, Map, Default)~,
+  which allows to specify the value to return if the key is missing.
+
+- ~maps:remove(Key, Map)~: returns a map with the given element
+  deleted. Similarly, ~maps:without([Keys], Map)~ will delete multiple
+  elements from the returned map. If a key to be deleted isn't
+  present, the functions behave as if they had deleted it — they
+  return a map without it. The opposite of ~maps:without/2~ is
+  ~maps:with/2~.
+
+** Syntax
+| Maps Module     | 	Maps Syntax       |
+|-----------------+-----------------------|
+| ~maps:new/1~    | ~#{}~                 |
+| ~maps:put/3~    | ~Map#{Key => Val}~    |
+| ~maps:update/3~ | ~Map#{Key := Val}~    |
+| ~maps:get/2~    | ~Map#{Key}~           |
+| ~maps:find/2~   | ~#{Key := Val} = Map~ |
+- Note: Not everything has been implemented yet.
+
+e.g.
+#+BEGIN_SRC erlang
+1> Pets = #{"dog" => "winston", "fish" => "mrs.blub"}.
+#{"dog" => "winston","fish" => "mrs.blub"}
+
+2> #{"fish" := CatName, "dog" := DogName} = Pets.
+#{"dog" => "winston","fish" => "mrs.blub"}
+
+3> Pets#{"dog" := "chester"}.
+#{"dog" => "chester","fish" => "mrs.blub"}
+
+4> Pets#{dog := "chester"}. %% key doesn't exist
+      exception error: bad argument
+    in function  maps:update/3
+    called as maps:update(dog,"chester",#{"dog" => "winston","fish" => "mrs.blub"})
+    in call from erl_eval:'-expr/5-fun-0-'/2 (erl_eval.erl, line 257)
+    in call from lists:foldl/3 (lists.erl, line 1248)
+#+END_SRC
+
+** Maps Vs. Records Vs. Dicts
+
+| Issue Solved By Maps                   | Issue in Records | Issue in Dicts |
+|----------------------------------------+------------------+----------------|
+| Record Name is cumbersome              | ✓                |                |
+| No good native k/v store               |                  | ✓              |
+| Faster k/v store                       |                  | 18.x and above |
+| Converting easier with native type     | ✓                | ✓              |
+| More powerful pattern matching         |                  | ✓              |
+| Upgrades with Records                  | maybe            |                |
+| Usable across modules without includes | ✓                |                |
+
+- we should use maps as dicts and not as records
+  | Operations                      | Records | Maps  | Dict |
+  |---------------------------------+---------+-------+------|
+  | Immutable                       | ✓       | ✓     | ✓    |
+  | Keys of any type                |         | ✓     | ✓    |
+  | Usable with maps/folds          |         | ✓     | ✓    |
+  | Content opaque to other modules | ✓       |       |      |
+  | Has a module to use it          |         | ✓     | ✓    |
+  | Supports pattern matching       | ✓       | ✓     |      |
+  | All keys known at compile-time  | ✓       |       |      |
+  | Can merge with other instance   |         | ✓     | ✓    |
+  | Testing for presence of a key   |         | ✓     | ✓    |
+  | Extract value by key            | ✓       | ✓     | ✓    |
+  | Per-key Dialyzer type-checking  | ✓       | P.S.1 |      |
+  | Conversion from/to lists        |         | ✓     | ✓    |
+  | Per-element default values      | ✓       |       |      |
+  | Standalone data type at runtime |         | ✓     |      |
+  | Fast direct-index access        | ✓       |       |      |
+  P.S.1 The EEP (Erlang Enhancement Proposal) recommends making this
+  possible for keys known at compile-time, but has no ETA on when or
+  if this will happen.
+- Keys being known at compile time brings advantages with fast access
+  to specific values (faster than what is possible dynamically),
+  additional safety (crash early rather than corrupting state), and
+  easier type checking. These make records absolutely appropriate for
+  a process' internal state, despite the occasional burden of writing
+  a more verbose code_change function.
+* time
+- Before release 18, Erlang time works in one of two major ways:
+  + The operating system's clock, represented as a tuple of the form
+    ~{MegaSeconds, Seconds, MicroSeconds}~ (~os:timestamp()~)
+  + The virtual machine's clock, represented as a tuple of the form
+    ~{MegaSeconds, Seconds, MicroSeconds}~ (~erlang:now()~, auto-imported as ~now()~)
+    * The VM's clock can only move forward, and can never return the
+      same value twice. This is a property named being /strictly monotonic/
+    * In order for ~now()~ to respect such properties, it requires
+      coordinated access by all Erlang processes. Whenever it is
+      called twice in a row at close intervals or while time has gone
+      backwards, the VM will increment microseconds to make sure the
+      same value isn't returned twice. This coordination mechanism
+      (acquiring locks and whatnot) can act as a bottleneck in a busy
+      system.
