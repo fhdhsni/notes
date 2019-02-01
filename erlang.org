@@ -4884,12 +4884,16 @@ e.g.
   easier type checking. These make records absolutely appropriate for
   a process' internal state, despite the occasional burden of writing
   a more verbose code_change function.
-* time
-- Before release 18, Erlang time works in one of two major ways:
-  + The operating system's clock, represented as a tuple of the form
-    ~{MegaSeconds, Seconds, MicroSeconds}~ (~os:timestamp()~)
-  + The virtual machine's clock, represented as a tuple of the form
-    ~{MegaSeconds, Seconds, MicroSeconds}~ (~erlang:now()~, auto-imported as ~now()~)
+* [[https://learnyousomeerlang.com/time][time]]
+- Confused the heck out of me. Read the chapter again
+** Before release 18
+- Erlang time works in one of two major ways:
+  + The operating system's clock:
+    * represented as a tuple of the form ~{MegaSeconds, Seconds, MicroSeconds}~ (~os:timestamp()~)
+    * The operating system clock can follow any pattern whatsoever
+  + The virtual machine's clock:
+    * represented as a tuple of the form ~{MegaSeconds, Seconds, MicroSeconds}~
+      (~erlang:now()~, auto-imported as ~now()~)
     * The VM's clock can only move forward, and can never return the
       same value twice. This is a property named being /strictly monotonic/
     * In order for ~now()~ to respect such properties, it requires
@@ -4899,3 +4903,27 @@ e.g.
       same value isn't returned twice. This coordination mechanism
       (acquiring locks and whatnot) can act as a bottleneck in a busy
       system.
+*** time correction
+- Time correction makes it so the VM, for timers having to do with
+  ~now()~, ~after~ bits in ~receive~, ~erlang:start_timer/3~ and
+  ~erlang:send_after/3~ along with the ~timer~ module, will dampen sudden
+  changes by adjusting the clock frequency to go slightly faster or
+  slower.
+** How Things Are (18.0+)
+- In general, the problem is that there were two tools (~os:timestamp()~ and ~now()~) to fill all of the following tasks:
+  1. Find the system's time
+  2. Measure time elapsed between two events
+  3. Determine the order of events (by tagging each event with ~now()~)
+  4. Create unique values
+
+** Summary
+- To find system time: ~erlang:system_time/0-1~
+- To measure time differences: call ~erlang:monotonic_time/0-1~ twice
+  and subtract them
+- To define an absolute order between events on a node:
+  ~erlang:unique_integer([monotonic])~
+- Measure time and make sure an absolute order is defined:
+  ~{erlang:monotonic_time(), erlang:unique_integer([monotonic])}~
+- Create a unique name: ~erlang:unique_integer([positive])~. Couple it
+  with a node name if you want the value to be unique in a cluster, or
+  try using [[https://github.com/okeuday/uuid][UUIDv1s]].
