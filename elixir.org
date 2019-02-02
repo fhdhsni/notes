@@ -1,60 +1,52 @@
+
 * Elixir
-Most of these notes are from official elixir guide and learnelixir.tv
+Most of these notes are from official elixir guide and [[learnelixir.tv][learnelixir.tv]]
+and “Elixir in Action”
 ** Tips
-1) *.ex files will be compiled.
-2) *.exs are script files (won't get compiled)
+1) ~*.ex~ files will be compiled.
+2) ~*.exs~ are script files (won't get compiled)
 3) snake_case naming convention
 4) # starts a comment line
-5) ~/.iex.exs is iex configuration file (more info =iex> h IEx.configure=)
-6) === (triple equal) is used for comparing floats to integers (2 === 2.0 returns false)
-7) Use =i= in iex for getting information about a thing like =i 'foo'=
-8) When counting the elements in a data structure, Elixir also abides
-   by a simple rule: the function is named =size= if the operation is in
-   constant time (i.e. the value is pre-calculated) or =length= if the
-   operation is linear (i.e. calculating the length gets slower as the
-   input grows). As a mnemonic, both “length” and “linear” start with
-   “l”.
-9) Elixir provides three boolean operators: =or=, =and= and =not=. These
-   operators are strict in the sense that they expect a boolean (true
-   or false) as their first argument:
-10) =or= and =and= are short-circuit operators. They only execute the
-    right side if the left side is not enough to determine the result:
-    #+BEGIN_SRC sh
-    iex> false and raise("This error will never be raised")
-    false
-    #+END_SRC
-    Besides these boolean operators, Elixir also provides =||=, =&&= and =!=
-    which accept arguments of any type. For these operators, all
-    values except =false= and =nil= will evaluate to true
-    #+BEGIN_SRC sh
-     # or
-     iex> 1 || true
-     1iex> false || 11
-     11
-     # and
-     iex> nil && 13
-     nil
-     iex> true && 17
-     17
-     #!
-     iex> !true
-     false
-     iex> !1
-     false
-     iex> !nil
-     true
-    #+END_SRC
-- In Elixir when can compare two different types. the order is
-  =number < atom < reference < function < port < pid < tuple < map < list < bitstring=
+5) ~~/.iex.exs~ is iex configuration file (more info =iex> h IEx.configure=)
+6) You can add additional code paths by providing the ~-pa~ switch:
+   #+BEGIN_SRC
+   $ iex -pa my/code/path -pa another/code/path
+   #+END_SRC
+7) If you don’t want a BEAM instance to terminate, you can provide the
+   ~--no-halt~ parameter:
+   #+BEGIN_SRC
+   $ elixir --no-halt script.exs
+   #+END_SRC
+
+8) You can check which code paths are used at runtime by calling the Erlang function
+   #+BEGIN_SRC
+   :code.get_path
+   #+END_SRC
+9) Dynamically calling functions
+   #+BEGIN_SRC elixir
+   iex> apply(IO, :puts, ["Dynamic function call."])
+   Dynamic function call.
+   #+END_SRC
+10) Use =i= in iex for getting information about a thing like ~i 'foo'~
+11) Use =h= in iex for getting documentation of a thing like ~h List.insert_at~
+12) When counting the elements in a data structure, Elixir also abides
+    by a simple rule: the function is named =size= if the operation is in
+    constant time (i.e. the value is pre-calculated) or =length= if the
+    operation is linear (i.e. calculating the length gets slower as the
+    input grows). As a mnemonic, both “length” and “linear” start with
+    “l”.
+
+15) In Elixir when can compare two different types. the order is
+    =number < atom < reference < function < port < pid < tuple < map < list < bitstring=
 
 ** Types
 *** Numbers
 - Integers (large numbers can be used with _ e.g 1_000_000_000)
   + =0o555= (octal)
-  + =0xabc= (hexdecimal)
+  + =0xff= (hexdecimal)
   + =0b101100=
 - Floats (64bit accuracy)
-  - exponent: 1.0e-20
+  - exponent: ~1.0e-2~ (0.01)
 
 :NOTE:
 =10 / 2= returns a float. If you need integer use =div(10, 2)=
@@ -63,7 +55,11 @@ Most of these notes are from official elixir guide and learnelixir.tv
 :END:
 
 *** Atoms
-Atoms are constants where their name is their own value.
+- Atoms are constants where their name is their own value.
+- When you say ~variable = :some_atom~ the variable doesn’t contain
+  the entire text, but only a reference to the atom table. Therefore,
+  memory consumption is low, the comparisons are fast, and the code is
+  still readable.
 #+BEGIN_SRC elixir
 :hello == :"hello" # true
 #+END_SRC
@@ -77,12 +73,40 @@ end
 is_atom(MyMod) #true
 #+END_SRC
 
-=nil= is also an atom.
+- =nil= is also an atom.
+
+- There’s another syntax for atom constants. You can omit the
+  beginning colon and start with an uppercase character: ~AnAtom~ This
+  is called an /alias/, and at compile time it’s transformed into this:
+  ~:"Elixir.AnAtom"~:
+  #+BEGIN_SRC
+  iex(1)> AnAtom == :"Elixir.AnAtom"
+  true
+
+  iex(2)> AnAtom == Elixir.AnAtom
+  true
+  #+END_SRC
+  When you write ~alias IO, as: MyIO~, you instruct the compiler to
+  transform ~MyIO~ into ~IO~. Resolving this further, the final result
+  emitted in the generated binary is ~:Elixir.IO~. Therefore, with an
+  alias set up, the following also holds:
+  #+BEGIN_SRC elixir
+  iex> MyIO == Elixir.IO
+  true
+
+  iex> Foo == :"Elixir.Foo"
+  true
+
+  iex> alias Foo, as: Bar
+  Foo
+
+  iex> Bar == Elixir.Foo
+  true
+  #+END_SRC
 
 *** Booleans
 In fact they are atoms
-:true == true
-is true
+~:true == true~ is true
 
 *** Strings
 Strings in Elixir are represented internally by binaries which are
@@ -119,70 +143,105 @@ is_list 'hello' # true
 *** Binary list
 =<<1, 2, 3>>=
 - Every element is 1 byte long.
-- Concatenating two binary list
-=<<1, 2, 3>> <> <<4>>=
+- Concatenating two binary list ~<<1, 2, 3>> <> <<4>>~
 
-Each number given to a binary is meant to represent a byte and
-therefore must go up to 255. Binaries allow modifiers to be given to
-store numbers bigger than 255 or to convert a code point to its UTF-8
-representation:
+- Each number given to a binary is meant to represent a byte and
+  therefore must go up to 255. Binaries allow modifiers to be given to
+  store numbers bigger than 255 or to convert a code point to its
+  UTF-8 representation:
+  #+BEGIN_SRC elixir
+  iex> <<255>>
+  <<255>>
 
-#+BEGIN_SRC elixir sh
-iex> <<255>>
-<<255>>
-iex> <<256>> # truncated
-<<0>>
-iex> <<256 :: size(16)>> # use 16 bits (2 bytes) to store the number
-<<1, 0>>
-iex> <<256 :: utf8>> # the number is a code point
-"Ā"
-iex> <<256 :: utf8, 0>>
-<<196, 128, 0>>
+  iex> <<256>> # truncated
+  <<0>>
 
-iex> pixels
-<<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+  iex> <<256 :: size(16)>> # use 16 bits (2 bytes) to store the number
+  <<1, 0>>
 
-iex> <<red::size(8), rest::binary>> = pixels
-<<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+  iex> <<256 :: utf8>> # the number is a code point
+  "Ā"
 
-iex> red
-213
+  iex> <<256 :: utf8, 0>>
+  <<196, 128, 0>>
 
-iex> rest
-<<45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+  iex> pixels
+  <<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
 
-iex> <<r::8, rest::binary>> = pixels
-<<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+  iex> <<red::size(8), rest::binary>> = pixels
+  <<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
 
-iex> r
-213
-#+END_SRC
+  iex> red
+  213
+
+  iex> rest
+  <<45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+
+  iex> <<r::8, rest::binary>> = pixels
+  <<213, 45, 132, 64, 76, 32, 76, 0, 0, 234, 32, 15>>
+
+  iex> r
+  213
+  #+END_SRC
+
+- Another example, putting ~256~ into 16 bits of memory
+    #+BEGIN_SRC elixir
+    iex> <<257::16>>
+    <<1, 1>>
+    #+END_SRC
+    This expression places the number 257 into 16 bits of consecutive memory space. The
+    output indicates that you use 2 bytes, both having a value of 1. This is due to the binary
+    representation of 257, which in 16-bit form is written ~00000001 00000001~.
+
+- pattern matching: splits a single byte into two 4-bit values
+  #+BEGIN_SRC elixir
+  iex(5)>  <<a :: 4, b :: 4>> = << 155 >>
+  <<155>>
+
+  iex(6)> a
+  9
+
+  iex(7)> b
+  11
+  #+END_SRC
+  Because the number ~155~ is in binary represented as ~10011011~, you get
+  values of 9 (~1001~ binary) and 11 (~1011~ binary).
+
 
 *** bitstring
-If a byte has 8 bits, what happens if we pass a size of 1 bit?
+- If the total size of all the values isn’t a multiple of 8, the
+  binary is called a bitstring — a sequence of bits:
 
-#+BEGIN_SRC sh
-iex> <<1 :: size(1)>>
-<<1::size(1)>>
-iex> <<2 :: size(1)>> # truncated
-<<0::size(1)>>
-iex> is_binary(<<1 :: size(1)>>)
-false
-iex> is_bitstring(<<1 :: size(1)>>)
-true
-iex> bit_size(<<1 :: size(1)>>)
-1
-#+END_SRC
+- If a byte has 8 bits, what happens if we pass a size of 1 bit?
+  #+BEGIN_SRC elixir
+  iex> <<1 :: size(1)>>
+  <<1::size(1)>>
 
-The value is no longer a binary, but a bitstring – a bunch of bits! So
-a binary is a bitstring where the number of bits is divisible by 8.
+  iex> <<2 :: size(1)>> # truncated
+  <<0::size(1)>>
 
-#+BEGIN_SRC sh
-iex> is_binary(<<1 :: size(16)>>)
-true
-iex> is_binary(<<1 :: size(15)>>)
-false
-#+END_SRC
+  iex> is_binary(<<1 :: size(1)>>)
+  false
+
+  iex> is_bitstring(<<1 :: size(1)>>)
+  true
+
+  iex> bit_size(<<1 :: size(1)>>)
+  1
+
+  iex> <<1::1, 0::1, 1::1>>
+  <<5::size(3)>>
+  #+END_SRC
+
+- The value is no longer a binary, but a bitstring – a bunch of bits!
+  So a binary is a bitstring where the number of bits is divisible
+  by 8.
+  #+BEGIN_SRC elixir
+  iex> is_binary(<<1 :: size(16)>>)
+  true
+  iex> is_binary(<<1 :: size(15)>>)
+  false
+  #+END_SRC
 
 *** Anonymous functions
 Anonymous functions are closures and as such they can access variables
@@ -196,8 +255,7 @@ iex> add.(1, 2)
 #+END_SRC
 To call an anonymous function we use . notation like =add.(1, 2)=
 
-
-**** Pattern Matching in anonymous function and multi lining them
+**** Pattern Matching in anonymous function and multi-lining them
 #+BEGIN_SRC elixir
 account_transaction = fn
     (balance, amount, :deposit) -> balance + amount
@@ -268,6 +326,127 @@ tuple in memory.
   put_elem(t, 1, "hello") # returns a new tuple. original tuple hasn't changed (It's immutable)
 #+END_SRC
 
+*** reference
+- a reference is an almost unique piece of information in a BEAM instance
+*** pid
+- a process identifier
+*** port identifier
+** Higher-level types
+- Elixir provides some higher-level abstractions. The ones most
+  frequently used are ~Range~, ~Keyword~, ~MapSet~, ~Date~, ~Time~,
+  ~NaiveDateTime~, and ~DateTime~.
+- [[Range]]
+- [[Keyword lists]]
+- [[https://hexdocs.pm/elixir/MapSet.html][MapSet]]
+  + A ~MapSet~ is the implementation of a set — a store of unique
+    values, where a value can be of any type.
+  + ~MapSet~ doesn’t preserve the ordering of the items.
+- Times and dates
+  + [[https://hexdocs.pm/elixir/Date.html][~Date~]]
+    * A date can be created with the =~D= sigil
+      #+BEGIN_SRC elixir
+        iex> date = ~D[2018-01-31]
+        ~D[2018-01-31]
+
+        iex> date.year
+        2018
+
+        iex> date.day
+        31
+      #+END_SRC
+  + [[https://hexdocs.pm/elixir/Time.html][~Time~]]
+    * Similarly, you can represent a time with the =~T= sigil, by
+      providing hours, minutes, seconds, and microseconds:
+      #+BEGIN_SRC elixir
+        iex> time = ~T[11:59:12.00007]
+
+        iex> time.hour
+        11
+
+        iex> time.minute
+        59
+      #+END_SRC
+  + [[https://hexdocs.pm/elixir/NaiveDateTime.html][~NaiveDateTime~]]
+    * can be created with the =~N= sigil:
+      #+BEGIN_SRC elixir
+      iex(1)> naive_datetime = ~N[2018-01-31 11:59:12.000007]
+
+      iex(2)> naive_datetime.year
+      2018
+
+      iex(3)> naive_datetime.hour
+      11
+      #+END_SRC
+  + [[https://hexdocs.pm/elixir/DateTime.html][~DateTime~]]
+    * The ~DateTime~ module can be used to work with datetimes in some
+      timezone. Unlike with other types, no sigil is
+      available. Instead, you can create a datetime by using ~DateTime~ functions:
+      #+BEGIN_SRC elixir
+      iex> datetime = DateTime.from_naive!(naive_datetime, "Etc/UTC")
+
+      iex>2018
+      datetime.year
+
+      iex>11
+      datetime.hour
+
+      iex> datetime.time_zone
+      "Etc/UTC"
+      #+END_SRC
+- [[file:erlang.org::*IO%20Lists][IO Lists]]
+  * An IO list is a special sort of list that’s useful for
+    incrementally building output that will be forwarded to an I/O
+    device, such as a network or a file. Each element of an IO list
+    must be one of the following:
+    + An integer in the range of 0 to 255
+    + A binary
+    + An IO list
+  * In other words, an IO list is a deeply nested structure in which
+    leaf elements are plain bytes (or binaries, which are again a
+    sequence of bytes). For example, here’s ~"Hello world"~ represented
+    as a convoluted IO list:
+    #+BEGIN_SRC
+    iex(1)> iolist = [[['H', 'e'], "llo,"], " worl", "d!"]
+    #+END_SRC
+    Notice how you can combine character lists and binary strings into a deeply nested list.
+    Many I/O functions can work directly and efficiently with such data. For example,
+    you can print this structure to the screen:
+    #+BEGIN_SRC elixir
+    iex(2)> IO.puts(iolist)
+    Hello, world!
+    #+END_SRC
+    IO lists are useful when you need to incrementally build a stream
+    of bytes. Lists usually aren’t good in this case, because
+    appending to a list is an O(n) operation. In contrast, appending
+    to an IO list is O(1), because you can use nesting. Here’s a
+    demonstration of this technique:
+    #+BEGIN_SRC elixir
+    iex> iolist = []
+    []
+
+    iex> iolist = [iolist, "This"]
+    [[], "This"]
+
+    iex> iolist = [iolist, " is"]
+    [[[], "This"], " is"]
+
+    iex> iolist = [iolist, " an"]
+    [[[[], "This"], " is"], " an"]
+
+    iex> iolist = [iolist, " IO list."]
+    [[[[[], "This"], " is"], " an"], " IO list."]
+
+    iex> iolist
+    [[[[[], "This"], " is"], " an"], " IO list."]
+    #+END_SRC
+    Each such operation is O(1), so this is performant. And you can
+    send this data to an IO function.
+    #+BEGIN_SRC
+    iex> IO.puts(iolist)
+
+    This is an IO list.
+    #+END_SRC
+
 ** Lists or tuples?
 Lists are stored in memory as linked lists, meaning that each element
 in a list holds its value and points to the following element until
@@ -300,15 +479,15 @@ To see if an element is present in a list
 #+BEGIN_SRC elixir
 "fhd" in ["fhd", "hsni", "blah"] # true
 #+END_SRC
-*** == vs ===
-The difference between == and === is that the latter is more strict
-when comparing integers and floats:
-#+BEGIN_SRC sh
-iex> 1 == 1.0
-true
-iex> 1 === 1.0
-false
-#+END_SRC
+*** ~==~ vs ~===~
+- The difference between ~==~ and ~===~ is that the latter is more
+  strict when comparing integers and floats:
+  #+BEGIN_SRC sh
+  iex> 1 == 1.0
+  true
+  iex> 1 === 1.0
+  false
+  #+END_SRC
 *** ++ and --
 #+BEGIN_SRC elixir
 [1, 2, 3] ++ [4] # [1, 2, 3, 4] # be careful here. this might be slow
@@ -340,16 +519,45 @@ To concatenate two binaries. Remember in elixir strings are binaries
 #+END_SRC
 *** Bitwise Operators
 *** Logical Operators
-**** and, or, &&, ||
-=and=, =or= only accepts booleans
-=&&=, =||= is non-strict and accepts any value
-
-Using =||= to set a default:
-#+BEGIN_SRC elixir
-user = %{name: nil}
-name = user.name || "Farhad"
-name # Farhad
-#+END_SRC
+- Elixir provides three boolean operators: =or=, =and= and
+  =not=. These operators are strict in the sense that they expect a
+  boolean (~true~ or ~false~) as their first argument
+- =or= and =and= are short-circuit operators. They only execute the
+  right side if the left side is not enough to determine the result:
+    #+BEGIN_SRC sh
+    iex> false and raise("This error will never be raised")
+    false
+    #+END_SRC
+    Besides these boolean operators, Elixir also provides =||=, =&&= and =!=
+    which accept arguments of any type. For these operators, all
+    values except =false= and =nil= will evaluate to true
+    #+BEGIN_SRC sh
+     # or
+     iex> 1 || true
+     1
+     iex> false || 11
+     11
+     # and
+     iex> nil && 13
+     nil
+     iex> true && 17
+     17
+     #!
+     iex> !true
+     false
+     iex> !1
+     false
+     iex> !nil
+     true
+    #+END_SRC
+- the atoms ~false~ and ~nil~ are treated as falsy, and everything else is
+  treated as truthy.
+- Using ~||~ to set a default:
+  #+BEGIN_SRC elixir
+  user = %{name: nil}
+  name = user.name || "Farhad"
+  name # Farhad
+  #+END_SRC
 *** Capture Operator: &
 captures or creates an anonymous function
 
@@ -464,7 +672,6 @@ To use it in a function
 In general, when the keyword list is the last argument of a function,
 the square brackets are optional.
 
-
 Although we can pattern match on keyword lists, it is rarely done in
 practice since pattern matching on lists requires the number of items
 and their order to match:
@@ -481,37 +688,48 @@ structure in Elixir.
 - Maps allow any value as a key.
 - Maps’ keys do not follow any ordering.
 - Duplicate values will be overrided
-#+BEGIN_SRC elixir
-  foo = %{:name => "Farhad", :username => "fhdhsni", :name => "notFarhad"}
+  #+BEGIN_SRC elixir
+    foo = %{:name => "Farhad", :username => "fhdhsni", :name => "notFarhad"}
 
-  Map.get(foo, :name)             # notFarhad
-  foo[:username]                  # fhdhsni
-  foo.name                        # only if keys are atoms
-#+END_SRC
+    Map.get(foo, :name)             # notFarhad
+    foo[:username]                  # fhdhsni
+    foo.name                        # only if keys are atoms
+  #+END_SRC
 
-Keyword syntax is allowed as long as all of the keys are atoms
-#+BEGIN_SRC elixir
-%{a: 1, b: 2} === %{:a => 1, :b => 2} # true
- #+END_SRC
+- Keyword syntax is allowed as long as all of the keys are atoms
+  #+BEGIN_SRC elixir
+  %{a: 1, b: 2} === %{:a => 1, :b => 2} # true
+  #+END_SRC
 
-pattern matching:
-#+BEGIN_SRC elixir
-iex> %{} = %{:a => 1, 2 => :b}
-%{2 => :b, :a => 1}
-iex> %{:a => a} = %{:a => 1, 2 => :b}
-%{2 => :b, :a => 1}
-iex> a
-1
-iex> %{:c => c} = %{:a => 1, 2 => :b}
- (MatchError) no match of right hand side value: %{2 => :b, :a => 1}
-#+END_SRC
+- pattern matching:
+  #+BEGIN_SRC elixir
+  iex> %{} = %{:a => 1, 2 => :b}
+  %{2 => :b, :a => 1}
 
-Maps have the following syntax for updating a key’s value.
-Note: *new keys cannot be added*
-#+BEGIN_SRC elixir
-  me = %{:name => "Farhad", :age => 25}
-  notMe = %{me | :name => "someone else"} # Adding new keys are not allowed
-#+END_SRC
+  iex> %{:a => a} = %{:a => 1, 2 => :b}
+  %{2 => :b, :a => 1}
+
+  iex> a
+  1
+
+  iex> %{:c => c} = %{:a => 1, 2 => :b}
+   (MatchError) no match of right hand side value: %{2 => :b, :a => 1}
+
+
+  iex> %{name: name} = %{name: "Fahrad", age: 900}
+  %{age: 900, name: "Fahrad"}
+
+  iex> name
+  "Fahrad"
+  #+END_SRC
+
+- Maps have the following syntax for updating a key’s value. Note that
+  this is for updaing, *new keys cannot be added*, to store a new
+  element to the map, you can use ~Map.put/3~
+  #+BEGIN_SRC elixir
+    me = %{:name => "Farhad", :age => 25}
+    notMe = %{me | :name => "someone else"} # Adding new keys are not allowed
+  #+END_SRC
 
 *** struct
 Structs are extensions built on top of maps that provide compile-time
@@ -640,6 +858,10 @@ Range struct
   0..100 == %Range{first: 0, last: 100} # true
   0..100 == %{__struct__: Range, first: 0, last: 100} # true
 #+END_SRC
+- be aware that the memory footprint of a range is very small,
+  regardless of the size. A million-number range is still just a small
+  map.
+
 *** Regular Expressions
 %Regex{
   opts: "",
@@ -1122,6 +1344,8 @@ defmodule Elixir.Foo do
   alias Elixir.Foo.Bar, as: Bar
 end
 #+END_SRC
+- this nesting is a convenience. After the compilation, there’s no
+  special relation between the modules
 
 *** Multi alias/import/require/use
 #+BEGIN_SRC
@@ -1282,7 +1506,6 @@ defmodule Play do
   defstruct name: "farhad", age: 26
 end
 #+END_SRC
-
 
 **** Fallback to Any
 Another alternative to =@derive= is to explicitly tell the protocol to
@@ -1583,7 +1806,11 @@ a heredoc string
 
 *** Character List sigil
 #+BEGIN_SRC elixir
-~c(foobar) # 'foobar'
+iex(1)> ~c(it's #{40 + 2})
+'it\'s 42'
+
+iex(2)> ~C(it's #{40 + 2})
+'it\'s \#{40 + 2}'
 #+END_SRC
 
 ** try, catch, and rescue
@@ -1714,7 +1941,7 @@ block whenever the try block finishes without a throw or an error.
 #+END_SRC
 
 ** Typespecs and behaviours
-*** Typespecs
+*** [[https://hexdocs.pm/elixir/typespecs.html][Typespecs]]
 Elixir comes with typespecs, which are a notation used for:
 - declaring typed function signatures (specifications);
 - declaring custom data types.
@@ -1947,6 +2174,7 @@ iex> :rand.uniform(6)
 The build tool for elixir
 - =mix new foobar= to create foobar project
 - =iex -S mix= to start iex in the context of a mix project
+- ~mix run -e "IO.puts(MyProject.hello())"~
 - There're two ways to set a key-value config in config.exs
   + =config :projectName, key: value=
   + =config :projectName, Module.Name, key: value=
@@ -2680,7 +2908,7 @@ A Node is an instance of BEAM virtual machine.
 - Be aware of Network Latency
 
 ** Miscellaneous
-*** =if=
+*** ~if~
     if statement is just a macro that takes =true= or =false= as it's
     first argument and a keyword list as it's second argument. use =case= or =cond= instead
 #+BEGIN_SRC elixir
@@ -2814,8 +3042,7 @@ returns ASCII code of given character (in decimal)
 IO.inspect ?a # 97
 IO.inspect ?\s # 32 (for space)
 #+END_SRC
-** WAT?
-
+*** multi-clause anonymous function
 #+BEGIN_SRC elixir
 foo = fn 0 -> "zero"; 2 -> "two" end
 foo.(0) # "zero"
@@ -2843,3 +3070,8 @@ We can configure the generated =.app= file by customizing the
 values returned by the =application/0= inside our =mix.exs= project
 file.
 ** Application
+** Macros
+** Special forms
+- the basic building blocks of Elixir, and therefore cannot be
+  overridden by the developer.
+- [[https://hexdocs.pm/elixir/Kernel.SpecialForms.html][Kernel.SpecialForms]]

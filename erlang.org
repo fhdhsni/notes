@@ -3,6 +3,7 @@ My Erlang notes, From [[https://learnyousomeerlang.com/][Learn You Some Erlang f
 [[http://erlang.org/doc/index.html][official doc]], some talks on youtube and my own clarifications.
 
 * Miscellaneous
+- ~BEAM~ (for Bogdan/Björn’s Erlang Abstract Machine)
 - to get the documentation on lists =erl -man lists=
 - [[http://www.erlang.se/doc/programming_rules.shtml][Programming Rules and Conventions]]
 - Erlang functions and expressions must always return something.

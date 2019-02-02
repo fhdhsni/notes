@@ -12,7 +12,6 @@
 |------------------------------+-----------+--------------|
 
 
-
 * Todo and Agenda
 
 |----------------------------------------------------------------------------------+-------------+---------------------------------------------|
@@ -51,3 +50,6 @@
 :FOO:
   blah blah blah
 :END:
+* Links
+https://orgmode.org/manual/Internal-links.html
+https://orgmode.org/manual/External-links.html
