@@ -1,4 +1,3 @@
-
 * Elixir
 Most of these notes are from official elixir guide and [[learnelixir.tv][learnelixir.tv]]
 and “Elixir in Action”
@@ -206,7 +205,32 @@ is_list 'hello' # true
   #+END_SRC
   Because the number ~155~ is in binary represented as ~10011011~, you get
   values of 9 (~1001~ binary) and 11 (~1011~ binary).
+- pattern matching: "⏪" is E2(226) 8F(143) AA(170) in hex
+  #+BEGIN_SRC elixir
+  iex(1)> <<b1, b2, b3>> = "⏪"
+  "⏪"
 
+  iex> b1
+  226
+
+  iex> b2
+  143
+
+  iex> b3
+  170
+  #+END_SRC
+
+- pattern matching:
+  #+BEGIN_SRC elixir
+    iex> command = "ping www.example.com"
+    "ping www.example.com"
+
+    iex> "ping " <> url = command
+    "ping www.example.com"
+
+    iex> url
+    "www.example.com"
+  #+END_SRC
 
 *** bitstring
 - If the total size of all the values isn’t a multiple of 8, the
@@ -513,16 +537,23 @@ To concatenate two binaries. Remember in elixir strings are binaries
 <<104, 101, 108, 108, 111>> <> " " <> "world" # hello world
 #+END_SRC
 *** =~
-#+BEGIN_SRC elixir
-"Hello World" =~ ~r/hello/i #true
-"Hello World" =~ "Hello" # true
-#+END_SRC
+- [[https://hexdocs.pm/elixir/Kernel.html#=~/2][Doc]]
+- Matches the term on the `left` against the regular expression or
+  string on the `right`.
+- Returns `true` if `left` matches `right` (if it's a regular expression)
+  or contains `right` (if it's a string).
+  #+BEGIN_SRC elixir
+  "Hello World" =~ ~r/hello/i #true
+  "Hello World" =~ "Hello" # true
+  "Hello World" =~ "hello" # false
+  "Hello World" =~ "." # false
+  "Hello World" =~ ~r/./ # true
+  #+END_SRC
 *** Bitwise Operators
 *** Logical Operators
-- Elixir provides three boolean operators: =or=, =and= and
-  =not=. These operators are strict in the sense that they expect a
+- boolean operators ~or~, ~and~ and ~not~ are strict in the sense that they expect a
   boolean (~true~ or ~false~) as their first argument
-- =or= and =and= are short-circuit operators. They only execute the
+- are short-circuit operators, they only execute the
   right side if the left side is not enough to determine the result:
     #+BEGIN_SRC sh
     iex> false and raise("This error will never be raised")
@@ -535,18 +566,24 @@ To concatenate two binaries. Remember in elixir strings are binaries
      # or
      iex> 1 || true
      1
+
      iex> false || 11
      11
+
      # and
      iex> nil && 13
      nil
+
      iex> true && 17
      17
+
      #!
      iex> !true
      false
+
      iex> !1
      false
+
      iex> !nil
      true
     #+END_SRC
@@ -592,40 +629,55 @@ Using capture operator to capture functions from other modules
 Enum.map ["fhd", "hsni"], &String.upcase/1
 #+END_SRC
 ** Pattern Matching
-=a = 8= bind variable /a/ to number /8/, =8 = a= is a valid expression
- since 8 matches a.
+- ~a = 8~ bind variable ~a~ to number ~8~, ~8 = a~ is a valid
+  expression since ~8~ matches ~a~.
 
-If on the left hand side of = operator is variable it'll be bind to the
-right hand side but if it's a value, pattern matching happens. If you
-want to do pattern matching with a variable you can use pin (^)
-operator. =^a = 8= doesn't bind variable to 8 but it does pattern matching.
+- If on the left hand side of = operator is variable it'll be bind to
+  the right hand side but if it's a value, pattern matching
+  happens. If you want to do pattern matching with a variable you can
+  use pin (^) operator. =^a = 8= doesn't bind variable to 8 but it
+  does pattern matching.
+- ~=~ is right-associative and the result of a pattern match is always
+  the result of the term being matched (whatever is on the right side
+  of the match operator)
+  #+BEGIN_SRC elixir
+    iex> date_time = {_, {hour, _, _}} = :calendar.local_time()
+    {{2019, 2, 3}, {9, 4, 7}}
 
-Pattern Matching in maps are very useful.
-#+BEGIN_SRC elixir
-%{name: name} = %{name: "Farhad", age: 25}
-name # "farhad"
-#+END_SRC
-Matching binaries
-#+BEGIN_SRC elixir
-"username: " <> usr = "username: fhdhsni"
-usr #fhdhsni
-#+END_SRC
+    iex> hour
+    9
 
-#+BEGIN_SRC elixir
-defmodule Bar do
-  @moduledoc """
+    iex> date_time
+    {{2019, 2, 3}, {9, 4, 7}}
+  #+END_SRC
 
-  """
-  defstruct first_name: nil, last_name: nil
+- Pattern Matching in maps are very useful.
+  #+BEGIN_SRC elixir
+  %{name: name} = %{name: "Farhad", age: 25}
+  name # "farhad"
+  #+END_SRC
+- Matching binaries
+  #+BEGIN_SRC elixir
+  "username: " <> usr = "username: fhdhsni"
+  usr #fhdhsni
+  #+END_SRC
 
-  def name(%Bar{} = user), do: user.first_name <> " " <> user.last_name
-  def name(unsupported), do: raise "what the hell is #{inspect unsupported}?"
+- Make sure it's the struct that you want
+  #+BEGIN_SRC elixir
+  defmodule Bar do
+    @moduledoc """
 
-  def send_name, do: name(%Bar{first_name: "Farhad", last_name: "Hsni"})
-end
+    """
+    defstruct first_name: nil, last_name: nil
 
-Bar.send_name
-#+END_SRC
+    def name(%Bar{} = user), do: user.first_name <> " " <> user.last_name
+    def name(unsupported), do: raise "what the hell is #{inspect unsupported}?"
+
+    def send_name, do: name(%Bar{first_name: "Farhad", last_name: "Hsni"})
+  end
+
+  Bar.send_name
+  #+END_SRC
 ** Keyword lists
 It's a high level type (under the hood they are just lists).
 In many functional programming languages, it is common to use a list
@@ -872,47 +924,64 @@ is_map ~r/hello/ # true
 #+END_SRC
 
 ** Functions, Guard clauses and Modules
-Functions in Elixir are identified by both their name and their
-arity. The arity of a function describes the number of arguments which
-the function takes.  Function declarations support guards and multiple
-clauses. If a function has several clauses, Elixir will try each
-clause until it finds one that matches.  Using guard clauses:
-#+BEGIN_SRC elixir
-  defmodule Example do
-    def hello(name) when name === "Farhad" do
-      IO.puts "Fuck off"
+- If an error is raised from inside the guard, it won’t be propagated,
+  the guard expression will return ~false~ and the corresponding clause
+  won’t match
+- Not all expressions are allowed in guard clauses
+  + [[https://hexdocs.pm/elixir/guards.html][Guards doc]]
+  + comparison operators (~==~, ~!=~, ~===~, ~!==~, ~>~, ~>=~, ~<~, ~<=~)
+  + strictly boolean operators (~and~, ~or~, ~not~). Note ~&&~, ~||~, and ~!~
+    sibling operators are not allowed as they're not strictly
+    boolean - meaning they don't require arguments to be booleans
+  + arithmetic unary and binary operators (+, -, +, -, *, /)
+  + ~in~ and ~not in~ operators (as long as the right-hand side is a
+    list or a range)
+  + "type-check" functions (~is_list/1~, ~is_number/1~, etc.)
+  + functions that work on built-in datatypes (~abs/1~, ~map_size/1~, etc.)
+
+- Functions in Elixir are identified by both their name and their
+  arity. The arity of a function describes the number of arguments
+  which the function takes.  Function declarations support guards and
+  multiple clauses. If a function has several clauses, Elixir will try
+  each clause until it finds one that matches.  Using guard clauses:
+  #+BEGIN_SRC elixir
+    defmodule Example do
+      def hello(name) when name === "Farhad" do
+        IO.puts "Fuck off"
+      end
+      def hello(name) when is_bitstring name do
+        IO.puts "Hi #{name}, Happy to see you"
+      end
+      def hello(_) do
+        IO.puts "No idea what you doin'"
+      end
     end
-    def hello(name) when is_bitstring name do
-      IO.puts "Hi #{name}, Happy to see you"
-    end
-    def hello(_) do
-      IO.puts "No idea what you doin'"
-    end
+
+    Example.hello "Esi"             # Hi Esi, Happy to see you
+    Example.hello "Farhad"          # Fuck off
+    Example.hello 25                # No idea what you doin'
+  #+END_SRC
+- Mulitple clauses
+  #+BEGIN_SRC elixir
+  defmodule Math do
+    def zero?(0), do: true
+    def zero?(x) when is_integer(x), do: false
   end
 
-  Example.hello "Esi"             # Hi Esi, Happy to see you
-  Example.hello "Farhad"          # Fuck off
-  Example.hello 25                # No idea what you doin'
-#+END_SRC
-Mulitple clauses
-#+BEGIN_SRC elixir
-defmodule Math do
-  def zero?(0), do: true
-  def zero?(x) when is_integer(x), do: false
-end
-
-IO.puts Math.zero?(0)         #=> true
-IO.puts Math.zero?(1)         #=> false
-IO.puts Math.zero?([1, 2, 3]) #=> ** (FunctionClauseError)
-IO.puts Math.zero?(0.0)       #=> ** (FunctionClauseError)
-#+END_SRC
-Using =do:= syntax
-#+BEGIN_SRC elixir
-defmodule Math do
-  def zero?(0), do: true
-  def zero?(x) when is_integer(x), do: false
-end
-#+END_SRC
+  IO.puts Math.zero?(0)         #=> true
+  IO.puts Math.zero?(1)         #=> false
+  IO.puts Math.zero?([1, 2, 3]) #=> ** (FunctionClauseError)
+  IO.puts Math.zero?(0.0)       #=> ** (FunctionClauseError)
+  #+END_SRC
+- Using =do:= syntax
+  #+BEGIN_SRC elixir
+  defmodule Math do
+    def zero?(0), do: true
+    def zero?(x) when is_integer(x), do: false
+  end
+  #+END_SRC
+- Note that Elixir (Erlang) terms can be compared with the operators ~<~ and ~>~, even if
+  they’re not of the same type.
 
 *** Function Capturing
 #+BEGIN_SRC elixir
@@ -1609,12 +1678,16 @@ Stream.iterate(0, &(&1+1)) |> Enum.take(5) # [0, 1, 2, 3, 4]
 #+END_SRC
 *** Stream.resource
 ** Comprehension
-It's another name for =for= macro in Elixir which returns a list.
+- [[https://hexdocs.pm/elixir/Kernel.SpecialForms.html#for/1][doc]]
+- It's another name for =for= macro in Elixir which returns a list.
+- comprehensions can iterate through anything that’s enumerable
+- comprehensions can return anything that’s collectable. Some examples
+  include lists, maps, MapSet, and file streams
 
-The =for= macro has three parts:
-1. Generators
-2. Filters
-3. =:into= Option
+- The =for= macro has three parts:
+  1. Generators
+  2. Filters
+  3. =:into= Option
 
 *** Generators
 =element <- Enumerable=
@@ -1676,20 +1749,28 @@ end
     end
 #+END_SRC
 *** =:into=
-Return something other than a list with the =:into= option:
+- Return something other than a list with the =:into= option:
+  #+BEGIN_SRC elixir
+  for {key, val} <- %{name: "Farhad", dob: 1993, email: "farhad.hsni@gmail.com"},
+      key in [:name, :email],
+      into: %{},
+      do: {key, val}
+  #+END_SRC
+- e.g.
+  #+BEGIN_SRC elixir
+  for <<c <- " hello world ">>, c != ?\s, into: "", do: <<c>> # "helloworld"
+  #+END_SRC
+- e.g.
+  #+BEGIN_SRC
+  iex> multiplication_table = for x <- 1..9, y <- 1..9, into: %{} do {{x, y}, x*y} end
+  ...
 
-#+BEGIN_SRC elixir
-for {key, val} <- %{name: "Farhad", dob: 1993, email: "farhad.hsni@gmail.com"},
-    key in [:name, :email],
-    into: %{},
-    do: {key, val}
-#+END_SRC
-#+BEGIN_SRC elixir
-for <<c <- " hello world ">>, c != ?\s, into: "", do: <<c>> # "helloworld"
-#+END_SRC
+  iex> multiplication_table[{8, 6}]
+  48
+  #+END_SRC
 
 
-Sets, maps, and other dictionaries can also be given to the :into
+Sets, maps, and other dictionaries can also be given to the ~:into~
 option. In general, =:into= accepts any structure that implements the
 =Collectable= protocol.
 
@@ -1701,7 +1782,6 @@ IO module provides streams (that are both Enumerables and Collectables)
       String.upcase(line) <> "\n"
     end
 #+END_SRC
-
 
 *** =for= vs. =Enum= vs. =Stream=
 |            | Enum    | Stream | for  |
@@ -2909,18 +2989,26 @@ A Node is an instance of BEAM virtual machine.
 
 ** Miscellaneous
 *** ~if~
-    if statement is just a macro that takes =true= or =false= as it's
-    first argument and a keyword list as it's second argument. use =case= or =cond= instead
+- if statement is just a macro that takes =true= or =false= as it's
+  first argument and a keyword list as it's second argument. use
+  =case= or =cond= instead
 #+BEGIN_SRC elixir
   if true, do: :this, else :that     #
   # it's actually a macro
   if(true, [do: :this, else: :that]) # :this
   if(false, [do: :this, else: :that]) # :that
+
+  def max(a, b) do
+    if(a > b, do: a, else: b)
+  end
 #+END_SRC
+- If the condition isn’t met and the ~else~ clause isn’t specified, the
+  return value is the atom ~nil~
 
 *** =cond=
-Run the first block where expression is truthy.
-Remember =cond= has no falling through like a switch case does in other languages.
+- Run the first block where expression is truthy.
+- =cond= has no falling through like a switch case does in other languages.
+- If none of the conditions is satisfied, ~cond~ raises an error
 #+BEGIN_SRC elixir
   cond do
     expression -> body
@@ -2943,64 +3031,85 @@ Fun.foo(%{name: "Farhad", age: 51}) # "You gonna die, pretty soon actully"
 #+END_SRC
 
 *** =case=
-When a *pattern* matches the value of the *expression*, the body is executed.
-#+BEGIN_SRC elixir
-  case expression do
-    pattern -> body
-    pattern -> body
-    ...
-  end
-#+END_SRC
-#+BEGIN_SRC elixir
-  defmodule Fun do
-    def foo(%{age: age}) do
-      case age do
-        :old           -> "You gonna die, pretty soon actully"
-        :not_That_Old  -> "Enjoy misery"
-        _              -> "Hmm" #note the use of underscore in lieu of true like in =cond=
+- If no clause matches, an error is raised.
+- When a *pattern* matches the value of the *expression*, the body is
+  executed.
+  #+BEGIN_SRC elixir
+    case expression do
+      pattern -> body
+      pattern -> body
+      ...
+    end
+  #+END_SRC
+- example
+  #+BEGIN_SRC elixir
+    defmodule Fun do
+      def foo(%{age: age}) do
+        case age do
+          :old           -> "You gonna die, pretty soon actully"
+          :not_That_Old  -> "Enjoy misery"
+          _              -> "Hmm" #note the use of underscore in lieu of true like in =cond=
+        end
       end
     end
+
+    Fun.foo(%{name: "Farhad", age: :something}) # Hmm
+  #+END_SRC
+- Another example
+  #+BEGIN_SRC elixir
+  case File.read("foobar.txt") do
+    {:ok, content} ->
+      IO.puts "content of given file: #{content}"
+    {:error, reason} ->
+      Io.puts "error #{reason} occurred"
+    other ->
+      IO.puts "An unknown error occurred. #{other}"
   end
-
-  Fun.foo(%{name: "Farhad", age: :something}) # Hmm
-#+END_SRC
-Another example
-#+BEGIN_SRC elixir
-case File.read("foobar.txt") do
-  {:ok, content} ->
-    IO.puts "content of given file: #{content}"
-  {:error, reason} ->
-    Io.puts "error #{reason} occurred"
-  other ->
-    IO.puts "An unknown error occurred. #{other}"
-end
-#+END_SRC
-Using Guard clase in =case=
-#+BEGIN_SRC elixir
-v = "foo"
-case v do
-  v when v in [nil, false, ""] -> "moew"
-  _ -> "not meow"
-end
-#+END_SRC
-
+  #+END_SRC
+- Using guard clase in =case=
+  #+BEGIN_SRC elixir
+  v = "foo"
+  case v do
+    v when v in [nil, false, ""] -> "moew"
+    _ -> "not meow"
+  end
+  #+END_SRC
 *** =with=
-#+BEGIN_SRC elixir
- with
-  pattern <- expression
-  pattern <- expression
-  ...
-do
-  body
-end
-#+END_SRC
+- [[https://hexdocs.pm/elixir/Kernel.SpecialForms.html#with/1][with special form]] doc
+- If any match fails, however, with will not proceed to evaluate
+  subsequent expressions. Instead, it will immediately return the
+  result that couldn’t be matched.
+- The benefit of ~with~ is that it returns the first term that fails to
+  be matched against the corresponding pattern
+- Guards can be used in patterns as well
 
-#+BEGIN_SRC elixir
-opts = %{:width => 10, :height => 15}
-with {:ok, width} <- Map.fetch(opts, :width),
-     {:ok, height} <- Map.fetch(opts, :height),
-  do: {:ok, width * height}
-#+END_SRC
+- syntax
+  #+BEGIN_SRC elixir
+  with
+    pattern <- expression,
+    pattern <- expression,
+    ...
+  do
+    body
+  end
+  #+END_SRC
+- example
+  #+BEGIN_SRC elixir
+  opts = %{:width => 10, :height => 15}
+  with {:ok, width} <- Map.fetch(opts, :width),
+       {:ok, height} <- Map.fetch(opts, :height),
+    do: {:ok, width * height}
+  #+END_SRC
+- example
+  #+BEGIN_SRC elixir
+    def extract_user(user) do
+      with {:ok, login} <- extract_login(user),
+           {:ok, email} <- extract_email(user),
+           {:ok, password} <- extract_password(user) do
+        {:ok, %{login: login, email: email, password: password}}
+      end
+    end
+  #+END_SRC
 *** =try do ... rescue ... after ... end=
 Use try rescue as last resort.
 After is optional.
@@ -3042,12 +3151,26 @@ returns ASCII code of given character (in decimal)
 IO.inspect ?a # 97
 IO.inspect ?\s # 32 (for space)
 #+END_SRC
-*** multi-clause anonymous function
-#+BEGIN_SRC elixir
-foo = fn 0 -> "zero"; 2 -> "two" end
-foo.(0) # "zero"
-foo.(2) # "two"
-#+END_SRC
+*** Multiclause (lambda) anonymous function
+- example
+  #+BEGIN_SRC elixir
+  foo = fn 0 -> "zero"; 2 -> "two" end
+  foo.(0) # "zero"
+  foo.(2) # "two"
+  #+END_SRC
+- example with guard
+  #+BEGIN_SRC elixir
+        test_num = fn
+          x when is_number(x) and x < 0 ->
+            :negative
+
+          0 ->
+            :zero
+
+          x when is_number(x) and x > 0 ->
+            :positive
+        end
+  #+END_SRC
 ** =.app= file
 #+BEGIN_SRC
 {application,kv,
@@ -3075,3 +3198,9 @@ file.
 - the basic building blocks of Elixir, and therefore cannot be
   overridden by the developer.
 - [[https://hexdocs.pm/elixir/Kernel.SpecialForms.html][Kernel.SpecialForms]]
+** data abstraction in Elixir
+- A module is in charge of abstracting some data.
+- The module’s functions usually expect an instance of the data
+  abstraction as the first argument.
+- Modifier functions return a modified version of the abstraction.
+- Query functions return some other type of data.
