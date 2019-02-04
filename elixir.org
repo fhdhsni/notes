@@ -1,6 +1,6 @@
 * Elixir
-Most of these notes are from official elixir guide and [[learnelixir.tv][learnelixir.tv]]
-and “Elixir in Action”
+- Most of these notes are from official elixir guide and
+  [[learnelixir.tv][learnelixir.tv]] and “Elixir in Action”
 ** Tips
 1) ~*.ex~ files will be compiled.
 2) ~*.exs~ are script files (won't get compiled)
@@ -16,7 +16,6 @@ and “Elixir in Action”
    #+BEGIN_SRC
    $ elixir --no-halt script.exs
    #+END_SRC
-
 8) You can check which code paths are used at runtime by calling the Erlang function
    #+BEGIN_SRC
    :code.get_path
@@ -34,9 +33,20 @@ and “Elixir in Action”
     operation is linear (i.e. calculating the length gets slower as the
     input grows). As a mnemonic, both “length” and “linear” start with
     “l”.
-
-15) In Elixir when can compare two different types. the order is
+13) In Elixir when can compare two different types. the order is
     =number < atom < reference < function < port < pid < tuple < map < list < bitstring=
+14) Whenever a result is printed in the shell, the function
+    ~Kernel.inspect/1~ is called to transform the structure into an
+    inspected string.
+15) see the pure data structure, without this decorated output
+    #+BEGIN_SRC elixir
+      iex> myset = MapSet.new() |> MapSet.put(:foo)
+      #MapSet<[:foo]>
+
+      iex> IO.puts(inspect(myset, structs: false))
+      %{__struct__: MapSet, map: %{foo: []}, version: 2}
+      :ok
+    #+END_SRC
 
 ** Types
 *** Numbers
@@ -809,10 +819,12 @@ iex> %User{oops: :field}
  (KeyError) key :oops not found in: %User{age: 25, name: "Farhad"}
 #+END_SRC
 
-As being said earlier sturcts are just maps
+As being said earlier sturcts are just maps (although Some things that
+can be done with maps don’t work with structs. For example, you can’t
+call the ~Enum~ function on a struct)
 
 #+BEGIN_SRC elixir
-%User{} == %{__struct__: User, age: 25, name: "FArhad"} # true
+%User{} == %{__struct__: User, age: 25, name: "Farhad"} # true
 #+END_SRC
 
 Under the hood a =__struct__= funciton will be defined in the module
@@ -863,8 +875,10 @@ from the Map module:
 #+BEGIN_SRC elixir
 iex> jane = Map.put(%User{}, :name, "Jane")
 %User{age: 27, name: "Jane"}
+
 iex> Map.merge(jane, %User{name: "John"})
 %User{age: 27, name: "John"}
+
 iex> Map.keys(jane)
 [:__struct__, :age, :name]
 #+END_SRC
@@ -1494,68 +1508,111 @@ MyServer.second_data #=> 13
 #+END_SRC
 *** As temporary storage
 ** Protocols
-Protocols are a mechanism to achieve polymorphism in Elixir.
-#+BEGIN_SRC elixir
-defprotocol Size do
-  @doc "Calculates the size (and not the length!) of a data structure"
-  def size(data)
-end
+- Protocols are a mechanism to achieve polymorphism (runtime decision
+  about which code to execute) in Elixir.
+- A protocol is a module in which you declare functions without
+  implementing them. Consider it a rough equivalent of an OO
+  interface.
+  #+BEGIN_SRC elixir
+    defprotocol String.Chars do
+      def to_string(thing) #  At runtime, the type of this argument
+                           #  determines the implementation that’s called.
+    end
+  #+END_SRC
+  Now different data types can implement the protocal
+  #+BEGIN_SRC elixir
+    defimpl String.Chars, for: Integer do
+      def to_string(term) do
+        Integer.to_string(term)
+      end
+    end
+  #+END_SRC
 
-defimpl Size, for: BitString do
-  def size(string), do: byte_size(string)
-end
+- ~for: Type~: The ~Type~ is an atom and can be any of following
+  aliase which are Elixir built-in types: ~Atom~, ~BitString~, ~Float~
+  ~Function~, ~Integer~, ~List~, ~Map~, ~PID~, ~Port~, ~Reference~ and
+  ~Tuple~
+  + In addition, the alias ~Any~ is allowed, which makes it possible
+    to specify a fallback implementation. An error will be raised,
+    unless a fallback to ~Any~ is specified in the protocol definition
+    and an ~Any~ implementation exists.
+  + ~Type~ can also be an arbitrary alias
+    #+BEGIN_SRC elixir
+      defimpl String.Chars, for: SomeAlias do
+          ...
+      end
+    #+END_SRC
+    This implementation will be called if the first argument of the
+    protocol function (the ~thing~) is a struct defined in the
+    corresponding module.
+    #+BEGIN_SRC elixir
+      defimpl String.Chars, for: TodoList do
+        def to_string(_) do
+          "#TodoList"
+        end
+      end
+    #+END_SRC
+- It’s important to notice that the protocol implementation doesn’t
+  need to be part of any module. you can implement a protocol for a
+  type even if you can’t modify the type’s source code. You can place
+  the protocol implementation anywhere in your own code, and the
+  runtime will be able to take advantage of it.
 
-defimpl Size, for: Map do
-  def size(map), do: map_size(map)
-end
+- Example
+  #+BEGIN_SRC elixir
+    # defining the protocol
+    defprotocol Size do
+      @doc "Calculates the size (and not the length!) of a data structure"
+      def size(data)
+    end
 
-defimpl Size, for: Tuple do
-  def size(tuple), do: tuple_size(tuple)
-end
-#+END_SRC
+    # implementing the protocal for different data types
+    defimpl Size, for: BitString do
+      def size(string), do: byte_size(string)
+    end
 
-#+BEGIN_SRC elixir
-iex> Size.size("foo")
-3
-iex> Size.size({:ok, "hello"})
-2
-iex> Size.size(%{label: "some label"})
-1
-iex> Size.size([1, 2, 3])
- (Protocol.UndefinedError) protocol Size not implemented for [1, 2, 3]
-#+END_SRC
-- Elixir data structures
-  + =Atom=
-  + =BitString=
-  + =Float=
-  + =Function=
-  + =Integer=
-  + =List=
-  + =Map=
-  + =PID=
-  + =Port=
-  + =Reference=
-  + =Tuple=
+    defimpl Size, for: Map do
+      def size(map), do: map_size(map)
+    end
 
-Instead of sharing protocol implementation with maps, structs require
-their own protocol implementation. Since a MapSet has its size
-precomputed and accessible through MapSet.size/1, we can define a Size
-implementation for it:
-#+BEGIN_SRC elixir
-defimpl Size, for: MapSet do
-  def size(set), do: MapSet.size(set)
-end
-#+END_SRC
+    defimpl Size, for: Tuple do
+      def size(tuple), do: tuple_size(tuple)
+    end
+  #+END_SRC
+  Usage
+  #+BEGIN_SRC elixir
+  iex> Size.size("foo")
+  3
 
-#+BEGIN_SRC elixir
-defmodule User do
-  defstruct [:name, :age]
-end
+  iex> Size.size({:ok, "hello"})
+  2
 
-defimpl Size, for: User do
-  def size(_user), do: 2
-end
-#+END_SRC
+  iex> Size.size(%{label: "some label"})
+  1
+
+  iex> Size.size([1, 2, 3])
+   (Protocol.UndefinedError) protocol Size not implemented for [1, 2, 3]
+  #+END_SRC
+
+- Instead of sharing protocol implementation with maps, structs
+  require their own protocol implementation. Since a MapSet has its
+  size precomputed and accessible through MapSet.size/1, we can define
+  a Size implementation for it:
+  #+BEGIN_SRC elixir
+  defimpl Size, for: MapSet do
+    def size(set), do: MapSet.size(set)
+  end
+  #+END_SRC
+
+  #+BEGIN_SRC elixir
+  defmodule User do
+    defstruct [:name, :age]
+  end
+
+  defimpl Size, for: User do
+    def size(_user), do: 2
+  end
+  #+END_SRC
 *** Implementing =Any=
 #+BEGIN_SRC elixir
 defimpl Size, for: Any do
@@ -1589,6 +1646,67 @@ defprotocol Size do
 end
 #+END_SRC
 
+*** Built-in protocols
+- Elixir comes with some predefined protocols.
+- ~String.Chars~: for converting data into a binary string
+- ~List.Chars~: converts input data to a character string (a list of
+  characters)
+- ~Enumerable~:
+- ~Collectable~: a collectable structure is one that you can
+  repeatedly add elements to. A collectable can be used with
+  comprehensions to collect results or with ~Enum.into/2~ to transfer
+  elements of one structure (enumerable) to another (collectable).
+
+*** Example implementing ~Collectable~
+#+BEGIN_SRC elixir
+  defmodule TodoList do
+    defstruct auto_id: 1, entries: %{}
+
+    def new(entries \\ []) do
+      Enum.reduce(entries, %TodoList{}, &add_entry(&2, &1))
+    end
+
+    def add_entry(todo_list, entry) do
+      entry = Map.put(entry, :id, todo_list.auto_id)
+      new_entries = Map.put(todo_list.entries, todo_list.auto_id, entry)
+
+      %TodoList{todo_list | entries: new_entries, auto_id: todo_list.auto_id + 1}
+    end
+
+  end
+
+  defimpl Collectable, for: TodoList do
+    def into(original) do
+      {original, &into_callback/2}
+    end
+
+    defp into_callback(todo_list, {:cont, entry}) do
+      TodoList.add_entry(todo_list, entry)
+    end
+
+    defp into_callback(todo_list, :done), do: todo_list
+    defp into_callback(todo_list, :halt), do: :ok
+  end
+#+END_SRC
+- Usage
+  #+BEGIN_SRC elixir
+    iex> entries
+    [
+      %{date: ~D[2018-12-19], title: "Dentist"},
+      %{date: ~D[2018-12-20], title: "Shopping"},
+      %{date: ~D[2018-12-19], title: "Movies"}
+    ]
+
+    iex> for entry <- entries, into: TodoList.new(), do: entry
+    %TodoList{
+      auto_id: 4,
+      entries: %{
+        1 => %{date: ~D[2018-12-19], id: 1, title: "Dentist"},
+        2 => %{date: ~D[2018-12-20], id: 2, title: "Shopping"},
+        3 => %{date: ~D[2018-12-19], id: 3, title: "Movies"}
+      }
+    }
+  #+END_SRC
 ** Enum module
 Types which implements Enumerable hence can be used with Enum methods
 - Lists
@@ -2468,19 +2586,37 @@ returns current process PID
 The process that sends the message does not block on send/2, it puts
 the message in the recipient’s mailbox and continues.
 *** =receive=
-If there is no message in the mailbox matching any of the patterns,
-the current process will wait until a matching message arrives. A
-timeout can also be specified with =after= block:
-#+BEGIN_SRC
-iex> receive do
-...>   {:hello, msg}  -> msg
-...> after
-...>   1_000 -> "nothing after 1s"
-...> end
-"nothing after 1s"
-#+END_SRC
-Messages that don't match any of provided patterns will be left in the
-process's mailbox. Mailbox may fill up.
+- The receive expression works as follows:
+  1. Take the first message from the mailbox.
+  2. Try to match it against any of the provided patterns, going from
+     top to bottom.
+  3. If a pattern matches the message, run the corresponding code.
+  4. If no pattern matches, put the message back into the mailbox at
+     the same posi- tion it originally occupied. Then try the next
+     message.
+  5. If there are no more messages in the queue, wait for a new one to
+     arrive. When a new message arrives, start from step 1, inspecting
+     the first message in the mailbox.
+  6. If the ~after~ clause is specified and no message is matched in the
+     given amount of time, run the code from the ~after~ block.
+
+
+
+- If a message doesn’t match any of the provided clauses, it’s put
+  back into the process mailbox, and the next message is processed.
+- If there is no message in the mailbox matching any of the patterns,
+  the current process will wait until a matching message arrives. A
+  timeout can also be specified with =after= block:
+  #+BEGIN_SRC
+  iex> receive do
+  ...>   {:hello, msg}  -> msg
+  ...> after
+  ...>   1_000 -> "nothing after 1s"
+  ...> end
+  "nothing after 1s"
+  #+END_SRC
+  Messages that don't match any of provided patterns will be left in the
+  process's mailbox. Mailbox may fill up.
 *** =flush=
 It flushes and prints all the messages in the mailbox.
 *** =kill=
@@ -3204,3 +3340,34 @@ file.
   abstraction as the first argument.
 - Modifier functions return a modified version of the abstraction.
 - Query functions return some other type of data.
+** records
+- [[https://hexdocs.pm/elixir/Record.html][doc]]
+** a few helper
+- Functions and macros, such as ~put_in/2~, rely on the [[https://hexdocs.pm/elixir/Access.html][Access]] module
+- ~Kernel.put_in~
+- ~Kernel.get_in~
+- ~Kernel.update_in~
+- ~Kernel.get_and_update_in~
+** BEAM
+- By default, BEAM uses as many schedulers as there are CPU cores
+  available.  Each scheduler runs in its own thread, and the entire VM
+  runs in a single OS process.
+- A scheduler is in charge of the interchangeable execution of
+  processes. Each process gets an execution time slot; after the time
+  is up, the running process is preempted, and the next one takes
+  over.
+- Processes are light. It takes only a couple of microseconds to
+  create a single process, and its initial memory footprint is a few
+  kilobytes. By comparison, OS threads usually use a couple of
+  megabytes just for the stack. Therefore, you can create a large
+  number of processes: the theoretical limit imposed by the VM is
+  roughly 134 million!
+- Concurrency vs. parallelism:
+  It’s important to realize that concurrency doesn’t necessarily imply
+  parallelism. Two concurrent things have independent execution
+  contexts, but this doesn’t mean they will run in parallel. If you
+  run two CPU-bound concurrent tasks and you only have one CPU core,
+  parallel execution can’t happen. You can achieve parallelism by
+  adding more CPU cores and relying on an efficient concurrent
+  framework. But you should be aware that concurrency itself doesn’t
+  necessarily speed things up.
