@@ -505,7 +505,6 @@ is_record/3         is_reference/1      is_tuple/1
 * types
 ** =dialyzer=
 ** =typer=
-
 * Recursion
 #+BEGIN_SRC erlang
 tail_fac(N) ->

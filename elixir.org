@@ -2546,6 +2546,43 @@ or only run those with this tag
 =mix test --only slow=
 
 ** Processes
+- processes share no memory. Thus, sending a message to another
+  process results in a deep copy of the message contents. A special
+  case where deep-copying doesn’t take place involves binaries
+  (including strings) that are larger than 64 bytes. These are
+  maintained on a special shared binary heap, and sending them doesn’t
+  result in a deep copy.
+- Each BEAM scheduler is in reality an OS thread that manages the
+  execution of BEAM processes. By default, BEAM uses only as many
+  schedulers as there are logical processors available
+- Internally, each scheduler maintains a run queue, which is something
+  like a list of BEAM processes it’s responsible for. Each process
+  gets a small execution window, after which it’s preempted and
+  another process is executed. The execution window is approximately
+  2,000 function calls (internally called reductions).
+- There are some special cases when a process will implicitly yield
+  execution to the scheduler before its execution time is up. The most
+  notable situation is when using ~receive~. Another example is a call
+  to the ~Process.sleep/1~ function. In both cases, the process is
+  suspended, and the scheduler can run other processes.
+- Another important case of implicit yielding involves I/O operations,
+  which are internally executed on separate threads called async
+  threads. When issuing an I/O call, the calling process is preempted,
+  and other processes get the execution slot. After the I/O operation
+  finishes, the scheduler resumes the calling process. A great benefit
+  of this is that your I/O code looks synchronous, while under the
+  hood it still runs asynchronously. By default, BEAM fires up 10
+  async threads, but you can change this via the ~+A n~ Erlang flag.
+
+-  if your OS supports it, you can rely on a kernel poll such as ~epoll~
+  or ~kqueue~, which takes advantage of the OS kernel for nonblocking
+  I/O. You can request the use of a kernel poll by providing the ~+K true~
+  Erlang flag when you start the BEAM. Implicit yields provide
+  additional benefits. If most processes are suspended most of the
+  time — for example, while the kernel is doing I/O or while many
+  processes are waiting for messages — BEAM schedulers are even more
+  efficient and have bigger overall throughput.
+
 *** =spawn=
 =spawn(a_function)=
 #+BEGIN_SRC sh
@@ -2600,7 +2637,10 @@ the message in the recipient’s mailbox and continues.
   6. If the ~after~ clause is specified and no message is matched in the
      given amount of time, run the code from the ~after~ block.
 
-
+- messages are analyzed one by one, from oldest to newest, until a
+  message is matched. Let’s say your process contains a million
+  unhandled messages. When a new message arrives, receive iterates
+  through the existing million messages before processing the new one.
 
 - If a message doesn’t match any of the provided clauses, it’s put
   back into the process mailbox, and the next message is processed.
