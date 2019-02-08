@@ -1194,7 +1194,8 @@ alias Foo.Bar, as: Bar
 # Require the module in order to use its macros
 require Foo
 
-# Import functions from Foo so they can be called without the `Foo.` prefix
+# Import functions from Foo so they can be called without the `Foo.` prefix. If you have a sigil_x
+# in Foo, the module that imports Foo can use it like ~x/blah/
 import Foo
 
 # Invokes the custom code defined in Foo as an extension point
@@ -1806,6 +1807,11 @@ Stream.iterate(0, &(&1+1)) |> Enum.take(5) # [0, 1, 2, 3, 4]
   1. Generators
   2. Filters
   3. =:into= Option
+     + the following types support ~Collectable~
+       * Map
+       * List
+       * IO.Stream
+       * Bitstring (binary)
 
 *** Generators
 =element <- Enumerable=
@@ -2012,6 +2018,47 @@ iex(2)> ~C(it's #{40 + 2})
 #+END_SRC
 
 ** try, catch, and rescue
+- BEAM distinguishes three types of runtime errors: errors, exits, and
+  throws
+  #+BEGIN_SRC elixir
+    defmodule Play do
+      def main do
+        try do
+          throw("catch me")
+          # raise("oh no")
+          # exit("i'm tired")
+        catch
+          :error, foo ->
+            IO.inspect(foo)
+
+          :exit, foo ->
+            IO.inspect(foo)
+
+          :throw, foo ->
+            IO.inspect(foo)
+        after
+          IO.puts """
+          I always run, that being said, I won't affect the result of the
+          entire `try` expression. The result of `try` is the result of
+          the last statement either from the `do` block or from the
+          corresponding `catch` block if something was caught
+          """
+        end
+      end
+    end
+  #+END_SRC
+- A runtime error also has a value, which can be any arbitrary term.
+- If a runtime error isn’t handled, the corresponding process will
+  terminate.
+
+- In a complex system, most bugs are flushed out in the testing
+  phase. The remaining bugs mostly fall into a so-called /Heisenbug
+  category/ — unpredictable errors that occur irregularly in special
+  circumstances and are hard to reproduce. The cause of such errors
+  usually lies in corruptness of the state. Therefore, a reasonable
+  remedy for such errors is to let the process crash and start another
+  one.
+
 *** raise
 #+BEGIN_SRC elixir
 iex> raise "oops"
@@ -2050,26 +2097,35 @@ Main.run()
 #+END_SRC
 
 *** throws
-In Elixir, we avoid using =try/rescue= because we don’t use errors for
-control flow. We take errors literally: they are reserved for
-unexpected and/or exceptional situations. In case you actually need
-flow control constructs, =throws= should be used.
+- The purpose of throws is to allow nonlocal returns. The purpose of
+  throws is to allow nonlocal returns. Elixir programs are organized
+  in many nested function calls. In particular, loops are implemented
+  as recursions. The consequence is that there are no constructs such
+  as ~break~, ~continue~, and ~return~, which you’ve probably seen in
+  other languages. When you’re deep in a loop, it’s not trivial to
+  stop the loop and return a value, and throws can help with this. You
+  can throw a value and catch it up the call stack. But using throws
+  for control flow is hacky, somewhat reminiscent of ~goto~, and you
+  should avoid this technique as much as possible.
 
-In Elixir, a value can be thrown and later be caught. =throw= and =catch=
-are reserved for situations where it is not possible to retrieve a
-value unless by using =throw= and =catch=.
+- In Elixir, we avoid using =try/rescue= because we don’t use errors
+  for control flow. We take errors literally: they are reserved for
+  unexpected and/or exceptional situations. In case you actually need
+  flow control constructs, =throws= should be used.
 
-#+BEGIN_SRC elixir
-try do
-  Enum.each -50..50, fn(x) ->
-    if rem(x, 13) == 0, do: throw(x)
+- In Elixir, a value can be thrown and later be caught. =throw= and
+  =catch= are reserved for situations where it is not possible to
+  retrieve a value unless by using =throw= and =catch=.
+  #+BEGIN_SRC elixir
+  try do
+    Enum.each -50..50, fn(x) ->
+      if rem(x, 13) == 0, do: throw(x)
+    end
+    "Got nothing"
+  catch
+    x -> "Got #{x}"
   end
-  "Got nothing"
-catch
-  x -> "Got #{x}"
-end
-#+END_SRC
-
+  #+END_SRC
 *** Exits
 A process can also die by explicitly sending an =exit= signal:
 #+BEGIN_SRC
@@ -2100,7 +2156,6 @@ end
 
 The =after= clause will be executed regardless of whether or not the
 tried block succeeds.
-
 
 Elixir will automatically wrap the function body in a try whenever one
 of =after=, =rescue= or =catch= is specified.
@@ -2171,40 +2226,47 @@ Elixir comes with typespecs, which are a notation used for:
  #+END_SRC
 
 *** Behaviours
-Behaviours provide a way to:
-- define a set of functions that have to be implemented by a module;
-- ensure that a module implements all the functions in that set.
+- In Erlang terminology, a behaviour is generic code that implements a
+  common pattern. The generic logic is exposed through the behaviour
+  module, and you can plug into it by implementing a corresponding
+  callback module. The callback module must satisfy a contract defined
+  by the behaviour, meaning it must implement and export a set of
+  functions. The behaviour module then calls into these functions,
+  allowing you to provide your own specialization of the generic code.
 
-#+BEGIN_SRC elixir
-defmodule Parser do
-  @callback parse(String.t) :: {:ok, term} | {:error, String.t}
-  @callback extensions() :: [String.t]
-end
-#+END_SRC
-Modules adopting the =Parser= behaviour will have to implement all the
-functions defined with the =@callback= directive. As you can see,
-=@callback= expects a function name but also a function specification
-like the ones used with the =@spec= directive we saw above. Also note
-that the =term= type is used to represent the parsed value. In Elixir,
-the =term= type is a shortcut to represent any type.
+- Behaviours provide a way to:
+  - define a set of functions that have to be implemented by a module
+  - ensure that a module implements all the functions in that set
 
-**** Adopting behaviours
-#+BEGIN_SRC elixir
-defmodule JSONParser do
-  @behaviour Parser
+- example
+  #+BEGIN_SRC elixir
+  defmodule Parser do
+    @callback parse(String.t) :: {:ok, term} | {:error, String.t}
+    @callback extensions() :: [String.t]
+  end
+  #+END_SRC
+  Modules adopting the =Parser= behaviour will have to implement all the
+  functions defined with the =@callback= directive. As you can see,
+  =@callback= expects a function name but also a function specification
+  like the ones used with the =@spec= directive we saw above. Also note
+  that the =term= type is used to represent the parsed value. In Elixir,
+  the =term= type is a shortcut to represent any type.
+  #+BEGIN_SRC elixir
+  defmodule JSONParser do
+    @behaviour Parser
 
-  @impl Parser
-  def parse(str), do: {:ok, "some json " <> str} # ... parse JSON
+    @impl Parser
+    def parse(str), do: {:ok, "some json " <> str} # ... parse JSON
 
-  @impl Parser
-  def extensions, do: ["json"]
-end
-#+END_SRC
+    @impl Parser
+    def extensions, do: ["json"]
+  end
+  #+END_SRC
 **** Dynamic dispatch
 Behaviours are frequently used with dynamic dispatching. For example,
-we could add a =parse!= function to the Parser module that dispatches to
-the given implementation and returns the =:ok= result or raises in cases
-of =:error=:
+we could add a =parse!= function to the Parser module that dispatches
+to the given implementation and returns the =:ok= result or raises in
+cases of =:error=:
 #+BEGIN_SRC elixir
 defmodule Parser do
   @callback parse(String.t) :: {:ok, term} | {:error, String.t}
@@ -2448,7 +2510,7 @@ defmodule CryptoTest do
   end
 end
 #+END_SRC
-*** ExUnit.CaseTemlate
+*** ExUnit.CaseTemplate
 *** Running tests asynchronously
 #+BEGIN_SRC elixir
   defmodule MyApp.MathTest do
@@ -2583,8 +2645,51 @@ or only run those with this tag
   processes are waiting for messages — BEAM schedulers are even more
   efficient and have bigger overall throughput.
 
+- a process can be registered under a local name (an atom), where
+  local means the name is registered only in the currently running
+  BEAM instance.
+
+- There are various reasons for running a piece of code in a dedicated
+  server process:
+  + The code must manage a long-living state.
+  + The code handles a kind of a resource that can and should be
+    reused, such as a TCP connection, database connection, file
+    handle, pipe to an OS process, and so on.
+  + A critical section of the code must be synchronized. Only one
+    process may run this code in any moment.
+
+- One link connects exactly two processes and is always bidirectional
+*** monitor
+- Sometimes you need to connect two processes, A and B, in such a way
+  that process A is notified when B terminates, but not the other
+  way around. In such cases, you can use a monitor, which is something
+  like a unidirectional link.
+  #+BEGIN_SRC elixir
+  monitor_ref = Process.monitor(target_pid)
+  #+END_SRC
+  + This makes the current process monitor the target process. The
+    result is a unique reference that identifies the monitor. A single
+    process can create multiple monitors.
+  + If the monitored process dies, your process receives a message in the format
+    #+BEGIN_SRC elixir
+    {:DOWN, monitor_ref, :process, from_pid, exit_reason}.
+    #+END_SRC
+  + you can also stop the monitor by calling ~Process.demonitor(monitor_ref)~
+*** Monitors or links?
+- Links are bi-directional. If you link two processes and one of them
+  crashes, the other side will crash too (unless it is trapping
+  exits). A monitor is uni-directional: only the monitoring process
+  will receive notifications about the monitored one. In other words:
+  use links when you want linked crashes, and monitors when you just
+  want to be informed of crashes, exits, and so on.
+- There are two main differences between monitors and links. First,
+  monitors are unidirectional — only the process that created a
+  monitor receives notifications. In addition, unlike a link, the
+  observer process won’t crash when the monitored process
+  terminates. Instead, a message is sent, which you can handle or
+  ignore.
+
 *** =spawn=
-=spawn(a_function)=
 #+BEGIN_SRC sh
 iex> pid = spawn fn -> 1 + 2 end
 #PID<0.43.0>
@@ -2602,7 +2707,7 @@ In the parent process we can =:trap_exit= and to something other than
 dying if the spawned process died.
 #+BEGIN_SRC elixir
   Process.flag(:trap_exit, true)
-  pid = spawn_link(fn -> ... end)
+  pid = spawn_link(fn -> raise("Something went wrong") end)
 
   receive do
     {:EXIT, pid, reason} ->
@@ -2716,86 +2821,165 @@ receive do
 end
 #+END_SRC
 ** GenServer
-A primitive emulation of GenServer.
+- A primitive emulation of GenServer.
+  + Server:
+  #+BEGIN_SRC elixir
+  defmodule Server do
+    @moduledoc ~s"""
+    account = Server.start(BankAccount, 0)
 
-Server:
-#+BEGIN_SRC elixir
-defmodule Server do
-  @moduledoc ~s"""
-  account = Server.start(BankAccount, 0)
+    send(account, {:deposit, 50})
+    send(account, {:withdraw, 20})
 
-  send(account, {:deposit, 50})
-  send(account, {:withdraw, 20})
+    send(account, :balance) # should receive {:balance, 30}
+    """
 
-  send(account, :balance) # should receive {:balance, 30}
-  """
-
-  def start(callback_module, state) do
-    parent = self()
-    spawn fn ->
-      loop(callback_module, parent, state)
-    end
-  end
-
-  def loop(callback_module, parent, state) do
-    receive do
-      message ->
-        state = callback_module.handle_message(message, parent, state)
+    def start(callback_module, state) do
+      parent = self()
+      spawn fn ->
         loop(callback_module, parent, state)
+      end
+    end
+
+    def loop(callback_module, parent, state) do
+      receive do
+        message ->
+          state = callback_module.handle_message(message, parent, state)
+          loop(callback_module, parent, state)
+      end
     end
   end
-end
-#+END_SRC
+  #+END_SRC
+  + callback module:
+  #+BEGIN_SRC elixir
+  defmodule BankAccount do
 
-BankAccount:
-#+BEGIN_SRC elixir
-defmodule BankAccount do
+    def handle_message({:deposit, amount}, _from, balance) do
+      balance + amount
+    end
 
-  def handle_message({:deposit, amount}, _from, balance) do
-    balance + amount
+    def handle_message({:withdraw, amount}, _from, balance) do
+      balance - amount
+    end
+
+    def handle_message(:balance, from, balance) do
+      send(from, {:balance, balance})
+      balance
+    end
+
   end
+  #+END_SRC
+*** GenServer behaviour
+- ~GenServer.start/2~ works synchronously. In other words, ~start/2~
+  returns only after the ~init/1~ callback has finished in the server
+  process. Consequently, the client process that starts the server
+  is blocked until the server process is initialized.
+- note that ~GenServer.call/2~ doesn’t wait indefinitely for a
+  response. By default, if the response message doesn’t arrive in five
+  seconds, an error is raised in the client process. You can alter
+  this by using ~GenServer.call(pid, request, timeout)~, where the
+  ~timeout~ is given in milliseconds. In addition, if the receiver
+  process happens to terminate while you’re waiting for the response,
+  GenServer detects it and raises a corresponding error in the caller
+  process.
 
-  def handle_message({:withdraw, amount}, _from, balance) do
-    balance - amount
-  end
+- You can get a compile-time warning here if you tell the compiler
+  that the function being defined is supposed to satisfy a contract by
+  some behaviour. To do this, you need to provide the ~@impl~ module
+  attribute immediately before the first clause of the callback
+  function:
+  #+BEGIN_SRC elixir
+    defmodule EchoServer do
+      use GenServer
 
-  def handle_message(:balance, from, balance) do
-    send(from, {:balance, balance})
-    balance
-  end
+      @impl GenServer
+      def handle_call(some_request, server_state) do
+        {:reply, some_request, server_state}
+      end
+    end
+  #+END_SRC
+  The ~@impl GenServer~ tells the compiler that the function about to be
+  defined is a callback function for the ~GenServer~ behaviour. As soon
+  as you execute this expression in the shell, you’ll get a warning
 
-end
+- =init= function sets the initial state with ={:ok, initial_state}= response
+  + In ~init/1~, you can decide against starting the server. In this
+    case, you can either return ~{:stop, reason}~ or ~:ignore~. In both
+    cases, the server won’t proceed with the loop, and will instead
+    terminate.
+- =handle_call= is synchronous and
+  + Handles =GenServer.call=
+  + Its signature is =handle_call(arg, from_pid, current_state)=. =arg= is =GenServer.call(pid, *arg*)=
+  + Should reply like ={:reply, return_value, new_state}=
+- =handle_cast= is asynchronous and
+  + Handles =GenServer.cast=
+  + Its signature =handle_cast(arg, current_state)=
+  + Should reply ={:noreply, new_state}=
+- =handle_info= is asynchronous and
+  + must be used for all other messages a server may receive that are
+    not sent via =GenServer.call/2= or =GenServer.cast/2=, including
+    regular messages sent with =send/2=. The monitoring =:DOWN= messages
+    are such an example of this.
+- =GenServer.cast=
+  + Send a message without expecting or waiting for a response
+- =GenServer.call=
+  + Send a message and wait for a response (hence blocking the current process)
+- GenServer process can be named
+  =GenServer.start_link(CallbackModule, [args], name:foobar)= so we
+  don't need the pid =GenServer.cast(foobar, {:save, state})=
+- Returning ~{:stop, reason, new_state}~ from ~handle_*~ callbacks
+  causes GenServer to stop the server process. If the termination is
+  part of the standard workflow, you should use the atom ~:normal~
+  as the stoppage reason. If you’re in ~handle_call/3~ and also need
+  to respond to the caller before terminating, you can return
+  ~{:stop, reason, response, new_state}~.
+- You can stop the server process by invoking
+  ~GenServer.stop/3~ from the client process.
+
+*** Process lifecycle
+- A client process starts the server by calling ~GenServer.start~ and
+  providing the callback module (1). This creates the new server
+  process, which is powered by the ~GenServer~ behaviour.
+- Requests can be issued by client processes using various ~GenServer~
+  functions or plain ~send~. When a message is received, ~GenServer~
+  invokes callback functions to handle it. Therefore, callback
+  functions are always executed in the server process.
+- The process state is maintained in the ~GenServer~ loop but is
+  defined and manipulated by the callback functions. It starts with
+  ~init/1~, which defines the initial state that’s then passed to
+  subsequent ~handle_*~ callbacks (2). Each of these callbacks
+  receives the current state and must return its new version, which is
+  used by the ~GenServer~ loop in place of the old one.
+
+#+BEGIN_SRC
+                                          |
+      client process                      |                 server process
+                                          |
+                                          |
+ +-------------------+                    |       +----------------+ (1)          +---------------+
+ |  GenServer.start  +--------------------|-----> | GenServer init +------------> |     init      |
+ +-------------------+                    |       +----------------+              +---------------+
+                                          |                | (2)
+                                          |                |
+ +-------------------+                    |                |                          +---------------+
+ |  GenServer.cast   +-------------+      |                |                 +------> | handle_cast   |
+ +-------------------+             |      |                |                 |        +---------------+
+                                   |      |                v                 |
+ +-------------------+             |      |       +-----------------+        |        +---------------+
+ |  GenServer.call   +--------------------|-----> | GenServer loop  +---------------> | handle_call   |
+ +-------------------+             |      |       +-----------------+        |        +---------------+
+                                   |      |                |                 |
+ +-------------------+             |      |                |                 |        +---------------+
+ |      send         +-------------+      |                |                 +------> | handle_info   |
+ +-------------------+                    |                |                          +---------------+
+                                          |                |
+                                          |                |
+                                          |                |                       +-------------+
+                                          |                +---------------------> |   terminat  |
+                                          |                                        +-------------+
+                                          |
+                                          |
 #+END_SRC
-
-*** GenServer
-#+BEGIN_SRC elixir
-  {:ok, pid} = GenServer.start(CallbackModule, [arg1, arg2], opts) # if it crashed it won't bring the current process down
-  {:ok, pid} = GenServer.start_link(CallbackModule, [arg1, arg2], opts)
-#+END_SRC
-1. Note that the list =[arg1, arg2]= is sent to =init= function defined inside =CallbackModule=
-2. =opts= is optional.
-3. =init= function sets the initial state with ={:ok, initial_state}= response
-4. =handle_call= is synchronous and
-   - Handles =GenServer.call=
-   - Its signature is =handle_call(arg, from_pid, current_state)=. =arg= is =GenServer.call(pid, *arg*)=
-   - Should reply like ={:reply, return_value, new_state}=
-5. =handle_cast= is asynchronous and
-   - Handles =GenServer.cast=
-   - Its signature =handle_cast(arg, current_state)=
-   - Should reply ={:noreply, new_state}=
-6. =handle_info= is asynchronous and
-   - must be used for all other messages a server may receive that are
-     not sent via =GenServer.call/2= or =GenServer.cast/2=, including
-     regular messages sent with =send/2=. The monitoring =:DOWN= messages
-     are such an example of this.
-7. =GenServer.cast=
-   + Send a message without expecting or waiting for a response
-8. =GenServer.call=
-   + Send a message and wait for a response (hence blocking the current process)
-9. GenServer process can be named
-   =GenServer.start_link(CallbackModule, [args], name:foobar)= so we
-   don't need the pid =GenServer.cast(foobar, {:save, state})=
-
 **** Implementing BankAccount with GenServer
 #+BEGIN_SRC elixir
 defmodule BankAccount do
@@ -2912,18 +3096,102 @@ end
 - GenServer processes can be supervised and restarted
 - GenServer process state can be upgraded in place
 
-*** Monitors or links?
-when should we use monitors and when should we use links?
-
-Links are bi-directional. If you link two processes and one of them
-crashes, the other side will crash too (unless it is trapping
-exits). A monitor is uni-directional: only the monitoring process will
-receive notifications about the monitored one. In other words: use
-links when you want linked crashes, and monitors when you just want to
-be informed of crashes, exits, and so on.
 ** Supervisor
+- A supervisor is a generic process that manages the lifecycle of
+  other processes in a system. A supervisor process can start other
+  processes, which are then considered to be its children. Using
+  links, monitors, and exit traps, a supervisor detects possible
+  terminations of any child, and can restart it if needed.
+*** child specification
+- in erlang it's like ~{ChildId, StartFunc, Restart, Shutdown, Type, Modules}~
+  + e.g.
+    #+BEGIN_SRC erlang
+    [{
+    fake_id,                                      %% ChildId
+    {fake_mod, start_link, [SomeArg]},            %% StartFunc
+    permanent,                                    %% Restart
+    5000,                                         %% Shutdown
+    worker,                                       %% Type
+    [fake_mod]                                    %% Modules
+   },
+   {other_id,
+    {event_manager_mod, start_link, []},
+    transient,
+    infinity,
+    worker,
+    dynamic}]
+    #+END_SRC
+  + for more, read erlang section on [[file:erlang.org::Child Specifications][Child Specifications]]
+- Sample snippet
+  #+BEGIN_SRC elixir
+    Supervisor.start_link(
+      [
+        %{
+          id: Todo.Cache,
+          start: {Todo.Cache, :start_link, [nil]}
+        }
+      ],
+      strategy: :one_for_one
+    )
+  #+END_SRC
+- Instead of providing child spec directly, ~Supervisor~ also allows
+  you to pass a tuple ~{module_name, arg}~ in the child specification
+  list. In this case, ~Supervisor~ will first invoke
+  ~module_name.child_ spec(arg)~ to get the actual specification. This
+  function must return the specification map. The supervisor then
+  proceeds to start the child according to the specification.
+  + e.g.
+    #+BEGIN_SRC elixir
+      Supervisor.start_link(
+        [{Todo.Cache, nil}],
+        strategy: :one_for_one
+      )
+    #+END_SRC
+- If you don’t care about the argument passed to ~child_spec/1~, you
+  can include just the module name in the child specification list. In
+  this case, Supervisor will pass the empty list ~[]~ to
+  ~child_spec/1~.
+  #+BEGIN_SRC elixir
+    Supervisor.start_link(
+      [Todo.Cache],
+      strategy: :one_for_one
+    )
+  #+END_SRC
+
+- A default ~child_spec/1~ is implemented if you have ~use GenServer~
+  #+BEGIN_SRC elixir
+    iex> Todo.Cache.child_spec(nil)
+    %{id: Todo.Cache, start: {Todo.Cache, :start_link, [nil]}}
+  #+END_SRC
+
+- [[https://hexdocs.pm/elixir/Supervisor.html#module-child-specification][Elixir doc]]
+
+*** Using a callback module
+- You develop the module that must implement the init/1 function. This
+  function must return the list of child specifications and additional
+  supervisor options, such as its strategy
+  #+BEGIN_SRC elixir
+    defmodule Todo.System do
+      use Supervisor
+
+      def start_link do
+        Supervisor.start_link(__MODULE__, nil)
+      end
+
+      def init(_) do                # the required callback function
+        Supervisor.init([Todo.Cache], strategy: :one_for_one) # returns something like {:ok, {%{intensity: 3, period: 5, strategy: :one_for_one}, [%{id: Todo.Cache, start: {Todo.Cache, :start_link, [[]]}}]}}
+      end
+    end
+  #+END_SRC
+*** Restart frequency
+- The supervisor relies on the maximum restart frequency, which
+  defines how many restarts are allowed in a given time period. By
+  default, the maximum restart frequency is *three restarts* in *five seconds*.
+- You can change these parameters by passing ~:max_ restarts~ and
+  ~:max_seconds~ options to ~Supervisor.start_link/2~.
+
 *** example 1
-=Basic= module:
+~Basic~ module:
 #+BEGIN_SRC elixir
 defmodule Basic do
   use GenServer
@@ -2932,6 +3200,7 @@ defmodule Basic do
     IO.puts "inside Basic start_link..."
     GenServer.start_link(__MODULE__, arg)
   end
+
   def init(arg) do
     IO.inspect arg
     IO.puts "inside Basic init..."
@@ -3036,6 +3305,122 @@ end
 - Supervisors themself can be supervised =worker(Supervisor_module, [])=
 - for data storage you might find =ets=, =dets=, or =Mnesia= more useful than third party tools
 - =simple_one_for_one= is for dynamically launching processes.
+
+** ~Registry~
+#+BEGIN_SRC
+                                                +-------------------+
+                                                |                   |
+                    1. register(complex_alias)  |     Registry      |      2. lookup(complex_alias)
+                              +--------------->>|                   |<<--------------------+
+                              |                 +-------------------+                      |
+                              |                                                            |
+                              |                                                            |
+                              |                                                            |
+                     +--------+----------+                      3. send request +----------+--------+
+                     |      server       |<<------------------------------------+      client       |
+                     +-------------------+                                      +-------------------+
+
+In step 1, the worker process registers itself, usually during initialization. Some time
+later, the client process will query the registry for the pid of the desired worker.
+The client can then issue a request to the server process.
+#+END_SRC
+
+- A process registry differs from standard local registration (which
+  only allows for names to be atom) in that names can be arbitrarily
+  complex.
+- This module (~Registry~) allows you to associate a process with one or more
+  arbitrary complex keys, and then find the process (its pid) by doing
+  a key-based lookup.
+  #+BEGIN_SRC elixir
+    iex>  Registry.start_link(name: :my_registry, keys: :unique)
+    {:ok, #PID<0.165.0>}
+
+    iex> spawn(fn ->
+    ...>           Registry.register(:my_registry, {:database_worker, 1}, nil)
+    ...>           receive do
+    ...>             msg -> IO.puts("got message #{inspect(msg)}")
+    ...>           end
+    ...>       end)
+    #PID<0.173.0>
+
+    iex> [{db_worker_pid, _value}] = Registry.lookup(:my_registry, {:database_worker, 1})
+    [{#PID<0.173.0>, nil}]
+
+    iex> send(db_worker_pid, :some_message)
+    got message :some_message
+    :some_message
+
+    iex> Registry.lookup(:my_registry, {:database_worker, 1})
+    []
+  #+END_SRC
+- A very useful property of Registry is that it links to all the
+  registered processes. This allows the registry to notice the
+  termination of these processes and remove the corre- sponding entry
+  from its internal structure.
+
+*** Via tuples
+- A /via tuple/ is a mechanism that allows you to use an arbitrary
+  third-party registry to register OTP-compliant processes, such as
+  ~GenServer~ and supervisor.
+- You can provide a ~:name~ option when starting a ~GenServer~:
+  #+BEGIN_SRC elixir
+  GenServer.start_link(callback_module, some_arg, name: some_name)
+  #+END_SRC
+  If you pass an atoms as the ~:name~ option, it makes the started
+  process to be registered locally. But the ~:name~ option can also be
+  provided in the shape of ~{:via, some_module, some_arg}~. Such a
+  tuple is also called a via tuple.  If you provide a via tuple as the
+  name option, ~GenServer~ will invoke a well-defined function from
+  ~some_module~ to register the process. Likewise, you can pass a via
+  tuple as the first argument to ~GenServer.cast~ and
+  ~GenServer.call~, and ~GenServer~ will discover the pid using
+  ~some_module~. In this sense, ~some_module~ acts like a custom
+  thirdparty process registry, and the via tuple is the way of
+  connecting such a registry with ~GenServer~ and similar OTP
+  abstractions.The third element of the via tuple, some_arg, is a
+  piece of data that’s passed to functions of ~some_module~. The exact
+  shape of this data is defined by the registry module. At the very
+  least, this piece of data must contain the name under which the
+  process should be registered and looked up. In the case of ~Registry~,
+  the third argument should be a pair, ~{registry_name, process_key}~,
+  so the entire via tuple then has the shape of ~{:via, Registry, {registry_ name, process_key}}~.
+  #+BEGIN_SRC elixir
+    defmodule EchoServer do
+      use GenServer
+
+      def start_link(id) do
+        GenServer.start_link(__MODULE__, nil, name: via_tuple(id))
+      end
+
+      def call(id, some_request) do
+        GenServer.call(via_tuple(id), some_request)
+      end
+
+      defp via_tuple(id) do
+        # The registered name of the process will be {__MODULE__, id}
+        {:via, Registry, {:my_registry, {__MODULE__, id}}}
+      end
+
+      def handle_call(some_request, _, state) do
+        {:reply, some_request, state}
+      end
+    end
+
+  #+END_SRC
+  Now you can start and interact with multiple echo servers without
+  needing to keep track of their pids:
+  #+BEGIN_SRC elixir
+  iex> Registry.start_link(name: :my_registry, keys: :unique)
+  iex> EchoServer.start_link("server one")
+  iex> EchoServer.start_link("server two")
+
+  iex(5)> EchoServer.call("server one", :some_request)
+  :some_request
+
+  iex> EchoServer.call("server two", :another_request)
+  :another_request
+  #+END_SRC
+
 
 ** Task & Agents
 *** Tasks
