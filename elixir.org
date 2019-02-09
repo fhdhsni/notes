@@ -2448,18 +2448,18 @@ The build tool for elixir
 - add `config :package_name, setting_a: "value"` to =config/config.exs= to configure a package
 - =mix hex.outdated= to find out which packages are outdated
 - for uploading your package to Hex, add package/0 setting to Mixfile
-#+BEGIN_SRC elixir
-  defp package do
-    [
-      files: ["lib", "mix.exs", "README.md"],
-      contributors: ["Your Name"],
-      licenses: ["MIT"],
-      links: %{
-        "Github" => "https://github.com/fhdhsni/repo"
-      }
-    ]
-  end
-#+END_SRC
+  #+BEGIN_SRC elixir
+    defp package do
+      [
+        files: ["lib", "mix.exs", "README.md"],
+        contributors: ["Your Name"],
+        licenses: ["MIT"],
+        links: %{
+          "Github" => "https://github.com/fhdhsni/repo"
+        }
+      ]
+    end
+  #+END_SRC
   + remember to update =application/0= to specify each one of your
     runtime dependencies as an application in the =:application= list
     #+BEGIN_SRC elixir
@@ -2483,6 +2483,9 @@ The build tool for elixir
       end
     #+END_SRC
   + =mix hex.publish=
+*** custom tasks
+- https://hexdocs.pm/mix/Mix.html#module-mix-task
+
 ** ExUnit
 - =assert=
   + expects truthy values
@@ -2635,7 +2638,6 @@ or only run those with this tag
   of this is that your I/O code looks synchronous, while under the
   hood it still runs asynchronously. By default, BEAM fires up 10
   async threads, but you can change this via the ~+A n~ Erlang flag.
-
 -  if your OS supports it, you can rely on a kernel poll such as ~epoll~
   or ~kqueue~, which takes advantage of the OS kernel for nonblocking
   I/O. You can request the use of a kernel poll by providing the ~+K true~
@@ -2644,11 +2646,9 @@ or only run those with this tag
   time — for example, while the kernel is doing I/O or while many
   processes are waiting for messages — BEAM schedulers are even more
   efficient and have bigger overall throughput.
-
 - a process can be registered under a local name (an atom), where
   local means the name is registered only in the currently running
   BEAM instance.
-
 - There are various reasons for running a piece of code in a dedicated
   server process:
   + The code must manage a long-living state.
@@ -2820,6 +2820,43 @@ receive do
   name -> IO.inspect name       # farhad
 end
 #+END_SRC
+*** Processes that shouldn’t crash
+- There are two important situations in which you should explicitly handle an error:
+   + In critical processes that shouldn’t crash
+   + When you expect an error that can be dealt with in a meaningful
+     way
+- Processes that shouldn’t crash are informally called a system’s
+  error kernel—processes that are critical for the entire system to
+  work and whose state can’t be restored in a simple and consistent
+  way. Such processes are the heart of your system, and you generally
+  don’t want them to crash, because without them the system can’t
+  provide any service.
+- If the code of your error-kernel process is complex, consider
+  splitting it into two processes: one that holds state, and another
+  that does the actual work. The former process then becomes extremely
+  simple and is unlikely to crash, whereas the worker process can be
+  removed from the error kernel (because it no longer maintains
+  critical state).
+- In addition, you could consider including defensive ~try/catch~
+  statements in each ~handle_*~ callback of a critical process
+  #+BEGIN_SRC elixir
+    def handle_call(message, _, state) do
+      try
+          new_state =
+            state
+            |> transformation_1()
+            |> transformation_2()
+          ...
+
+          {:reply, response, new_state}
+
+      catch _, _ ->
+          {:reply, {:error, reason}, state}
+      end
+    end
+
+  #+END_SRC
+
 ** GenServer
 - A primitive emulation of GenServer.
   + Server:
@@ -2869,6 +2906,11 @@ end
 
   end
   #+END_SRC
+- Graceful termination of a ~GenServer~ worker involves invoking the
+  ~terminate/2~ callback, but only if the worker process is trapping
+  exits. Therefore, if you want to do some cleanup from a ~GenServer~
+  process, make sure you set up an exit trap from an ~init/1~ callback.
+
 *** GenServer behaviour
 - ~GenServer.start/2~ works synchronously. In other words, ~start/2~
   returns only after the ~init/1~ callback has finished in the server
@@ -3102,6 +3144,12 @@ end
   processes, which are then considered to be its children. Using
   links, monitors, and exit traps, a supervisor detects possible
   terminations of any child, and can restart it if needed.
+- If worker processes are small services in a system, you can think of
+  supervisors as being service managers—a built-in equivalent of
+  ~systemd~. They’re responsible for the lifecycle of services they
+  directly manage. If any critical service stops, its parent will try
+  to restart it.
+
 *** child specification
 - in erlang it's like ~{ChildId, StartFunc, Restart, Shutdown, Type, Modules}~
   + e.g.
@@ -3157,7 +3205,6 @@ end
       strategy: :one_for_one
     )
   #+END_SRC
-
 - A default ~child_spec/1~ is implemented if you have ~use GenServer~
   #+BEGIN_SRC elixir
     iex> Todo.Cache.child_spec(nil)
@@ -3165,6 +3212,21 @@ end
   #+END_SRC
 
 - [[https://hexdocs.pm/elixir/Supervisor.html#module-child-specification][Elixir doc]]
+
+*** Starting processes dynamically
+- used when you can’t specify supervisor children up front. For such
+  cases, you need a dynamic supervisor that can start children on
+  demand. In Elixir, this feature is available via the
+  ~DynamicSupervisor~ module.
+- ~DynamicSupervisor~ is similar to ~Supervisor~, but where
+  ~Supervisor~ is used to start a predefined list of children,
+  ~DynamicSupervisor~ is used to start children on demand. When you
+  start a dynamic supervisor, you don’t provide a list of child
+  specifications, so only the supervisor process is started. Then,
+  whenever you want to, you can start a supervised child using
+  ~DynamicSupervisor.start_child/2~.
+
+
 
 *** Using a callback module
 - You develop the module that must implement the init/1 function. This
@@ -3424,107 +3486,183 @@ The client can then issue a request to the server process.
 
 ** Task & Agents
 *** Tasks
-Tasks build on top of the spawn functions to provide better error
-reports and introspection. They are Asynchronous units of computation
-that allow spawning a process and potentially retrieving its result at
-a later time. Sometimes it is useful to run a task to compute a value
-and read its result later on. For this, tasks also provide the
-async/await pattern:
+- Tasks build on top of the spawn functions to provide better error
+  reports and introspection. They are Asynchronous units of
+  computation that allow spawning a process and potentially retrieving
+  its result at a later time. Sometimes it is useful to run a task to
+  compute a value and read its result later on. For this, tasks also
+  provide the async/await pattern:
+  + snippet
+    #+BEGIN_SRC elixir
+    task = Task.async(fn -> compute_something_expensive end)
+    res  = compute_something_else()
+    res + Task.await(task)
+    #+END_SRC
+  + snippet
+    #+BEGIN_SRC elixir
+      task = Task.async fn ->
+        IO.puts "Hello world!"
+      end
 
-#+BEGIN_SRC elixir
-task = Task.async(fn -> compute_something_expensive end)
-res  = compute_something_else()
-res + Task.await(task)
-#+END_SRC
+      # OR
 
-#+BEGIN_SRC elixir
-  task = Task.async fn ->
-    IO.puts "Hello world!"
-  end
+      task = Task.async(IO, :puts, ["Hello World"])
 
-  # OR
+      result = Task.await(task)
+    #+END_SRC
+    + snippet
+    #+BEGIN_SRC elixir
+    defmodule Play do
+      def pmap(list, fun) do
+        list
+        |> Enum.map(&Task.async(fn -> fun.(&1) end))
+        |> Enum.map(&Task.await/1)
+      end
+    end
+    #+END_SRC
+- To Supervise A Task
+  + Supervisor:
+    #+BEGIN_SRC elixir
+    defmodule Play.Supervisor do
+      use Supervisor
 
-  task = Task.async(IO, :puts, ["Hello World"])
+      def start_link do
+        Supervisor.start_link(__MODULE__, [], name: __MODULE__)
+      end
 
-  result = Task.await(task)
-#+END_SRC
+      def init(_) do
+        children = [
+          supervisor(Task.Supervisor, [[name: MyApp.TaskSupervisor]])
+        ]
+        supervise(children, strategy: :transient)
+      end
+    end
+    #+END_SRC
+  + Then after =Play.Supervisor.start_link=:
+    #+BEGIN_SRC elixir
+    # You can start supervised tasks like so:
+    Task.Supervisor.start_child(MyApp.TaskSupervisor, fn ->
+      IO.puts "Hello world!"
+    end)
 
-#+BEGIN_SRC elixir
-defmodule Play do
-  def pmap(list, fun) do
-    list
-    |> Enum.map(&Task.async(fn -> fun.(&1) end))
-    |> Enum.map(&Task.await/1)
-  end
-end
-#+END_SRC
+    Task.Supervisor.async(MyApp.TaskSupervisor, IO, :puts, ["Hello world!"])
+    |> Task.await
+    #+END_SRC
+- =yield(task, timeout \\ 5000)=
+  + Temporarily blocks the current process waiting for a task reply.
+**** Awaited tasks
+- An awaited task is a process that executes some function, sends the
+  function result back to the starter process, and then terminates.
+- It should be noted that ~Task.async/1~ links the new task to the
+  starter process. Therefore, if any task process crashes, the starter
+  process will crash too (unless it’s trapping exits). The crash of
+  the starter process will, in turn, cause all the other tasks started
+  by the same process to crash. In other words, starting multiple
+  tasks with ~Task.async/1~ has all-or-nothing semantics. The crash of a
+  single task takes down all other tasks as well as the starter
+  process.
+  #+BEGIN_SRC elixir
+    iex> run_query =
+                   fn query_def ->
+                        Process.sleep(2000)
+                        "#{query_def} result"
+                  end
 
-=async/await= provides a very simple mechanism to compute values
-concurrently.
+    iex> 1..5 |>
+                Enum.map(&Task.async(fn -> run_query.("query #{&1}") end)) |>
+                Enum.map(&Task.await/1)
 
+    # after 2 sec
+    ["query 1 result", "query 2 result", "query 3 result", "query 4 result",
+    "query 5 result"]
+  #+END_SRC
 
-To Supervise A Task
+**** Non-awaited tasks
+- Sometimes you don’t want to send the result message back to the
+  starter process.
+- in some cases you won’t want to link the task process to the starter
+  process. This is typically done to make sure the task process lives
+  on even if the starter process terminates. In such situations, you
+  can use ~Task.start_link/1~. The ~Task.start_link/1~ function can be
+  thought of as an OTP-compliant wrapper around plain ~spawn_link~. The
+  function starts a separate process and links it to the caller. Then
+  the provided lambda is executed in the started process. Once the
+  lambda finishes, the process terminates with the reason
+  ~:normal~. Unlike ~Task.async/1~, ~Task.start_ link/1~ won’t send any
+  message to the starter process.
 
-Supervisor:
-#+BEGIN_SRC elixir
-defmodule Play.Supervisor do
-  use Supervisor
-
-  def start_link do
-    Supervisor.start_link(__MODULE__, [], name: __MODULE__)
-  end
-
-  def init(_) do
-    children = [
-      supervisor(Task.Supervisor, [[name: MyApp.TaskSupervisor]])
-    ]
-    supervise(children, strategy: :transient)
-  end
-end
-#+END_SRC
-
-Then after =Play.Supervisor.start_link=:
-#+BEGIN_SRC elixir
-# You can start supervised tasks like so:
-Task.Supervisor.start_child(MyApp.TaskSupervisor, fn ->
-  IO.puts "Hello world!"
-end)
-
-Task.Supervisor.async(MyApp.TaskSupervisor, IO, :puts, ["Hello world!"])
-|> Task.await
-#+END_SRC
-
-+ =yield(task, timeout \\ 5000)=
-  - Temporarily blocks the current process waiting for a task reply.
 *** Agent
-Agents are a simple abstraction around state.
+- Agents are a simple abstraction around state.
+  #+BEGIN_SRC  elixir
+  {:ok, agent} = Agent.start_link(fn -> 0 end)
+  Agent.update(agent, fn state -> state + 1 end)
+  Agent.get(agent, fn state -> state end) # 1
+  #+END_SRC
+- The Agent module provides an abstraction that’s similar to
+  ~GenServer~. Agents require a bit less ceremony and can therefore
+  eliminate some boilerplate associated with GenServers. On the flip
+  side, Agent doesn’t support all the scenarios that ~GenServer~
+  does. As a mechanical rule, if a GenServer-powered module
+  implements only ~init/1~, ~handle_cast/2~, and ~handle_call/3~, it can be
+  replaced with an Agent . But if you need to use ~handle_info/2~ or
+  ~terminate/1~, Agent won’t suffice, and you’ll need to use GenServer.
+- ~Agent.update/2~ is synchronous. The function only returns after the
+  update has succeeded. An asynchronous update can be performed with
+  ~Agent.cast/2~.
+- Limitations of agents
+  + The Agent module can’t be used if you need to handle plain
+    messages, or if you want to run some logic on termination. In such
+    cases, you need to use GenServer.
 
-#+BEGIN_SRC  elixir
-{:ok, agent} = Agent.start_link(fn -> 0 end)
-Agent.update(agent, fn(state) -> state + 1 end)
-Agent.get(agent, fn(state) -> state end) # 1
-#+END_SRC
+- example
+  #+BEGIN_SRC elixir
+  defmodule BankAccount do
+    def start_link(balance) do
+      Agent.start_link(fn -> balance end)
+    end
 
-implementing =BankAccount= with Agents
-#+BEGIN_SRC elixir
-defmodule BankAccount do
-  def start_link(balance) do
-    Agent.start_link(fn -> balance end)
+    def deposit(account, amount) do
+      Agent.update(account, &(&1 + amount))
+    end
+
+    def withdraw(account, amount) do
+      Agent.update(account, &(&1 - amount))
+    end
+
+    def balance(account) do
+      Agent.get(account, &(&1))
+    end
   end
+  #+END_SRC
 
-  def deposit(account, amount) do
-    Agent.update(account, &(&1 + amount))
-  end
+** ETS
+- Read [[file:erlang.org::*ETS][the Erlang notes]]
+- ETS table is a separate memory-data structure where you can store
+  Erlang terms. This makes it possible to share the system-wide state
+  without introducing a dedicated server process. The data is kept in
+  an ETS table — a dynamic memory structure where you can store
+  tuples.
 
-  def withdraw(account, amount) do
-    Agent.update(account, &(&1 - amount))
-  end
+  + There’s no specific ETS data type. A table is identified by its ID
+    (a reference type) or a global name (an atom).
+  + ETS tables are mutable. A write to a table will affect subsequent
+    read operations.
+  + Multiple processes can write to or read from a single ETS
+    table. Writes and reads are concurrent.
+  + Minimum isolation is ensured. Multiple processes can safely write
+    to the same row of the same table. The last write wins.
+  + An ETS table resides in a separate memory space. Any data coming
+    in or out is deep-copied.
+  + ETS doesn’t put pressure on the garbage collector. Overwritten or
+    deleted data is immediately released.
+  + An ETS table is deeply connected to its owner process (by default,
+    the process that created the table). If the owner process
+    terminates, the ETS table is reclaimed.
+  + Other than on owner-process termination, there’s no automatic
+    garbage collection of an ETS table. Even if you don’t hold a
+    reference to the table, it still occupies memory.
 
-  def balance(account) do
-    Agent.get(account, &(&1))
-  end
-end
-#+END_SRC
+
 ** Nodes
 A Node is an instance of BEAM virtual machine.
 - =Node.self=
