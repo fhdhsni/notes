@@ -277,6 +277,7 @@ networking (Note ifconfig, route, mii-tool, nslookup commands are obsolete)
  	ip route add default via 1.2.3.254	Set default gateway to 1.2.3.254
 •	ss -tupl	List internet services on a system
 •	ss -tup	List active connections to/from system
+•   ss -lntu List all your open TCP and UCP ports
 •	host pixelbeat.org	Lookup DNS ip address for name or vice versa
 •	hostname -i	Lookup local ip address (equivalent to host `hostname`)
 •	whois pixelbeat.org	Lookup whois info for hostname or ip address

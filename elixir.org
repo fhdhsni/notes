@@ -3892,6 +3892,36 @@ We can configure the generated =.app= file by customizing the
 values returned by the =application/0= inside our =mix.exs= project
 file.
 ** Application
+- Applications let you organize your system into reusable
+  components. Applications are a standard way of building
+  Elixir/Erlang production systems and libraries, and relying on them
+  brings various benefits, such as dependency management, simplified
+  system starting, and the ability to build standalone, deployable
+  releases.
+- An OTP application is a component that consists of multiple modules
+  and that can depend on other applications. This makes it possible to
+  start the entire system and dependent components with a single
+  function call.
+*** library applications
+- There’s no application callback module, which in turn means there’s
+  no top-level process to be started.
+- components that don’t need to create their own supervision tree
+-  For example, Erlang’s own ~stdlib~ application
+  (http://erlang.org/doc/apps/stdlib/index.html) is a pure library
+  application because it exposes various utility modules but doesn’t
+  need to manage its own supervision tree.
+
+*** Configuring applications
+- ~Mix.env/0~
+  + The function ~Mix.env/0~ is not available at runtime, so you
+    shouldn’t invoke it from your regular code (standard functions
+    that are compiled and executed at runtime). This function can only
+    be used in config scripts, in the code of custom mix tasks, and in
+    the code that’s executed at compile time (Elixir macros).
+  + Depending on the mix environment, this expression will import the
+    configuration from ~config/dev.exs~, ~config/test.exs~, or
+    ~config/prod.exs~.
+
 ** Macros
 ** Special forms
 - the basic building blocks of Elixir, and therefore cannot be
