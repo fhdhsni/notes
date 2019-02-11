@@ -47,6 +47,21 @@
       %{__struct__: MapSet, map: %{foo: []}, version: 2}
       :ok
     #+END_SRC
+16) group leader:
+    #+BEGIN_SRC
+    iex(node1@localhost)4> Node.spawn(:node2@localhost, fn -> IO.puts("Hello from #{node}") end)
+    Hello from node2@localhost
+    #+END_SRC
+    All standard I/O calls (such as ~IO.puts/1~) are
+    forwarded to the group leader — a process that’s in charge of
+    performing the actual input or output. A spawned process inherits
+    the group leader from the process that spawned it, even when
+    you’re spawning a process on another node. Therefore, your process
+    may run on ~node2~, but its group leader is still on ~node1~. As a
+    consequence, the string to be printed is created on ~node2~ , but
+    the output is printed on ~node1~.
+    + More info on [[https://stackoverflow.com/a/36319970/2576218][SO]]
+
 
 ** Types
 *** Numbers
@@ -2638,7 +2653,7 @@ or only run those with this tag
   of this is that your I/O code looks synchronous, while under the
   hood it still runs asynchronously. By default, BEAM fires up 10
   async threads, but you can change this via the ~+A n~ Erlang flag.
--  if your OS supports it, you can rely on a kernel poll such as ~epoll~
+- if your OS supports it, you can rely on a kernel poll such as ~epoll~
   or ~kqueue~, which takes advantage of the OS kernel for nonblocking
   I/O. You can request the use of a kernel poll by providing the ~+K true~
   Erlang flag when you start the BEAM. Implicit yields provide
@@ -2657,8 +2672,15 @@ or only run those with this tag
     handle, pipe to an OS process, and so on.
   + A critical section of the code must be synchronized. Only one
     process may run this code in any moment.
-
 - One link connects exactly two processes and is always bidirectional
+*** Process registrations
+- The basic registration facility is a local registration that allows you to use a simple atom as an alias to the single process on a node.
+- ~Registry~ extends this by letting you use rich aliases — any term can be used as an alias.
+- ~:global~ allows you to register a cluster-wide alias.
+- ~:pg2~ is useful for registering multiple processes behind a
+  cluster-wide alias (process group), which is usually suitable for
+  distributed pub-sub scenarios.
+
 *** monitor
 - Sometimes you need to connect two processes, A and B, in such a way
   that process A is notified when B terminates, but not the other
@@ -3483,7 +3505,6 @@ The client can then issue a request to the server process.
   :another_request
   #+END_SRC
 
-
 ** Task & Agents
 *** Tasks
 - Tasks build on top of the spawn functions to provide better error
@@ -3661,7 +3682,6 @@ The client can then issue a request to the server process.
   + Other than on owner-process termination, there’s no automatic
     garbage collection of an ETS table. Even if you don’t hold a
     reference to the table, it still occupies memory.
-
 
 ** Nodes
 A Node is an instance of BEAM virtual machine.
@@ -3964,3 +3984,208 @@ file.
   adding more CPU cores and relying on an efficient concurrent
   framework. But you should be aware that concurrency itself doesn’t
   necessarily speed things up.
+** Distributed
+- checkout
+  + [[https://hexdocs.pm/elixir/Node.html][Node]]
+  + [[http://erlang.org/doc/man/net_kernel.html][:net_kernel]]
+  + [[http://erlang.org/doc/man/net_adm.html][:net_adm]]
+  + [[http://erlang.org/doc/man/rpc.html][:rpc]]
+  + [[http://erlang.org/doc/man/pg2.html][:pg2]]
+- start and connect
+  #+BEGIN_SRC
+  $ iex --sname node1@localhost
+  iex(node1@localhost)1>
+  #+END_SRC
+
+  #+BEGIN_SRC
+  iex(node1@localhost)1> node()
+  :node1@localhost
+  #+END_SRC
+
+  #+BEGIN_SRC
+  $ iex --sname node2@localhost
+
+  iex(node2@localhost)1> Node.connect(:node1@localhost)
+  true
+  #+END_SRC
+
+  #+BEGIN_SRC
+  iex(node1@localhost)2> Node.list()
+  [:node2@localhost]
+
+  ##
+
+  iex(node2@localhost)2>Node.list()
+  [:node1@localhost]
+  #+END_SRC
+- When ~Node.connect/1~ is invoked, BEAM tries to establish a TCP
+  connection with the target BEAM instance.
+- ~Node.list/0~, which returns a list of all nodes connected to the
+  current one (the current node isn’t listed).
+- In a multinode environment, When you register a process locally, the
+  scope of registration is only the current node. This means you can
+  use the same registered name on different nodes (but only once on
+  each node)
+- It’s possible to reference a locally registered process on another
+  node by using ~{some_alias, some_node}~.
+  #+BEGIN_SRC
+  iex(node1@localhost)> send({:shell, :node2@localhost}, "Hello from node1!")
+  #+END_SRC
+*** Process discovery
+- ~Registry~ module isn’t cluster-aware and works only in the scope of
+  a local node.
+- The simplest way to do cluster-wide discovery is to use the [[http://erlang.org/doc/man/global.html][:global module]],
+  which provides a global name registration facility. Read [[file:erlang.org::*global][my Erlang notes]]
+- Global registration can also be used with ~GenServer~
+  #+BEGIN_SRC elixir
+  GenServer.start_link(__MODULE__, arg, name: {:global, some_global_alias})
+  GenServer.call({:global, some_global_alias}, ...)
+  #+END_SRC
+  if a registered process crashes or the owner node disconnects, the
+  alias is automatically unregistered on all other machines.
+**** Groups of processes
+- Another frequent discovery pattern occurs when you want to register
+  multiple processes under the same alias. This may sound strange, but
+  it’s useful in situations where you want to categorize processes in
+  a cluster and broadcast messages to all processes in a category.
+  + take a look at [[http://erlang.org/doc/man/pg2.html][pg2]]
+    #+BEGIN_SRC
+    ### node1
+    iex(node1@localhost)11> :pg2.start()
+    iex(node1@localhost)12> :pg2.create({:todo_list, "bob"})
+    :ok
+
+    ### node2
+    iex(node2@localhost)9> :pg2.start()
+    iex(node2@localhost)10> :pg2.which_groups()
+    [todo_list: "bob"]
+    iex(node2@localhost)11> :pg2.join({:todo_list, "bob"}, self())
+    :ok
+
+    ### node1
+    iex(node1@localhost)13> :pg2.get_members({:todo_list, "bob"})
+    [#PID<8531.90.0>]
+
+    #+END_SRC
+
+*** cluster-wide locks
+- They allow you to grab an arbitrary named lock. Once you have a
+  particular lock, no other process in the cluster can acquire it
+  until you release it.
+  #+BEGIN_SRC
+  ### node1
+  iex(node1@localhost)1> :global.set_lock({:some_resource, self()})
+  true
+
+  ### node2
+  iex(node2@localhost)1> :global.set_lock({:some_resource, self()}) # Blocks until the lock is released
+
+  ### node1
+  iex(node1@localhost)2> :global.del_lock({:some_resource, self()})
+  true
+
+  ### node2
+  # The lock is now held by the shell process on node2.
+  iex(node2@localhost)2>
+  #+END_SRC
+  The tuple you provide consists of the resource ID and the requester
+  ID. The resource ID is an arbitrary term, whereas the requester ID
+  identifies a unique requester. Two different requesters can’t
+  acquire the same lock in the cluster. Usually you’ll want to use the
+  process ID as the requester ID, which means that at any point, at
+  most one process can acquire the lock.
+  + ~:global.trans/2~, simple helper for the acquire/release pattern
+  + Locks can help here, because they let you synchronize multiple
+    processes on different nodes without needing to send large
+    messages to another process. Let’s say you need to ensure that the
+    processing of a large amount of data is serialized in the entire
+    cluster (at any point in time, at most one process may run in the
+    entire cluster). Normally this is done by passing the data to a
+    process that acts as a synchronization point.
+    #+BEGIN_SRC elixir
+      def process(large_data) do
+        :global.trans(
+          {:some_resource, self}, # Acquires the cluster-wide lock
+          fn ->
+            do_something_with(large_data) # Runs in the caller process
+          end
+        )
+      end
+    #+END_SRC
+    Calling ~:global.trans/2~ ensures cluster-wide isolation. At most
+    one process in the cluster can be running ~do_something_with/1~ on
+    ~:some_resource~ at any point in time.  Because ~do_something_with/1~
+    is running in the caller process, you avoid sending a huge message
+    to another synchronization process. Invoking ~:global_trans/2~
+    introduces additional chatter between nodes, but messages used to
+    acquire the lock are much smaller than passing the contents of
+    large_data to another process on another node, so you save
+    bandwidth.
+
+*** Avoid spawning lambdas or sending them to different nodes
+- You can spawn lambdas from your shell, which is a somewhat special
+  case because shell-defined lambdas embed their own code and are
+  interpreted dynamically on each invocation. In contrast, lambdas
+  that are defined in module functions can be spawned remotely (or
+  sent to a remote node via a message) only if both nodes are powered
+  by exactly the same compiled code. These requirements are hard to
+  satisfy if you start running a multinode cluster and then need to
+  update the code. You can’t simultaneously upgrade all the nodes in
+  the cluster, so at some point the code on the nodes will
+  differ. Therefore, it’s generally better to avoid passing lambdas to
+  a remote node. Instead, you should use the ~Node.spawn/4~ function,
+  which accepts an MFA that identifies a function to be invoked on the
+  target node. This is safe to use as long as the module exists on the
+  target node and exports the corresponding function
+*** Detecting partitions
+- a node periodically pings its peers via tick messages, and if a peer
+  fails to respond to these messages, it will be considered
+  disconnected. Each process can subscribe to notifications about
+  changes in connected nodes via [[http://erlang.org/doc/man/net_kernel.html#monitor_nodes-1][~:net_kernel.monitor_nodes/1]]~
+- ~Node.monitor/2~
+- you can also set up a monitor or a link to a remote process. This
+  works just as it does with local processes. If a remote process
+  crashes (or the node disconnects), you’ll receive a message (when
+  using monitors) or an exit signal (when using links)
+*** [[file:erlang.org::*Hidden%20Nodes][Hidden Nodes]]
+*** Firewalls and EPMD
+- Given that nodes communicate via TCP connection, it’s obvious that
+  you need to have some ports that are open to other machines. When
+  one node wants to connect to another node on a different machine, it
+  needs to communicate with two different components.
+- The first component, the Erlang Port Mapper Daemon (EPMD), is an OS
+  process that’s started automatically when you start the first Erlang
+  node on the host machine. This component acts as a node name
+  resolver on the host machine. EPMD knows the names of all currently
+  running BEAM nodes on the machine. When a node wants to connect to a
+  node on this machine, it first queries EPMD to determine which port
+  the target node is listening on, and then it contacts the target
+  node. EPMD listens on port 4369, and this port must be accessible
+  from remote machines. In addition, each node listens on a random
+  port that needs to be accessible as well, because it’s used to
+  establish the connection between two nodes. Obviously it’s not
+  particularly helpful that the node’s listening port is random,
+  because it’s not possible to define firewall rules.
+
+- you can provide a fixed range of ports on which a node will
+  listen. This can be done by setting the inet_dist_listen_min and
+  inet_dist_listen_max environment variables of the kernel app at the
+  command line:
+  #+BEGIN_SRC
+  $ iex \
+  --erl '-kernel inet_dist_listen_min 10000' \
+  --erl '-kernel inet_dist_listen_max 10100' \
+  --sname node1@localhost
+  #+END_SRC
+- You can manually inspect the ports of all nodes on the host machine
+  via ~:net_adm.names/0~:
+  #+BEGIN_SRC
+  iex(node1@localhost)1> :net_adm.names()
+  {:ok, [{'node1', 10000}]}
+  #+END_SRC
+  or from command line
+  #+BEGIN_SRC shell
+  $ epmd -names
+  #+END_SRC
+*** Security
+- http://erlang.org/doc/apps/ssl/ssl_distribution.html.
