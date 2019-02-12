@@ -4189,3 +4189,168 @@ file.
   #+END_SRC
 *** Security
 - http://erlang.org/doc/apps/ssl/ssl_distribution.html.
+** Running the system
+- ~mix run --no-halt~
+- Run the system in the background ~elixir -S mix run --no-halt~, By
+  using the ~--detached~ flag, you can start the system in detached
+  mode. ~elixir --detached -S mix run --no-halt~
+  + turn the beam instance into a node so you can interact with it
+    #+BEGIN_SRC
+    $ elixir --detached --sname todo_system@localhost -S mix run --no-halt
+    #+END_SRC
+    * You can check that it’s running by looking at which BEAM nodes
+      exist on your system: ~epmd -names~
+    * establish a remote shell: with the the ~--remsh~ option you can
+      start another node and use it as a shell to the ~todo_system~
+      node
+      #+BEGIN_SRC
+      $ iex --sname debugger@localhost --remsh todo_system@localhost --hidden
+      #+END_SRC
+      you start the ~debugger~ node, but the shell is running in the
+      context of ~todo_system~. Whatever function you call will be
+      invoked on ~todo_system~.
+    * To stop the running system, you can use the [[https://hexdocs.pm/elixir/System.html#stop/1][System.stop]] function
+    * stop a node programmatically
+      ~stop_node.exs~
+      #+BEGIN_SRC elixir
+        if Node.connect(:todo_system@localhost) == true do
+          :rpc.call(:todo_system@localhost, System, :stop, [])
+          IO.puts "Node terminated."
+        else
+          IO.puts "Can't connect to a remote node."
+        end
+      #+END_SRC
+      Then you can run the script from the command line:
+      #+BEGIN_SRC
+      $ elixir --sname terminator@localhost stop_node.exs
+      #+END_SRC
+*** Running scripts
++ https://hexdocs.pm/mix/Mix.Tasks.Escript.Build.html
+*** OTP releases
+- An OTP release is a standalone, compiled, runnable system that
+  consists of the minimum set of OTP applications needed by the
+  system.
+  + An OTP release can optionally include the minimum set of Erlang
+    runtime binaries (If you embed the minimum Erlang runtime into the
+    release, you don’t even need Elixir and Erlang installed on the
+    production server.), which makes the release completely
+    self-sufficient.
+  + A release doesn’t contain artifacts, such as source code,
+    documentation files, or tests.
+  + releases pave the way for systematic online system upgrades (and
+    downgrades), known in Erlang as /release handling/.
+- Read [[file:erlang.org::*OTP%20releases][OTP releases]] and use [[https://github.com/bitwalker/distillery][Distillery]]
+*** [[https://github.com/bitwalker/distillery][Distillery]]
+- ~mix release.ini~ to generate an example config file placed in
+  ~rel/config.exs~
+- build the release by ~MIX_ENV=prod mix release~.
+- To start the system as a background process, you can use the start
+  argument:
+  #+BEGIN_SRC
+  $ _build/prod/rel/appname/bin/appname start
+  #+END_SRC
+  This isn’t the same as a detached process. Instead, the system is
+  started via the [[http://erlang.org/doc/man/run_erl.html][run_erl]] tool. This tool redirects standard output to
+  a log file residing in the ~_build/prod/rel/appname/var/log~ folder,
+  which allows you to analyze your system’s console output. Once the
+  system is running in the background, you can start a remote shell to
+  the node:
+  #+BEGIN_SRC
+  $ _build/prod/rel/appname/bin/appname remote_console
+
+  iex(appname@127.0.0.1)1>
+  #+END_SRC
+  At this point, you have an iex shell session running in the context
+  of the production node. Pressing Ctrl-C twice to exit the shell
+  stops the remote shell, but the ~appname~ node will still be
+  running.
+
+  It’s also possible to attach directly to the shell of the running
+  process. On the surface, this looks like the remote shell, but it
+  offers an important benefit: it captures the standard output of the
+  running node. Whatever the running node prints — for example, via
+  ~IO.puts~ — is seen in the attached process (which isn’t the case for
+  the remote shell).  To attach to the shell, you use the attach
+  argument:
+  #+BEGIN_SRC
+  $ _build/prod/rel/appname/bin/appname attach
+
+  iex(appname@127.0.0.1)1>
+  #+END_SRC
+  Be careful when attaching to the shell. Unlike a remote shell, an
+  attached shell runs in the context of the running node. You’re
+  merely attached to the running node via an OS pipe. The consequence
+  is that stopping the shell by pressing Ctrl-C twice will terminate
+  the running node. As hinted at the prompt, you should press Ctrl-D
+  to exit (detach) from the running node.
+
+  If the system is running as a background process, and you want to
+  stop it, you can use the stop argument:
+  #+BEGIN_SRC
+  $ _build/prod/rel/todo/bin/todo stop
+  #+END_SRC
+** benchmarking
+   - http://erlang.org/doc/efficiency_guide/profiling.html
+   - [[http://erlang.org/doc/man/timer.html#tc-1][:timer.tc/1]]
+   - [[https://github.com/alco/benchfella][Benchfella]]
+   - [[https://github.com/PragTob/benchee][Benchee]]
+   - ~cprof~: [[https://hexdocs.pm/mix/Mix.Tasks.Profile.Cprof.html][mix profile.cprof]]
+   - ~eprof~: [[https://hexdocs.pm/mix/Mix.Tasks.Profile.Eprof.html][mix profile.eprof]]
+   - ~fprof~: [[https://hexdocs.pm/mix/Mix.Tasks.Profile.Fprof.html][mix profile.fprof]]
+** Logging
+- [[https://hexdocs.pm/logger/Logger.html][logger]]
+** Interacting with the system
+- ~:erlang.system_info/1~
+- ~:erlang.memory/0~
+- ~Process.list/0~
+- ~Process.info/1~
+- include ~:runtime_tools~
+  #+BEGIN_SRC elixir
+    defmodule Todo.MixProject do
+      ...
+      def application do
+        [
+          extra_applications: [:logger, :runtime_tools],
+          ...
+        ]
+      end
+      ...
+    end
+  #+END_SRC
+** Tracing
+- [[http://erlang.org/doc/man/sys.html][:sys]]: allows you to trace OTP-compliant processes
+  + Tracing is done on the standard output, so you need to attach to
+    the system (as opposed to establishing a remote shell). Then you
+    can turn on tracing for a particular process with the help of ~:sys.trace/2~:
+    #+BEGIN_SRC
+    $ _build/prod/rel/appname/bin/appname attach
+
+    ## start tracing
+    iex(appname@127.0.0.1)1> :sys.trace(pid, true)
+
+    ## stop tracing
+    iex(appname@127.0.0.1)1> :sys.trace(pid, false)
+    #+END_SRC
+  + ~:sys.get_state/1~
+  + ~:sys.replace_state/2~
+- [[http://erlang.org/doc/man/dbg.html][:dbg]]
+- [[http://erlang.org/doc/man/erlang.html#trace-3][:erlang.trace/3]] allows you to subscribe to events in the system such
+  as message-passing or function call
+  #+BEGIN_SRC
+  $ iex --name tracer@127.0.0.1 --cookie mycookie --hidden
+
+  # Starts the tracer process
+  iex(tracer@127.0.0.1)1> :dbg.tracer()
+
+  # Subscribes only to events from the mynode node
+  iex(tracer@127.0.0.1)2> :dbg.n(:'mynode@127.0.0.1')
+
+  # Subscribes to function calls in all processes
+  iex(tracer@127.0.0.1)3> :dbg.p(:all, [:call])
+
+  # Sets the trace pattern to all functions from the Todo.Server process
+  iex(tracer@127.0.0.1)4> :dbg.tp(Todo.Server, [])
+
+  # stop all traces
+  iex(tracer@127.0.0.1)4> :dbg.stop_clear()
+  #+END_SRC
