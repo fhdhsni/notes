@@ -7,6 +7,85 @@
 - provides a core set of plugs to apply to all requests
 - dispatches requests into a designated router
 
+- Phoenix applications start the ~HelloWeb.Endpoint~ as a supervised
+  process. By default, the Endpoint is added to the supervision tree
+  in ~lib/hello/application.ex~ as a supervised process. Each request
+  begins and ends its lifecycle inside your application in an
+  endpoint. The endpoint handles starting the web server and
+  transforming requests through several defined plugs before calling
+  the ~Router~.
+- Endpoints gather together common functionality and serve as entrance
+  and exit for all of the HTTP requests to your application. The
+  endpoint holds plugs that are common to all requests coming into
+  your application.
+
+- Faults in the different parts of the supervision tree, such as the
+  Ecto Repo, will not immediately impact the main application. The
+  supervisor is therefore able to restart those processes separately
+  after unexpected faults. It is also possible for an application to
+  have multiple endpoints, each with its own supervision tree.
+- There are many functions defined in the endpoint module, read the
+  [[https://hexdocs.pm/phoenix/Phoenix.Endpoint.html][Endpoint doc]]
+**  Using SSL
+- To prepare an application to serve requests over SSL, we need to add
+  a little bit of configuration and two environment variables. In
+  order for SSL to actually work, we’ll need a key file and
+  certificate file from a certificate authority. The environment
+  variables that we’ll need are paths to those two files.
+- If we add the ~otp_app:~ key whose value is the name of our
+  application, Plug will begin to look for them at the root of our
+  application. We can then put those files in our ~priv~ directory and
+  set the paths to ~priv/our_keyfile.key~ and ~priv/our_cert.crt~.
+  Here’s an example configuration from ~config/prod.exs~.
+  #+BEGIN_SRC elixir
+    use Mix.Config
+
+    config :hello, HelloWeb.Endpoint,
+      http: [port: {:system, "PORT"}],
+      url: [host: "example.com"],
+      cache_static_manifest: "priv/static/cache_manifest.json",
+      https: [
+        port: 443,
+        otp_app: :hello,
+        keyfile: System.get_env("SOME_APP_SSL_KEY_PATH"),
+        certfile: System.get_env("SOME_APP_SSL_CERT_PATH"),
+        # OPTIONAL Key for intermediate certificates:
+        cacertfile: System.get_env("INTERMEDIATE_CERTFILE_PATH")
+      ]
+  #+END_SRC
+  Without the ~otp_app:~ key, we need to provide absolute paths to the
+  files wherever they are on the filesystem in order for Plug to find
+  them.
+  #+BEGIN_SRC
+  Path.expand("../../../some/path/to/ssl/key.pem", __DIR__)
+  #+END_SRC
+- [[*~mix phx.*~][SSL in development]]
+- Force SSL
+  + This can be accomplished by setting the ~:force_ssl~ option in your
+    endpoint configuration. It expects a list of options which are
+    forwarded to ~Plug.SSL~. By default it sets the
+    “strict-transport-security” header in HTTPS requests, forcing
+    browsers to always use HTTPS. If an unsafe (HTTP) request is sent,
+    it redirects to the HTTPS version using the ~:host~ specified in the
+    ~:url~ configuration. For example:
+    #+BEGIN_SRC elixir
+      config :my_app, MyApp.Endpoint,
+        force_ssl: [rewrite_on: [:x_forwarded_proto]]
+    #+END_SRC
+    + To dynamically redirect to the host of the current request, set
+      ~:host~ in the ~:force_ssl~ configuration to ~nil~.
+      #+BEGIN_SRC elixir
+        config :my_app, MyApp.Endpoint,
+          force_ssl: [rewrite_on: [:x_forwarded_proto], host: nil]
+      #+END_SRC
+- [[https://hexdocs.pm/phoenix/endpoint.html#hsts][HSTS]] or “strict-transport-security” is a mechanism that allows a
+  website to declare itself as only accessible via a secure connection
+  (HTTPS). But it does have other consequenses. RFC6797 which defines
+  HSTS also specifies that the browser should keep track of the policy
+  of a host and apply it until it expires. It also specifies that
+  traffic on any port other than 80 is assumed to be encrypted as per
+  the policy.
+
 * Router
 - parses incoming requests and dispatches them to the correct
   controller/action, passing parameters as needed
@@ -14,6 +93,347 @@
 - defines named pipelines through which we may pass our requests
 - Pipelines - allow easy application of groups of plugs to a set of
   routes
+- ~resources "/users", UserController~ expands out to eight clauses of
+  the ~match/5~ function.
+  #+BEGIN_SRC elixir
+    user_path  GET     /users           HelloWeb.UserController :index
+    user_path  GET     /users/:id/edit  HelloWeb.UserController :edit
+    user_path  GET     /users/new       HelloWeb.UserController :new
+    user_path  GET     /users/:id       HelloWeb.UserController :show
+    user_path  POST    /users           HelloWeb.UserController :create
+    user_path  PATCH   /users/:id       HelloWeb.UserController :update
+               PUT     /users/:id       HelloWeb.UserController :update
+    user_path  DELETE  /users/:id       HelloWeb.UserController :delete
+  #+END_SRC
+  if you don't all of 'em
+  #+BEGIN_SRC
+  resources "/posts", PostController, only: [:index, :show]
+  #+END_SRC
+  or exclude some of 'em
+  #+BEGIN_SRC
+  resources "/comments", CommentController, except: [:delete]
+  #+END_SRC
+** Forward
+- The ~Phoenix.Router.forward/4~ macro can be used to send all requests
+  that start with a particular path to a particular plug.
+
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.Router do
+      use HelloWeb, :router
+      ...
+      scope "/" do
+        pipe_through [:authenticate_user, :ensure_admin]
+        forward "/jobs", BackgroundJob.Plug # <<----
+      end
+    end
+  #+END_SRC
+
+  #+BEGIN_SRC elixir
+    defmodule BackgroundJob.Plug do
+      def init(opts), do: opts
+
+      def call(conn, opts) do
+        conn
+        |> Plug.Conn.assign(:name, Keyword.get(opts, :name, "Background Job"))
+        |> BackgroundJob.Router.call(opts)
+      end
+    end
+
+    defmodule BackgroundJob.Router do
+      use Plug.Router
+
+      plug(:match)
+      plug(:dispatch)
+
+      get("/", do: send_resp(conn, 200, "Welcome to #{conn.assigns.name}"))
+      get("/active", do: send_resp(conn, 200, "5 Active Jobs"))
+      get("/pending", do: send_resp(conn, 200, "3 Pending Jobs"))
+      match(_, do: send_resp(conn, 404, "Not found"))
+    end
+  #+END_SRC
+
+** Path Helpers
+- Path helpers are functions which are dynamically defined on the
+  ~Router.Helpers~ module for an individual application. For us, that is
+  ~HelloWeb.Router.Helpers~. Their names are derived from the name of
+  the controller used in the route definition. Our controller is
+  ~HelloWeb.PageController~, and ~page_path~ is the function which will
+  return the path to the root of our application.
+
+  router.ex
+  #+BEGIN_SRC elixir
+      scope "/", HelloWeb do
+        pipe_through(:browser)
+
+        get("/", PageController, :index)
+        get("/hello", HelloController, :index)
+        get("/hello/:messenger", HelloController, :show)
+      end
+  #+END_SRC
+
+  ~iex -S mix~
+  #+BEGIN_SRC text
+    iex> HelloWeb.Router.Helpers.page_path(HelloWeb.Endpoint, :index)
+    "/"
+
+    iex> HelloWeb.Router.Helpers.hello_path(HelloWeb.Endpoint, :index)
+    "/hello"
+
+
+    iex> HelloWeb.Router.Helpers.hello_path(HelloWeb.Endpoint, :show, :farhad)
+    "/hello/farhad"
+
+    iex> HelloWeb.Router.Helpers.hello_url(HelloWeb.Endpoint, :show, :farhad)
+    "http://localhost:4000/hello/farhad"
+
+    iex(7)> HelloWeb.Router.Helpers.hello_url(HelloWeb.Endpoint, :show, :farhad, hey: :yo)
+    "http://localhost:4000/hello/farhad?hey=yo"
+  #+END_SRC
+** Nested Resources
+- Let’s say we also have a ~posts~ resource which has a many-to-one
+  relationship with ~users~
+  #+BEGIN_SRC elixir
+    resources "/users", UserController do
+      resources "/posts", PostController
+    end
+  #+END_SRC
+
+  ~mix phx.routes~
+  #+BEGIN_SRC elixir
+    user_path  GET     /users                          HelloWeb.UserController :index
+    user_path  GET     /users/:id/edit                 HelloWeb.UserController :edit
+    user_path  GET     /users/new                      HelloWeb.UserController :new
+    user_path  GET     /users/:id                      HelloWeb.UserController :show
+    user_path  POST    /users                          HelloWeb.UserController :create
+    user_path  PATCH   /users/:id                      HelloWeb.UserController :update
+               PUT     /users/:id                      HelloWeb.UserController :update
+    user_path  DELETE  /users/:id                      HelloWeb.UserController :delete
+    user_post_path  GET     /users/:user_id/posts           HelloWeb.PostController :index
+    user_post_path  GET     /users/:user_id/posts/:id/edit  HelloWeb.PostController :edit
+    user_post_path  GET     /users/:user_id/posts/new       HelloWeb.PostController :new
+    user_post_path  GET     /users/:user_id/posts/:id       HelloWeb.PostController :show
+    user_post_path  POST    /users/:user_id/posts           HelloWeb.PostController :create
+    user_post_path  PATCH   /users/:user_id/posts/:id       HelloWeb.PostController :update
+                    PUT     /users/:user_id/posts/:id       HelloWeb.PostController :update
+    user_post_path  DELETE  /users/:user_id/posts/:id       HelloWeb.PostController :delete
+  #+END_SRC
+** Scoped Routes
+- Scopes are a way to group routes under a common path prefix and
+  scoped set of plug middleware.
+- Let’s say we have user generated reviews on a site, and that those
+  reviews first need to be approved by an admin. The semantics of
+  these resources are quite different, and they might not share the
+  same controller. Scopes enable us to segregate these routes.
+  #+BEGIN_SRC elixir
+    scope "/", HelloWeb do
+      pipe_through :browser
+      ...
+      resources "/reviews", ReviewController
+      ...
+    end
+
+    scope "/admin", as: :admin do # <-- as: admin to fix path helpers, generates admin_review_path
+      resources "/reviews", HelloWeb.Admin.ReviewController
+    end
+  #+END_SRC
+  ~mix phx.routes~
+  #+BEGIN_SRC text
+    ...
+    review_path  GET     /reviews                        HelloWeb.ReviewController :index
+    review_path  GET     /reviews/:id/edit               HelloWeb.ReviewController :edit
+    review_path  GET     /reviews/new                    HelloWeb.ReviewController :new
+    review_path  GET     /reviews/:id                    HelloWeb.ReviewController :show
+    review_path  POST    /reviews                        HelloWeb.ReviewController :create
+    review_path  PATCH   /reviews/:id                    HelloWeb.ReviewController :update
+                 PUT     /reviews/:id                    HelloWeb.ReviewController :update
+    review_path  DELETE  /reviews/:id                    HelloWeb.ReviewController :delete
+
+    ...
+    admin_review_path  GET     /admin/reviews                  HelloWeb.Admin.ReviewController :index
+    admin_review_path  GET     /admin/reviews/:id/edit         HelloWeb.Admin.ReviewController :edit
+    admin_review_path  GET     /admin/reviews/new              HelloWeb.Admin.ReviewController :new
+    admin_review_path  GET     /admin/reviews/:id              HelloWeb.Admin.ReviewController :show
+    admin_review_path  POST    /admin/reviews                  HelloWeb.Admin.ReviewController :create
+    admin_review_path  PATCH   /admin/reviews/:id              HelloWeb.Admin.ReviewController :update
+                       PUT     /admin/reviews/:id              HelloWeb.Admin.ReviewController :update
+    admin_review_path  DELETE  /admin/reviews/:id              HelloWeb.Admin.ReviewController :delete
+  #+END_SRC
+- the use of nested scopes is generally discouraged because it can
+  sometimes make our code confusing and less clear. That being said,
+  suppose that we had a versioned API:
+  #+BEGIN_SRC elixir
+    scope "/api", HelloWeb.Api, as: :api do
+      pipe_through :api
+
+      scope "/v1", V1, as: :v1 do
+        resources "/images",  ImageController
+        resources "/reviews", ReviewController
+        resources "/users",   UserController
+      end
+    end
+  #+END_SRC
+  ~mix phx.routes~ gives up
+  #+BEGIN_SRC elixir
+     api_v1_image_path  GET     /api/v1/images            HelloWeb.Api.V1.ImageController :index
+     api_v1_image_path  GET     /api/v1/images/:id/edit   HelloWeb.Api.V1.ImageController :edit
+     api_v1_image_path  GET     /api/v1/images/new        HelloWeb.Api.V1.ImageController :new
+     api_v1_image_path  GET     /api/v1/images/:id        HelloWeb.Api.V1.ImageController :show
+     api_v1_image_path  POST    /api/v1/images            HelloWeb.Api.V1.ImageController :create
+     api_v1_image_path  PATCH   /api/v1/images/:id        HelloWeb.Api.V1.ImageController :update
+                        PUT     /api/v1/images/:id        HelloWeb.Api.V1.ImageController :update
+     api_v1_image_path  DELETE  /api/v1/images/:id        HelloWeb.Api.V1.ImageController :delete
+    api_v1_review_path  GET     /api/v1/reviews           HelloWeb.Api.V1.ReviewController :index
+    api_v1_review_path  GET     /api/v1/reviews/:id/edit  HelloWeb.Api.V1.ReviewController :edit
+    api_v1_review_path  GET     /api/v1/reviews/new       HelloWeb.Api.V1.ReviewController :new
+    api_v1_review_path  GET     /api/v1/reviews/:id       HelloWeb.Api.V1.ReviewController :show
+    api_v1_review_path  POST    /api/v1/reviews           HelloWeb.Api.V1.ReviewController :create
+    api_v1_review_path  PATCH   /api/v1/reviews/:id       HelloWeb.Api.V1.ReviewController :update
+                        PUT     /api/v1/reviews/:id       HelloWeb.Api.V1.ReviewController :update
+    api_v1_review_path  DELETE  /api/v1/reviews/:id       HelloWeb.Api.V1.ReviewController :delete
+      api_v1_user_path  GET     /api/v1/users             HelloWeb.Api.V1.UserController :index
+      api_v1_user_path  GET     /api/v1/users/:id/edit    HelloWeb.Api.V1.UserController :edit
+      api_v1_user_path  GET     /api/v1/users/new         HelloWeb.Api.V1.UserController :new
+      api_v1_user_path  GET     /api/v1/users/:id         HelloWeb.Api.V1.UserController :show
+      api_v1_user_path  POST    /api/v1/users             HelloWeb.Api.V1.UserController :create
+      api_v1_user_path  PATCH   /api/v1/users/:id         HelloWeb.Api.V1.UserController :update
+                        PUT     /api/v1/users/:id         HelloWeb.Api.V1.UserController :update
+      api_v1_user_path  DELETE  /api/v1/users/:id         HelloWeb.Api.V1.UserController :delete
+  #+END_SRC
+** Pipelines
+- Pipelines are simply plugs stacked up together in a specific order
+  and given a name. They allow us to customize behaviors and
+  transformations related to the handling of requests. Phoenix
+  provides us with some default pipelines for a number of common
+  tasks. In turn we can customize them as well as create new pipelines
+  to meet our needs.
+*** The Endpoint Plugs
+- Endpoints organize all the plugs common to every request, and apply
+  them before dispatching into the router(s) with their underlying
+  ~:browser~, ~:api~, and custom pipelines. The default Endpoint plugs do
+  quite a lot of work. Here they are in order.
+- ~Plug.Static~ - serves static assets. Since this plug comes before the
+  logger, serving of static assets is not logged
+- ~Phoenix.CodeReloader~ - a plug that enables code reloading for all
+  entries in the web directory. It is configured directly in the
+  Phoenix application
+- ~Plug.RequestId~ - generates a unique request id for each request.
+- ~Plug.Logger~ - logs incoming requests
+- ~Plug.Parsers~ - parses the request body when a known parser is
+  available. By default parsers parse urlencoded, multipart and json
+  (with jason). The request body is left untouched when the request
+  content-type cannot be parsed
+- ~Plug.MethodOverride~ - converts the request method to PUT, PATCH or
+  DELETE for POST requests with a valid _method parameter
+- ~Plug.Head~ - converts HEAD requests to GET requests and strips the
+  response body
+- ~Plug.Session~ - a plug that sets up session management. Note that
+  fetch_session/2 must still be explicitly called before using the
+  session as this plug just sets up how the session is fetched
+- ~Plug.Router~ - plugs a router into the request cycle
+
+*** The ~:browser~ and ~:api~ Pipelines
+- Phoenix defines two other pipelines by default, ~:browser~ and
+  ~:api~. The router will invoke these after it matches a route,
+  assuming we have called~ pipe_through/1~ with them in the enclosing
+  scope.
+- The router invokes a pipeline on a route defined within a scope. If
+  no scope is defined, the router will invoke the pipeline on all the
+  routes in the router.
+- If we know that our application only renders views for the browser,
+  we can simplify our router quite a bit by removing the ~api~ stuff as
+  well as the scopes:
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.Router do
+      use HelloWeb, :router
+
+      pipeline :browser do
+        plug :accepts, ["html"]
+        plug :fetch_session
+        plug :fetch_flash
+        plug :protect_from_forgery
+        plug :put_secure_browser_headers
+      end
+
+      pipe_through :browser
+
+      get "/", HelloWeb.PageController, :index
+
+      resources "/reviews", HelloWeb.ReviewController
+    end
+  #+END_SRC
+  Removing all scopes forces the router to invoke the ~:browser~
+  pipeline on all routes.
+
+*** Creating New Pipelines
+- Phoenix allows us to create our own custom pipelines anywhere in the
+  router. To do so, we call the ~pipeline/2~ macro with these arguments:
+  an atom for the name of our new pipeline and a block with all the
+  plugs we want in it.
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.Router do
+      use HelloWeb, :router
+
+      pipeline :browser do
+        plug :accepts, ["html"]
+        plug :fetch_session
+        plug :fetch_flash
+        plug :protect_from_forgery
+        plug :put_secure_browser_headers
+      end
+
+      pipeline :review_checks do
+        plug :ensure_authenticated_user
+        plug :ensure_user_owns_review
+      end
+
+      scope "/reviews", HelloWeb do
+        pipe_through :review_checks
+
+        resources "/", ReviewController
+      end
+    end
+  #+END_SRC
+
+*** Channel Routes
+- Channels handle incoming and outgoing messages broadcast over a
+  socket for a given topic. Channel routes, then, need to match
+  requests by socket and topic in order to dispatch to the correct
+  channel.
+
+  lib/hello_web/endpoint.ex
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.Endpoint do
+      use Phoenix.Endpoint, otp_app: :hello
+
+      socket "/socket", HelloWeb.UserSocket,
+        websocket: true,
+        longpoll: false
+      ...
+    end
+  #+END_SRC
+  Next, we need to open our ~lib/hello_web/channels/user_socket.ex~
+  file and use the ~channel/3~ macro to define our channel routes.
+  The routes will match a topic pattern to a channel to handle
+  events. If we have a channel module called ~RoomChannel~ and a topic
+  called ~"rooms:*"~
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.UserSocket do
+      use Phoenix.Socket
+
+      channel "rooms:*", HelloWeb.RoomChannel
+      ...
+    end
+  #+END_SRC
+  Each socket can handle requests for multiple channels.
+  #+BEGIN_SRC elixir
+  channel "rooms:*", HelloWeb.RoomChannel
+  channel "foods:*", HelloWeb.FoodChannel
+  #+END_SRC
+  We can mount multiple socket handlers in our endpoint:
+  #+BEGIN_SRC elixir
+  socket "/socket", HelloWeb.UserSocket
+  socket "/admin-socket", HelloWeb.AdminSocket
+  #+END_SRC
 
 * Controllers
 - provide functions, called /actions/, to handle requests
@@ -21,6 +441,52 @@
   + prepare data and pass it into views
   + invoke rendering via views
   + perform redirects
+- Phoenix controllers act as intermediary modules. Their functions -
+  called actions - are invoked from the router in response to HTTP
+  requests. The actions, in turn, gather all the necessary data and
+  perform all the necessary steps before invoking the view layer to
+  render a template or returning a JSON response.
+** Actions
+- some convention to follow for our actions
+  + ~index~ - renders a list of all items of the given resource type
+  + ~show~ - renders an individual item by id
+  + ~new~ - renders a form for creating a new item
+  + ~create~ - receives params for one new item and saves it in a datastore
+  + ~edit~ - retrieves an individual item by id and displays it in a form for editing
+  + ~update~ - receives params for one edited item and saves it to a datastore
+  + ~delete~ - receives an id for an item to be deleted and deletes it from a datastore
+- Each action takes two parameters, which will be provided by Phoenix
+  behind the scenes.
+  + The first parameter is always ~conn~, a struct which holds
+    information about the request such as the host, path elements,
+    port, query string, and much more. conn, comes to Phoenix via
+    Elixir’s Plug middleware framework. [[https://hexdocs.pm/plug/Plug.Conn.html][Plug’s documentation]]
+  + The second parameter is ~params~. Not surprisingly, this is a map
+    which holds any parameters passed along in the HTTP request.
+** Flash Messages
+- The ~Phoenix.Controller~ module provides the ~put_flash/3~ and
+  ~get_flash/2~ functions to help us set and retrieve flash messages
+  as a key value pair. (There's also a ~clear_flash/1~)
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.PageController do
+      ...
+      def index(conn, _params) do
+        conn
+        |> put_flash(:info, "Welcome to Phoenix, from flash info!")
+        |> put_flash(:error, "Let's pretend we have an error.")
+        |> render("index.html")
+      end
+    end
+  #+END_SRC
+** Rendering
+- ~text/2~
+- ~json/2~
+- ~html/2~
+- ~render/3~
+  + ~render/3~ is defined in the ~Phoenix.View~ module instead of
+    ~Phoenix.Controller~, but it is aliased in ~Phoenix.Controller~ for
+    convenience.
+
 
 * Views
 - render templates
@@ -33,7 +499,6 @@
 - provide the basic structure for a response, and allow dynamic data
   to be substituted in
 - are precompiled and fast
-
 * Channels
 - manage sockets for easy realtime communication
 - are analogous to controllers except that they allow bi-directional
@@ -45,7 +510,7 @@
 - abstracts the underlying pubsub adapter for third-party pubsub
   integration
 
-* built on top of
+* Built on top of
 **  Plug
 - Plug is a specification for constructing composable modules to build
   web applications. Plugs are reusable modules or functions built to
@@ -54,6 +519,119 @@
   consistent, plugs can be defined and executed in a set order, like a
   pipeline. They can also be re-used within a project or across
   projects.
+
+- The core Phoenix components like Endpoints, Routers, and Controllers
+  are all just Plugs internally
+
+- Plug is a specification for composable modules in between web
+  applications. It is also an abstraction layer for connection
+  adapters of different web servers. The basic idea of Plug is to
+  unify the concept of a “connection” that we operate on. This differs
+  from other HTTP middleware layers such as Rack, where the request
+  and response are separated in the middleware stack.
+
+*** function plugs
+- In order to act as a plug, a function simply needs to accept a
+  connection struct (~%Plug.Conn{}~) and options. It also needs to
+  return a connection struct. Any function that meets those criteria
+  will do.
+  #+BEGIN_SRC elixir
+    def put_headers(conn, key_values) do
+      Enum.reduce key_values, conn, fn {k, v}, conn ->
+        Plug.Conn.put_resp_header(conn, to_string(k), v)
+      end
+    end
+  #+END_SRC
+  and we use them to compose a series of transformations on our
+  connection in Phoenix
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.MessageController do
+      use HelloWeb, :controller
+
+      plug :put_headers, %{content_encoding: "gzip", cache_control: "max-age=3600"}
+      plug :put_layout, "bare.html"
+
+      ...
+    end
+  #+END_SRC
+  e.g
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.MessageController do
+      use HelloWeb, :controller
+
+      plug :authenticate
+      plug :fetch_message
+      plug :authorize_message
+
+      def show(conn, params) do
+        render(conn, :show, page: find_message(params["id"]))
+      end
+
+      defp authenticate(conn, _) do
+        case Authenticator.find_user(conn) do
+          {:ok, user} ->
+            assign(conn, :user, user)
+          :error ->
+            conn |> put_flash(:info, "You must be logged in") |> redirect(to: "/") |> halt()
+        end
+      end
+
+      defp fetch_message(conn, _) do
+        case find_message(conn.params["id"]) do
+          nil ->
+            conn |> put_flash(:info, "That message wasn't found") |> redirect(to: "/") |> halt()
+          message ->
+            assign(conn, :message, message)
+        end
+      end
+
+      defp authorize_message(conn, _) do
+        if Authorizer.can_access?(conn.assigns[:user], conn.assigns[:message]) do
+          conn
+        else
+          conn |> put_flash(:info, "You can't access that page") |> redirect(to: "/") |> halt()
+        end
+      end
+    end
+  #+END_SRC
+
+*** module plugs
+- Module plugs are another type of Plug that let us define a
+  connection transformation in a module. The module only needs to
+  implement two functions:
+  + ~init/1~ which initializes any arguments or options to be passed
+    to ~call/2~
+  + ~call/2~ which carries out the connection transformation. ~call/2~
+    is just a function plug that we saw earlier
+  + e.g.
+    #+BEGIN_SRC elixir
+      defmodule HelloWeb.Plugs.Locale do
+        import Plug.Conn
+
+        @locales ["en", "fr", "de"]
+
+        def init(default), do: default
+
+        def call(%Plug.Conn{params: %{"locale" => loc}} = conn, _default) when loc in @locales do
+          assign(conn, :locale, loc)
+        end
+        def call(conn, default), do: assign(conn, :locale, default)
+      end
+
+      defmodule HelloWeb.Router do
+        use HelloWeb, :router
+
+        pipeline :browser do
+          plug :accepts, ["html"]
+          plug :fetch_session
+          plug :fetch_flash
+          plug :protect_from_forgery
+          plug :put_secure_browser_headers
+          plug HelloWeb.Plugs.Locale, "en"
+        end
+        ...
+    #+END_SRC
+
 **  Ecto
 - Ecto is a language integrated query composition tool and database
   wrapper for Elixir. With Ecto, we can read and write to different
@@ -72,3 +650,37 @@
   + Changeset - Changesets declare transformations we need to perform
     on our data before our application can use it. These include type
     casting, validations, and more.
+* Miscellaneous
+- All of our application’s static assets like js, css, and image files
+  live in assets, which are built into ~priv/static~ by webpack
+- Our application file is at ~lib/hello/application.ex~
+- Ecto Repo in ~lib/hello/repo.ex~
+- Phoenix will look for the template in a directory named after our
+  controller, so for ~HelloWeb.HelloController~ it looks for the
+  template inside ~lib/hello_web/templates/hello~
+  #+BEGIN_SRC elixir
+    defmodule HelloWeb.HelloController do
+      use HelloWeb, :controller
+
+      def index(conn, _params) do
+        render(conn, "index.html")
+      end
+    end
+  #+END_SRC
+- modules responsible for rendering are views
+- In order to render any templates for our ~HelloController~, we need a
+  ~HelloView~. The names are significant here - the first part of the
+  names of the view and controller must match. ~hello/lib/hello_web/views/hello_view.ex~
+- Templates are scoped to a view, which are scoped to
+  controller. Phoenix creates a ~lib/hello_web/templates~ directory
+  where we can put all these.
+- ~<%= %>~. Notice that the initial tag has an equals sign like this:
+  ~<%=~ . That means that any Elixir code that goes between those tags
+  will be executed, and the resulting value will replace the tag. If
+  the equals sign were missing, the code would still be executed, but
+  the value would not appear on the page.
+
+* ~mix phx.*~
+- ~mix phx.routes~
+- ~mix phx.gen.cert~
+  + generate a self-signed certificates to be used in development
