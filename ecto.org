@@ -1,0 +1,549 @@
+* add ecto
+1) generate necessities
+   #+BEGIN_SRC
+   mix ecto.gen.repo -r Friends.Repo
+   #+END_SRC
+2) checkout configuration at ~config/config.exs~
+   #+BEGIN_SRC elixir
+     config :friends, Friends.Repo,
+       database: "friends_repo",
+       username: "user",
+       password: "pass",
+       hostname: "localhost"
+   #+END_SRC
+3) ~lib/friends/repo.ex~
+   #+BEGIN_SRC elixir
+     defmodule Friends.Repo do
+       use Ecto.Repo,
+         otp_app: :friends,
+         adapter: Ecto.Adapters.Postgres
+     end
+   #+END_SRC
+   + ~otp_app~ tells Ecto which Elixir application it can look for
+     database configuration in
+4) start the repo process in ~lib/friends/application.ex~
+   #+BEGIN_SRC elixir
+     def start(_type, _args) do
+       children = [
+         Friends.Repo,
+       ]
+   #+END_SRC
+5) add this to ~config/config.exs~
+   #+BEGIN_SRC elixir
+   config :friends, ecto_repos: [Friends.Repo]
+   #+END_SRC
+   This tells our application about the repo, which will allow us to
+   run commands such as ~mix ecto.create~
+
+* Setting up the database
+- create the database
+  #+BEGIN_SRC
+  mix ecto.create
+  #+END_SRC
+- create a migration
+  #+BEGIN_SRC elixir
+  mix ecto.gen.migration create_people
+  #+END_SRC
+  generates a new migration file in ~priv/repo/migrations~
+  #+BEGIN_SRC elixir
+    defmodule Friends.Repo.Migrations.CreatePeople do
+      use Ecto.Migration
+
+      def change do
+        create table(:people) do
+          add(:first_name, :string)
+          add(:last_name, :string)
+          add(:age, :integer)
+        end
+      end
+    end
+  #+END_SRC
+  NOTE: The naming convention for tables in Ecto databases is to use a
+  pluralized name.
+
+- run the migration to create the table
+  #+BEGIN_SRC
+  mix ecto.migrate
+  #+END_SRC
+  if you you made any mistake you can run ~mix ecto.rollback~
+
+* Creating the schema
+- The schema is an Elixir representation of data from our database.
+- Schemas are commonly associated with a database table, however they
+  can be associated with a database view as well
+  #+BEGIN_SRC elixir
+    defmodule Friends.Person do
+      use Ecto.Schema
+
+      schema "people" do            # database name
+        field :first_name, :string
+        field :last_name, :string
+        field :age, :integer
+      end
+    end
+  #+END_SRC
+  + we’re telling Ecto that the ~Friends.Person~ schema maps to the
+    ~people~ table in the database
+  + We’ve called this schema ~Person~ because the naming convention in
+    Ecto for schemas is a singularized name.
+  + in iex
+    #+BEGIN_SRC elixir
+      iex(1)> person = %Friends.Person{}
+      %Friends.Person{
+        __meta__: #Ecto.Schema.Metadata<:built, "people">,
+        age: nil,
+        first_name: nil,
+        id: nil,
+        last_name: nil
+      }
+    #+END_SRC
+
+* Inserting data
+- We can insert a new record into our ~people~ table with this code:
+  #+BEGIN_SRC elixir
+  person = %Friends.Person{}
+  Friends.Repo.insert(person)
+  {:ok,
+    %Friends.Person{
+      __meta__: #Ecto.Schema.Metadata<:loaded, "people">,
+      age: nil, first_name: nil, id: 1, last_name: nil
+    }
+  }
+  # or
+  {:ok, person} = Friends.Repo.insert(person)
+  #+END_SRC
+* Validating changes
+- For this, Ecto has [[https://hexdocs.pm/ecto/Ecto.Changeset.html][changesets]]
+  + how to use it
+    1. filter and cast input
+       #+BEGIN_SRC elixir
+         import Ecto.Changeset
+
+         params = %{"title" => "So What", "index" => "1", "duration" => 180, "foo" => "LOL"}
+
+         changeset =
+           %Track{}
+           |> cast(params, [:title, :index, :duration])
+       #+END_SRC
+    2. validate
+       #+BEGIN_SRC elixir
+         changeset =
+           validate_required(changeset, [:title, :index])
+           |> validate_number(:index, greater_than: 0)
+       #+END_SRC
+    3. capture errors
+       #+BEGIN_SRC elixir
+         # see if it works
+         case Repo.insert(changeset) do
+           {:ok, track} -> IO.puts "Track #{track.name} successfully added"
+           {:error, changeset} -> IO.puts changeset.errors
+         end
+       #+END_SRC
+
+- sample
+  #+BEGIN_SRC elixir
+    defmodule Friends.Person do
+      use Ecto.Schema
+
+      schema "people" do
+        field(:first_name, :string)
+        field(:last_name, :string)
+        field(:age, :integer)
+      end
+
+
+      # This changeset takes a `person` and a set of `params`, which are to be
+      # the changes to apply to this person
+      def changeset(person, params \\ %{}) do
+        person
+        |> Ecto.Changeset.cast(params, [:first_name, :last_name, :age])
+        |> Ecto.Changeset.validate_required([:first_name, :last_name])
+      end
+    end
+  #+END_SRC
+- ~Ecto.Changeset.cast(person, params, [:first_name, :last_name, :age])~
+  + it's ~cast(data, params, permitted, opts \\ [])~
+  + Casting tells the changeset what parameters are allowed to be
+    passed through in this changeset, and anything not in the list
+    will be ignored.
+- ~Ecto.Changeset.validate_required([:first_name, :last_name])~
+  + it's ~validate_required(changeset, fields, opts \\ [])~
+  + says that, for this changeset, we expect ~first_name~ and ~last_name~
+    to have values specified
+
+    with error
+    #+BEGIN_SRC elixir
+      iex(9)> person = %Friends.Person{}
+      %Friends.Person{
+        __meta__: #Ecto.Schema.Metadata<:built, "people">,
+        age: nil,
+        first_name: nil,
+        id: nil,
+        last_name: nil
+      }
+
+      iex(10)> changeset = Friends.Person.changeset(person, %{})
+      #Ecto.Changeset<
+        action: nil,
+        changes: %{},
+        errors: [
+        first_name: {"can't be blank", [validation: :required]},
+        last_name: {"can't be blank", [validation: :required]}
+        ],
+        data: #Friends.Person<>,
+        valid?: false
+      >
+
+      iex(11)> {:error, changeset} = Friends.Repo.insert(changeset)
+      {:error,
+       #Ecto.Changeset<
+         action: :insert,
+         changes: %{},
+         errors: [
+         first_name: {"can't be blank", [validation: :required]},
+         last_name: {"can't be blank", [validation: :required]}
+         ],
+         data: #Friends.Person<>,
+         valid?: false
+       >
+      }
+
+      iex(14)> changeset.errors
+      [
+        first_name: {"can't be blank", [validation: :required]},
+        last_name: {"can't be blank", [validation: :required]}
+      ]
+    #+END_SRC
+
+    valid changeset
+    #+BEGIN_SRC elixir
+      iex> person = %Friends.Person{}
+      %Friends.Person{
+        __meta__: #Ecto.Schema.Metadata<:built, "people">,
+        age: nil,
+        first_name: nil,
+        id: nil,
+        last_name: nil
+      }
+
+      iex> changeset = Friends.Person.changeset(person, %{first_name: "Ryan", last_name: "Bigg"})
+      #Ecto.Changeset<
+        action: nil,
+        changes: %{first_name: "Ryan", last_name: "Bigg"},
+        errors: [],
+        data: #Friends.Person<>,
+        valid?: true
+      >
+
+      iex(17)> changeset.valid?
+      true
+
+      iex> Friends.Repo.insert(changeset)
+
+      10:02:59.746 [debug] QUERY OK db=3.9ms queue=1.9ms
+      INSERT INTO "people" ("first_name","last_name") VALUES ($1,$2) RETURNING "id" ["Ryan", "Bigg"]
+      {:ok,
+       %Friends.Person{
+         __meta__: #Ecto.Schema.Metadata<:loaded, "people">,
+         age: nil,
+         first_name: "Ryan",
+         id: 3,
+         last_name: "Bigg"
+       }}
+    #+END_SRC
+
+  + NOTE: ~changeset.valid?~ will not check constraints (such as
+    ~uniqueness_constraint~). For that, you will need to attempt to do
+    an insertion and check for errors from the database. It’s for this
+    reason it’s best practice to try inserting data and validate the
+    returned tuple from ~Friends.Repo.insert~ to get the correct errors,
+    as prior to insertion the changeset will only contain validation
+    errors from the application itself.
+* queries
+1. construct the query
+2. execute that query against the database by passing the query to the
+   repository
+** Fetching a single record
+- build the query
+  ~Friends.Person |> Ecto.Query.first~
+  will generate an ~Ecto.Query~
+  #+BEGIN_SRC
+  #Ecto.Query<from p in Friends.Person, order_by: [asc: p.id], limit: 1>
+  #+END_SRC
+
+  We could construct this query ourselves
+  #+BEGIN_SRC elixir
+  require Ecto.Query
+  Ecto.Query.from p in Friends.Person, order_by: [asc: p.id], limit: 1
+  #+END_SRC
+- execute the query
+  #+BEGIN_SRC elixir
+  iex> Friends.Person |> Ecto.Query.first |> Friends.Repo.one
+
+  %Friends.Person{__meta__: #Ecto.Schema.Metadata<:loaded>,
+  age: 28, first_name: "Ryan", id: 1, last_name: "Bigg"}
+  #+END_SRC
+  or get the last one
+  #+BEGIN_SRC elixir
+  iex> Friends.Person |> Ecto.Query.last |> Friends.Repo.one
+
+  %Friends.Person{__meta__: #Ecto.Schema.Metadata<:loaded>,
+  age: 26, first_name: "Jane", id: 3, last_name: "Smith"}
+  #+END_SRC
+  The ~Ecto.Repo.one~ function will only return a struct if there is
+  one record in the result from the database. If there is more than
+  one record returned, an ~Ecto.MultipleResultsError~ exception will be
+  thrown.
+
+** Fetching all records
+#+BEGIN_SRC elixir
+iex> Friends.Person |> Friends.Repo.all
+#+END_SRC
+** Fetch a single record based on ID
+#+BEGIN_SRC elixir
+iex> Friends.Person |> Friends.Repo.get(1)
+%Friends.Person{__meta__: #Ecto.Schema.Metadata<:loaded>,
+ age: 28, first_name: "Ryan", id: 1, last_name: "Bigg"}
+#+END_SRC
+** Fetch a single record based on a specific attribute
+- If we want to get a record based on something other than the ~id~
+  attribute, we can use ~get_by~:
+  #+BEGIN_SRC elixir
+    iex> Friends.Person |> Friends.Repo.get_by(first_name: "Ryan")
+
+    %Friends.Person{__meta__: #Ecto.Schema.Metadata<:loaded>,
+                    age: 28, first_name: "Ryan", id: 1, last_name: "Bigg"}
+  #+END_SRC
+** Filtering results
+- If we want to get multiple records matching a specific attribute, we
+  can use ~where~:
+  #+BEGIN_SRC elixir
+  Friends.Person |> Ecto.Query.where(last_name: "Smith") |> Friends.Repo.all
+
+  [%Friends.Person{__meta__: #Ecto.Schema.Metadata<:loaded>, age: 27,
+  first_name: "John", id: 2, last_name: "Smith"},
+
+  %Friends.Person{__meta__: #Ecto.Schema.Metadata<:loaded>, age: 26,
+  first_name: "Jane", id: 3, last_name: "Smith"}]
+  #+END_SRC
+  the generated query is
+  #+BEGIN_SRC
+  #Ecto.Query<from p in Friends.Person, where: p.last_name == "Smith">
+  #+END_SRC
+  which means we can get the same result with
+  #+BEGIN_SRC
+  Ecto.Query.from(p in Friends.Person, where: p.last_name == "Smith") |> Friends.Repo.all
+  #+END_SRC
+  with both syntax we have to pin (^) the variables
+  #+BEGIN_SRC elixir
+    iex> last_name = "Smith"
+    iex> Friends.Person |> Ecto.Query.where(last_name: ^last_name) |> Friends.Repo.all
+
+    # Or:
+
+    iex> last_name = "Smith"
+    iex> Ecto.Query.from(p in Friends.Person, where: p.last_name == ^last_name) |> Friends.Repo.all
+  #+END_SRC
+  The pin operator instructs the query builder to use parameterised
+  SQL queries protecting against SQL injection.
+
+** Composing Ecto queries
+   #+BEGIN_SRC elixir
+     query = Friends.Person |> Ecto.Query.where(last_name: "Smith")
+
+     query = query |> Ecto.Query.where(first_name: "Jane")
+
+     #Ecto.Query<
+                   from p in Friends.Person, where: p.last_name == "Smith", where: p.first_name == "Jane">
+   #+END_SRC
+** Updating records
+- Updating records in Ecto requires us to first fetch a record from
+  the database. We then create a changeset from that record and the
+  changes we want to make to that record, and then call the
+  ~Ecto.Repo.update~ function.
+  + fetch
+    #+BEGIN_SRC
+    person = Friends.Person |> Ecto.Query.first |> Friends.Repo.one
+    #+END_SRC
+  + build a changeset
+    #+BEGIN_SRC
+    changeset = Friends.Person.changeset(person, %{age: 29})
+    #+END_SRC
+    We need to build a changeset because if we just create a new
+    ~Friends.Person~ struct with the new age, Ecto wouldn’t be able to
+    know that the age has changed without inspecting the database
+  + update
+    #+BEGIN_SRC
+    iex> Friends.Repo.update(changeset)
+    {:ok,
+    %Friends.Person{__meta__: #Ecto.Schema.Metadata<:loaded>, age: 29,
+    first_name: "Ryan", id: 1, last_name: "Bigg"}}
+    #+END_SRC
+** Deleting records
+- Similar to updating, we must first fetch a record from the database
+  and then call ~Friends.Repo.delete~ to delete that record:
+  #+BEGIN_SRC elixir
+  iex> person = Friends.Repo.get(Friends.Person, 1)
+  iex> Friends.Repo.delete(person)
+  #=> {:ok,
+  %Friends.Person{__meta__: #Ecto.Schema.Metadata<:deleted>, age: 29,
+  first_name: "Ryan", id: 2, last_name: "Bigg"}}
+
+  #+END_SRC
+===================
+* Ecto
+** Ecto.Repo
+- repositories are wrappers around the data store. Via the repository,
+  we can create, update, destroy and query existing entries. A
+  repository needs an adapter and credentials to communicate to the
+  databas
+
+** Ecto.Schema
+- schemas are used to map any data source into an Elixir struct. We
+  will often use them to map tables into Elixir data but that’s one of
+  their use cases and not a requirement for using Ecto
+
+** Ecto.Changeset
+- changesets provide a way for developers to filter and cast external
+  parameters, as well as a mechanism to track and validate changes
+  before they are applied to your data
+
+** Ecto.Query
+- written in Elixir syntax, queries are used to retrieve information
+  from a given repository. Queries in Ecto are secure, avoiding common
+  problems like SQL Injection, while still being composable, allowing
+  developers to build queries piece by piece instead of all at once
+  #+BEGIN_SRC elixir
+    import Ecto.Query, only: [from: 2]
+
+    query = from u in User,
+      where: u.age > 18 or is_nil(u.email),
+      select: u
+
+    # Returns %User{} structs matching the query
+    Repo.all(query)
+  #+END_SRC
+  In the example above we relied on our schema but queries can also be
+  made directly against a table by giving the table name as a
+  string. In such cases, the data to be fetched must be explicitly
+  outlined:
+  #+BEGIN_SRC elixir
+    query = from u in "users",
+              where: u.age > 18 or is_nil(u.email),
+              select: %{name: u.name, age: u.age}
+
+    # Returns maps as defined in select
+    Repo.all(query)
+  #+END_SRC
+
+- Queries are defined and extended with the from macro. The supported
+  keywords are:
+  #+BEGIN_SRC
+  :distinct
+  :where
+  :order_by
+  :offset
+  :limit
+  :lock
+  :group_by
+  :having
+  :join
+  :select
+  :preload
+  #+END_SRC
+- When writing a query, you are inside Ecto’s query syntax. In order
+  to access params values or invoke Elixir functions, you need to use
+  the ^ operator, which is overloaded by Ecto:
+  #+BEGIN_SRC elixir
+    def min_age(min) do
+      from u in User, where: u.age > ^min
+    end
+  #+END_SRC
+
+* Associations
+- Ecto supports defining associations on schemas:
+
+  create ~comments~ table
+  #+BEGIN_SRC elixir
+    defmodule Friends.Repo.Migrations.CreateComments do
+      use Ecto.Migration
+
+      def change do
+        create table(:comments) do
+          add(:post_id, references(:posts))
+          add(:body, :text)
+          timestamps()
+        end
+      end
+    end
+  #+END_SRC
+  create ~posts~ table
+  #+BEGIN_SRC elixir
+    defmodule Friends.Repo.Migrations.CreatePosts do
+      use Ecto.Migration
+
+      def change do
+        create table(:posts) do
+          add(:title, :string)
+          add(:body, :text)
+          timestamps()
+        end
+      end
+    end
+  #+END_SRC
+
+  create ~Post~ schema
+  #+BEGIN_SRC elixir
+    defmodule Friends.Post do
+      use Ecto.Schema
+
+      schema "posts" do
+        field(:title)
+        field(:body)
+        has_many(:comments, Friends.Comment)
+
+        timestamps()
+      end
+    end
+  #+END_SRC
+
+  create ~Comment~ schema
+    #+BEGIN_SRC elixir
+    defmodule Friends.Post do
+      use Ecto.Schema
+
+      schema "posts" do
+        field(:title)
+        field(:body)
+        has_many(:comments, Friends.Comment)
+
+        timestamps()
+      end
+    end
+  #+END_SRC
+
+- When an association is defined, Ecto also defines a field in the
+  schema with the association name. By default, associations are not
+  loaded into this field:
+
+  #+BEGIN_SRC
+  iex> post = Repo.get(Post, 42)
+  iex> post.comments
+  #Ecto.Association.NotLoaded<...>
+  #+END_SRC
+  + but you can preload
+    #+BEGIN_SRC elixir
+    Repo.all from p in Post, preload: [:comments]
+    #+END_SRC
+  + Preloading can also be done with a pre-defined join value:
+    #+BEGIN_SRC elixir
+    Repo.all from p in Post,
+            join: c in assoc(p, :comments),
+            where: c.votes > p.votes,
+            preload: [comments: c]
+    #+END_SRC
+  + for the simple cases, preloading can also be done after a
+    collection was fetched:
+    #+BEGIN_SRC
+    posts = Repo.all(Post) |> Repo.preload(:comments)
+    #+END_SRC

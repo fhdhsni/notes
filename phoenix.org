@@ -1260,6 +1260,51 @@
   #+END_SRC
   Sockets store assigned values as a map in ~socket.assigns~.
 
+* Context
+- Contexts are dedicated modules that expose and group related
+  functionality.
+- Phoenix projects are structured like Elixir and any other Elixir
+  project – we split our code into contexts. A context will group
+  related functionality, such as posts and comments, often
+  encapsulating patterns such as data access and data validation. By
+  using contexts, we decouple and isolate our systems into manageable,
+  independent parts.
+- sample
+  #+BEGIN_SRC sh
+    $ mix phx.gen.html Accounts User users name:string username:string:unique
+     * creating lib/hello_web/controllers/user_controller.ex
+     * creating lib/hello_web/templates/user/edit.html.eex
+     * creating lib/hello_web/templates/user/form.html.eex
+     * creating lib/hello_web/templates/user/index.html.eex
+     * creating lib/hello_web/templates/user/new.html.eex
+     * creating lib/hello_web/templates/user/show.html.eex
+     * creating lib/hello_web/views/user_view.ex
+     * creating test/hello_web/controllers/user_controller_test.exs
+     * creating lib/hello/accounts/user.ex
+     * creating priv/repo/migrations/20190218064836_create_users.exs
+     * creating lib/hello/accounts.ex
+     * injecting lib/hello/accounts.ex
+     * creating test/hello/accounts/accounts_test.exs
+     * injecting test/hello/accounts/accounts_test.exs
+
+    Add the resource to your browser scope in lib/hello_web/router.ex:
+
+        resources "/users", UserController
+
+    Remember to update your repository by running migrations: mix ecto.migrate
+
+
+    $ mix phx.gen.context Accounts Credential credentials email:string:unique user_id:references:users
+     * creating lib/hello/accounts/credential.ex
+     * creating priv/repo/migrations/20190218082757_create_credentials.exs
+     * injecting lib/hello/accounts.ex
+     * injecting test/hello/accounts/accounts_test.exs
+
+    Remember to update your repository by running migrations: mix ecto.migrate
+  #+END_SRC
+  + ~phx.gen.context~ task is just like ~phx.gen.html~, except it
+    doesn’t generate the web files for us.
+
 * PubSub
 - underlies the channel layer and allows clients to subscribe to
   topics
@@ -1517,7 +1562,6 @@
 
 *** Data Persistence
 
-
 * Miscellaneous
 - All of our application’s static assets like js, css, and image files
   live in assets, which are built into ~priv/static~ by webpack
@@ -1548,11 +1592,147 @@
   the equals sign were missing, the code would still be executed, but
   the value would not appear on the page.
 
-* ~phx.*~
+* Mix Tasks
 - ~phx.routes~
+  + show us all the routes defined for a given router
 - ~phx.gen.cert~
   + generate a self-signed certificates to be used in development
 - ~phx.gen.presence~
   + generate a presence module
 - ~phx.gen.schema~
-  + generate an Ecto schema
+  + If we don’t need a complete HTML/JSON resource and are not
+    interested in generating or altering a context we can use the mix
+    phx.gen.schema task. It will generate a schema, and a migration.
+- ~phx.gen.html~
+  + takes a number of arguments, the module name of the context, the
+    module name of the schema, the resource name, and a list of
+    column_name:type attributes.
+    #+BEGIN_SRC shell
+    $ mix phx.gen.html Blog Post posts body:string word_count:integer
+
+    * creating lib/hello_web/controllers/post_controller.ex
+    * creating lib/hello_web/templates/post/edit.html.eex
+    * creating lib/hello_web/templates/post/form.html.eex
+    * creating lib/hello_web/templates/post/index.html.eex
+    * creating lib/hello_web/templates/post/new.html.eex
+    * creating lib/hello_web/templates/post/show.html.eex
+    * creating lib/hello_web/views/post_view.ex
+    * creating test/hello_web/controllers/post_controller_test.exs
+    * creating lib/hello/blog/post.ex
+    * creating priv/repo/migrations/20170906150129_create_posts.exs
+    * creating lib/hello/blog/blog.ex
+    * injecting lib/hello/blog/blog.ex
+    * creating test/hello/blog/blog_test.exs
+    * injecting test/hello/blog/blog_test.exs
+    #+END_SRC
+  + ~--no-context~, when we don’t want to create a context or schema
+    for our resource
+  + ~--no-schema~ when we want a context created without a schema for
+    our resource
+- ~phx.gen.json~
+  + generate all the code to stand up a complete JSON resource - ecto
+    migration, ecto schema, controller with all the necessary actions
+    and view. This command will not create any template for the app
+- ~phx.gen.context~
+  + If we don’t need a complete HTML/JSON resource and instead are
+    only interested in a context
+  + It will generate a context, a schema, a migration and a test case.
+- ~phx.gen.channel~
+- ~phx.gen.presence~
+- ~mix phx.server~
+  + if you want an iex session: ~iex -S mix phx.server~
+- ~mix phx.digest~
+  + This task does two things, it creates a digest for our static
+    assets and then compresses them.
+    * “Digest” here refers to an MD5 digest of the contents of an
+      asset which gets added to the filename of that asset.
+    * We can optionally determine which files should be gzipped
+      #+BEGIN_SRC elixir
+      config :phoenix, :gzippable_exts, ~w(.js .css)
+      #+END_SRC
+** ecto
+- ~ecto.create~
+  + create the database specified in our repo
+- ~ecto.drop~
+  + will drop the database specified in our repo
+- ~ecto.gen.repo~
+- ~ecto.gen.migration~
+  + sample
+    #+BEGIN_SRC
+    $ mix ecto.gen.migration add_comments_table
+    * creating priv/repo/migrations
+    * creating priv/repo/migrations/20150318001628_add_comments_table.exs
+    #+END_SRC
+    #+BEGIN_SRC elixir
+      defmodule Hello.Repo.Migrations.AddCommentsTable do
+        use Ecto.Migration
+
+        def change do
+          create table(:comments) do
+            add :body,       :string
+            add :word_count, :integer
+            timestamps()
+          end
+        end
+      end
+    #+END_SRC
+    ~change/0~ will handle both forward migrations and rollbacks
+- ~ecto.migrate~
+  + to have our changes applied to the database
+  + When we first run ~ecto.migrate~, it will create a table for us
+    called ~schema_migrations~. This will keep track of all the
+    migrations which we run by storing the timestamp portion of the
+    migration’s filename.
+  + When we roll back a migration, ~ecto.rollback~ will remove the
+    record representing this migration from ~schema_migrations~.
+- ~ecto.rollback~
+  + will reverse the last migration we have run, undoing the schema
+    changes.
+** Creating Our Own Mix Tasks
+1. The first thing we need to do is create a ~mix/tasks~ directory
+   inside of ~lib~
+   #+BEGIN_SRC bash
+   $ mkdir -p lib/mix/tasks
+   #+END_SRC
+2. create a new file, ~hello.greeting.ex~
+   #+BEGIN_SRC elixir
+     defmodule Mix.Tasks.Hello.Greeting do
+       use Mix.Task
+
+       @shortdoc "Sends a greeting to us from Hello Phoenix"
+
+       @moduledoc """
+         This is where we would put any long form documentation or doctests.
+       """
+
+       def run(_args) do
+         Mix.shell.info("Greetings from the Hello Phoenix Application!")
+       end
+
+       # We can define other functions as needed here.
+     end
+   #+END_SRC
+3. run ~mix hello.greeting~
+4. If you want to make your new mix task to use your application’s
+   infrastructure, you need to make sure the application is started
+   when mix task is being executed. This is particularly useful if you
+   need to access your database from within the mix task.
+   #+BEGIN_SRC elixir
+     . . .
+     def run(_args) do
+       Mix.Task.run("app.start")
+       Mix.shell.info("Now I have access to Repo and other goodies!")
+     end
+     . . .
+   #+END_SRC
+
+
+* Custom Errors
+- Phoenix provides an ~ErrorView~, ~lib/hello_web/views/error_view.ex~, to
+  render errors in our applications. The full module name will include
+  the name of our application, as in ~Hello.ErrorView~.
+- Phoenix will detect any 400 or 500 status level errors in our
+  application and use the ~render/2~ function in our ~ErrorView~ to render
+  an appropriate error template. Any errors which don’t match an
+  existing clause of ~render/2~ will be caught by ~template_not_found/2~.
+- https://hexdocs.pm/phoenix/errors.html
