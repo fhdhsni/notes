@@ -491,7 +491,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
       end
     end
   #+END_SRC
-
   create ~Post~ schema
   #+BEGIN_SRC elixir
     defmodule Friends.Post do
@@ -506,21 +505,25 @@ iex> Friends.Person |> Friends.Repo.get(1)
       end
     end
   #+END_SRC
-
   create ~Comment~ schema
-    #+BEGIN_SRC elixir
-    defmodule Friends.Post do
-      use Ecto.Schema
+  #+BEGIN_SRC elixir
+  defmodule Friends.Post do
+    use Ecto.Schema
 
-      schema "posts" do
-        field(:title)
-        field(:body)
-        has_many(:comments, Friends.Comment)
+    schema "posts" do
+      field(:title)
+      field(:body)
+      has_many(:comments, Friends.Comment)
 
-        timestamps()
-      end
+      timestamps()
     end
+  end
   #+END_SRC
+- The difference between ~has_one/3~ and ~belongs_to/3~ is that the
+  foreign key is always defined in the schema that invokes
+  ~belongs_to/3~. You can think of the schema that calls ~has_*~ as
+  the parent schema and the one that invokes ~belongs_to~ as the child
+  one.
 
 - When an association is defined, Ecto also defines a field in the
   schema with the association name. By default, associations are not
@@ -533,17 +536,282 @@ iex> Friends.Person |> Friends.Repo.get(1)
   #+END_SRC
   + but you can preload
     #+BEGIN_SRC elixir
-    Repo.all from p in Post, preload: [:comments]
+    Repo.all(from(p in Post, preload: [:comments])) # it runs two queries
     #+END_SRC
+
   + Preloading can also be done with a pre-defined join value:
     #+BEGIN_SRC elixir
     Repo.all from p in Post,
             join: c in assoc(p, :comments),
-            where: c.votes > p.votes,
             preload: [comments: c]
     #+END_SRC
+    + performs a single query, finding all posts and the respective
+      comments that match the criteria. Because this query performs a
+      JOIN
+
   + for the simple cases, preloading can also be done after a
     collection was fetched:
     #+BEGIN_SRC
     posts = Repo.all(Post) |> Repo.preload(:comments)
     #+END_SRC
+  + get all the comments
+    #+BEGIN_SRC elixir
+      import Ecto
+
+      post = Repo.get(Post, 1)
+
+      # Get all comments for the given post
+      Repo.all assoc(post, :comments)
+
+      # Or build a query on top of the associated comments
+      query = from c in assoc(post, :comments), where: not is_nil(c.title)
+      Repo.all(query)
+    #+END_SRC
+** Manipulating associations
+-
+  #+BEGIN_SRC elixir
+    Repo.insert!(%Post{
+      title: "Hello",
+      body: "world",
+      comments: [
+        %Comment{body: "Excellent!"}
+      ]
+    })
+  #+END_SRC
+-
+  #+BEGIN_SRC elixir
+    post = Ecto.Changeset.change(%Post{}, title: "Hello", body: "world")
+    comment = Ecto.Changeset.change(%Comment{}, body: "Excellent!")
+    post_with_comments = Ecto.Changeset.put_assoc(post, :comments, [comment])
+    Repo.insert!(post_with_comments)
+  #+END_SRC
+- handling each entry individually inside a transaction
+  #+BEGIN_SRC elixir
+    Repo.transaction fn ->
+      post = Repo.insert!(%Post{title: "Hello", body: "world"})
+
+      # Build a comment from the post struct
+      comment = Ecto.build_assoc(post, :comments, body: "Excellent!")
+
+      Repo.insert!(comment)
+    end
+  #+END_SRC
+  + ~Ecto.build_assoc/3~ builds the comment using the id currently set
+    in the post struct. It is equivalent to:
+    #+BEGIN_SRC elixir
+    %Comment{post_id: post.id, body: "Excellent!"}
+    #+END_SRC
+- ~Ecto.build_assoc/3~
+  + The ~Ecto.build_assoc/3~ function is specially useful in Phoenix
+    controllers. For example, when creating the post, one would do:
+    #+BEGIN_SRC elixir
+    Ecto.build_assoc(current_user, :post)
+    #+END_SRC
+    As we likely want to associate the post to the user currently
+    signed in the application. In another controller, we could build a
+    comment for an existing post with:
+    #+BEGIN_SRC elixir
+    Ecto.build_assoc(post, :comments)
+    #+END_SRC
+** Deleting associations
+- When defining a ~has_many/3~, ~has_one/3~ and friends, you can also pass
+  a ~:on_delete~ option that specifies which action should be performed
+  on associations when the parent is deleted.
+  #+BEGIN_SRC elixir
+  has_many :comments, MyApp.Comment, on_delete: :delete_all
+  #+END_SRC
+  - Besides the value above, ~:nilify_all~ is also supported, with
+    ~:nothing~ being the default.
+* Embeds
+- Ecto also supports embeds. While associations keep parent and child
+  entries in different tables, embeds stores the child along side the
+  parent.
+
+- Databases like MongoDB have native support for embeds. Databases
+  like PostgreSQL uses a mixture of JSONB (~embeds_one/3~) and ARRAY
+  columns to provide this functionality.
+
+* Ecto.Changeset module
+- Changesets allow filtering, casting, validation and definition of
+  constraints when manipulating structs.
+- The functions ~cast/4~ and ~change/2~ are the usual entry points for
+  creating changesets
+  #+BEGIN_SRC elixir
+  comment = Ecto.Changeset.change(%Comment{}, body: "Excellent!")
+  #+END_SRC
+** External vs internal data
+- Changesets allow working with both kinds of data:
+  + internal to the application - for example programmatically
+    generated, or coming from other subsystems. This use case is
+    primarily covered by the ~change/2~ and ~put_change/3~ functions.
+  + external to the application - for example data provided by the
+    user in a form that needs to be type-converted and properly
+    validated. This use case is primarily covered by the ~cast/4~
+    function.
+** Validations and constraints
+- The difference between validations and constraints
+  + is that most validations can be executed without a need to
+    interact with the database and, therefore, are always executed
+    before attempting to insert or update the entry in the
+    database. Some validations may happen against the database but
+    they are inherently unsafe. Those validations start with a
+    ~unsafe_~ prefix, such as ~unsafe_validate_unique/3~.
+  + constraints rely on the database and are always safe
+  + validations are always checked before constraints. Constraints
+    won’t even be checked in case validations failed
+- example
+  create the table
+  #+BEGIN_SRC elixir
+    defmodule Friends.Repo.Migrations.CreateUsers do
+      use Ecto.Migration
+
+      def change do
+        create table(:users) do
+          add(:name, :string)
+          add(:email, :string)
+          add(:age, :integer)
+          timestamps()
+        end
+
+        create(unique_index(:users, [:email]))
+      end
+    end
+
+  #+END_SRC
+  define the schema
+  #+BEGIN_SRC elixir
+    defmodule User do
+      use Ecto.Schema
+      import Ecto.Changeset
+
+      schema "users" do
+        field :name
+        field :email
+        field :age, :integer
+      end
+
+      def changeset(user, params \\ %{}) do
+        user
+        |> cast(params, [:name, :email, :age])
+        |> validate_required([:name, :email])
+        |> validate_format(:email, ~r/@/)
+        |> validate_inclusion(:age, 18..100)
+        |> unique_constraint(:email)
+      end
+    end
+
+    changeset = User.changeset(%User{}, %{age: 0, email: "mary@example.com"})
+    {:error, changeset} = Repo.insert(changeset)
+    changeset.errors #=> [age: {"is invalid", []}, name: {"can't be blank", []}]
+  #+END_SRC
+** Associations, embeds and on replace
+- There are two primary APIs:
+  1. ~cast_assoc/3~ and ~cast_embed/3~
+  2. ~put_assoc/4~ and ~put_embed/4~
+
+- ~cast_assoc/3~ and ~cast_embed/3~ - those functions are used when
+  working with external data. In particular, they allow you to
+  change associations and embeds alongside the parent struct, all at
+  once.
+
+- ~put_assoc/4~ and ~put_embed/4~ - it allows you to replace the
+  association or embed as a whole. This can be used to move
+  associated data from one entry to another, to completely remove or
+  replace existing entries.
+
+- The same way we have used changesets to manipulate embeds, we can
+  also use them to change child associations at the same time we are
+  manipulating the parent.
+
+- ~cast_assoc~ (or ~cast_embed~) is used when you want to manage
+  associations or embeds based on external parameters, such as the
+  data received through Phoenix forms. In such cases, Ecto will
+  compare the data existing in the struct with the data sent through
+  the form and generate the proper operations. On the other hand, we
+  use ~put_assoc~ (or ~put_embed~) when we aleady have the associations
+  (or embeds) as structs and changesets, and we simply want to tell
+  Ecto to take those entries as is.
+
+- ~cast_assoc~ is the pendant to ~cast~. aka casting external data
+  like coming from a form, while ~put_assocs~ expects you to supply
+  already validated and properly checked structs or changesets of the
+  association.
+
+- ~cast_assoc(changeset, name, opts \\ [])~
+  + This function should be used when working with the entire
+    association at once (and not a single element of a many-style
+    association) and using data external to the application.
+  + ~cast_assoc/3~ is used when you want to create the associated record
+    along with your changeset.
+    #+BEGIN_SRC elixir
+      defmodule User do
+        def changeset(user, params) do
+          user
+          |> cast(params, @allowed_params)
+          |> validate_required(@required_params)
+          # Account.changeset is inferred by default
+          |> cast_assoc(:account, required: true, with: &Account.registration_changeset/2)
+        end
+      end
+
+      account = %{plan: "free"}
+      user = %{email: "coolio@example.com", password: "bananas", account: account}
+      User.changeset(%User{}, user)
+    #+END_SRC
+    + By default ~cast_assoc/3~ will use ~changeset/2~ in your associated
+      model, but you can specify a different by passing the ~:with~
+      option.
+
+- ~put_assoc/4~
+  is used when you already have an associated struct and
+  you want to assign the association in your changset.
+  #+BEGIN_SRC elixir
+    defmodule Comment do
+      def changeset(comment, params) do
+        comment
+        |> cast(params, @allowed_params)
+        |> validate_required([:text])
+        |> put_assoc(:user, params.user)
+      end
+    end
+
+    comment = %{text: "Hey, sup?", user: some_user}
+    Comment.changeset(%Comment{}, comment)
+  #+END_SRC
+
+
+
+
+** Schemaless changesets
+- Such functionality makes Ecto extremely useful to cast, validate and
+  prune data even if it is not meant to be persisted to the database.
+  #+BEGIN_SRC elixir
+    data  = %{}
+    types = %{name: :string}
+    params = %{name: "Callum"}
+    changeset =
+      {data, types}
+      |> Ecto.Changeset.cast(params, Map.keys(types))
+      |> Ecto.Changeset.validate_required(...)
+      |> Ecto.Changeset.validate_length(...)
+  #+END_SRC
+**  The Ecto.Changeset struct
+- The public fields are:
+  + ~valid?~ - Stores if the changeset is valid
+  + ~data~ - The changeset source data, for example, a struct
+  + ~params~ - The parameters as given on changeset creation
+  + ~changes~ - The changes from parameters that were approved in
+    casting
+  + ~errors~ - All errors from validations
+  + ~required~ - All required fields as a list of atoms
+  + ~action~ - The action to be performed with the changeset
+  + ~types~ - Cache of the data’s field types
+  + ~empty~_values - A list of values to be considered empty
+  + ~repo~ - The repository applying the changeset (only set after a
+    Repo function is called)
+  + ~repo_opts~ - A keyword list of options given to the underlying
+    repository operation
+- The following fields are private and must not be accessed directly.
+  + ~validations~
+  + ~constraints~
+  + ~filters~
