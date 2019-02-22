@@ -815,3 +815,158 @@ iex> Friends.Person |> Friends.Repo.get(1)
   + ~validations~
   + ~constraints~
   + ~filters~
+* Ecto.LogEntry
+* Ecto.Multi
+- ~Ecto.Multi~ is a data structure for grouping multiple Repo
+  operations.
+- ~Ecto.Multi~ makes it possible to pack operations that should be
+  performed in a single database transaction and gives a way to
+  introspect the queued operations without actually performing them.
+- Each operation is given a name that is unique and will identify its
+  result in case of success or failure.
+- All operations will be executed in the order they were added.
+- The ~Ecto.Multi~ structure should be considered opaque. You can use
+  ~%Ecto.Multi{}~ to pattern match the type, but accessing fields or
+  directly modifying them is not advised.
+- ~Ecto.Multi.to_list/1~ returns a canonical representation of the
+  structure that can be used for introspection.
+
+- Example
+
+  The use case we’ll be looking into is resetting a password. We
+  need to update the account with proper information, log the
+  request and remove all current sessions:
+  #+BEGIN_SRC elixir
+        defmodule PasswordManager do
+          alias Ecto.Multi
+
+          def reset(account, params) do
+            Multi.new
+            |> Multi.update(:account, Account.password_reset_changeset(account, params))
+            |> Multi.insert(:log, Log.password_reset_changeset(account, params))
+            |> Multi.delete_all(:sessions, Ecto.assoc(account, :sessions))
+          end
+        end
+
+        result = Repo.transaction(PasswordManager.reset(account, params))
+
+        case result do
+          {:ok, %{account: account, log: log, sessions: sessions}} ->
+            # Operation was successful, we can access results (exactly the same
+            # we would get from running corresponding Repo functions) under keys
+            # we used for naming the operations.
+            {:error, failed_operation, failed_value, changes_so_far} ->
+            # One of the operations failed. We can access the operation's failure
+            # value (like changeset for operations on changesets) to prepare a
+            # proper response. We also get access to the results of any operations
+            # that succeeded before the indicated operation failed. However, any
+            # successful operations would have been rolled back.
+    end
+  #+END_SRC
+  + test it
+    #+BEGIN_SRC elixir
+
+      test "dry run password reset" do
+        account = %Account{password: "letmein"}
+        multi = PasswordManager.reset(account, params)
+
+        assert [
+          {:account, {:update, account_changeset, []}},
+          {:log, {:insert, log_changeset, []}},
+          {:sessions, {:delete_all, query, []}}
+        ] = Ecto.Multi.to_list(multi)
+
+        # We can introspect changesets and query to see if everything
+        # is as expected, for example:
+        assert account_changeset.valid?
+        assert log_changeset.valid?
+        assert inspect(query) == "#Ecto.Query<from a in Session>"
+      end
+    #+END_SRC
+  + The name of each operation does not have to be an atom. This can
+    be particularly useful when you wish to update a collection of
+    changesets at once, and track their errors individually:
+    #+BEGIN_SRC elixir
+      accounts = [%Account{id: 1}, %Account{id: 2}]
+
+      Enum.reduce(accounts, Multi.new(), fn account, multi ->
+        Multi.update(
+          multi,
+          {:account, account.id},
+          Account.password_reset_changeset(account, params)
+        )
+      end)
+    #+END_SRC
+* Ecto.Query
+- Queries are used to retrieve and manipulate data from a repository
+- Ecto queries come in two flavors: keyword-based and macro-based.
+-
+  #+BEGIN_SRC elixir
+    # Imports only from/2 of Ecto.Query
+    import Ecto.Query, only: [from: 2]
+
+    # Create a query
+    query = from u in "users",
+              where: u.age > 18,
+              select: u.name
+
+    # Send the query to the repository
+    Repo.all(query)
+  #+END_SRC
+** Query expressions
+- Ecto allows a limited set of expressions inside queries. In the
+  query below, for example, we use ~u.age~ to access a field, the ~>~
+  comparison operator and the literal ~0~:
+  #+BEGIN_SRC elixir
+  query = from u in "users", where: u.age > 0, select: u.name
+  #+END_SRC
+  + Lists all functions allowed in the query API.
+    * Comparison operators: ~==~, ~!=~, ~<=~, ~>=~, ~<~, ~>~
+    * Arithmetic operators: ~+~, ~-~, ~*~, ~/~
+    * Boolean operators: ~and~, ~or~, ~not~
+    * Inclusion operator: ~in/2~
+    * Search functions: ~like/2~ and ~ilike/2~
+    * Null check functions: ~is_nil/1~
+    * Aggregates: ~count/0~, ~count/1~, ~avg/1~, ~sum/1~, ~min/1~, ~max/1~
+    * Date/time intervals: ~datetime_add/3~, ~date_add/3~, ~from_now/2~, ~ago/2~
+    * Inside select: ~struct/2~, ~map/2~, ~merge/2~ and literals (map, tuples, lists, etc)
+    * General: ~fragment/1~, ~field/2~ and ~type/2~
+  + also following literals are supported in queries
+    * Integers: ~1~, ~2~, ~3~
+    * Floats: ~1.0~, ~2.0~, ~3.0~
+    * Booleans: ~true~, ~false~
+    * Binaries: ~<<1, 2, 3>>~
+    * Strings: ~"foo bar"~, ~~s(this is a string)~
+    * Arrays: ~[1, 2, 3]~, ~~w(interpolate words)~
+
+** Interpolation and casting
+- External values and Elixir expressions can be injected into a query
+  expression with ~^~:
+  #+BEGIN_SRC elixir
+    def with_minimum(age, height_ft) do
+      from u in "users",
+        where: u.age > ^age and u.height > ^(height_ft * 3.28),
+        select: u.name
+    end
+
+    with_minimum(18, 5.0)
+  #+END_SRC
+- explicitly tell Ecto what is the expected type of the value being
+  interpolated
+  #+BEGIN_SRC elixir
+    age = "18"
+    Repo.all(from u in "users",
+              where: u.age > type(^age, :integer),
+              select: u.name)
+  #+END_SRC
+** ~nil~ comparison
+- nil comparison in filters, such as where and having, is forbidden
+  and it will raise an error:
+  #+BEGIN_SRC elixir
+  # Raises if age is nil
+  from u in User, where: u.age == ^age
+  #+END_SRC
+- check that value is nil, use ~is_nil/1~
+  #+BEGIN_SRC elixir
+  from u in User, where: is_nil(u.age)
+  #+END_SRC
