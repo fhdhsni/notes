@@ -484,8 +484,8 @@ As you can see there're two gaps
   more rows may be partially empty, due to not having a corresponding
   match in the other table
 *** JOIN - Selecting Columns
-- =SELECT= * is generally a bad idea, and it's particularly dangerous
-  in the context of a JOIN
+- ~SELECT *~ is generally a bad idea, and it's particularly dangerous
+  in the context of a ~JOIN~
 - Choose columns with care, and alias any duplicates
 
 #+BEGIN_SRC sql
@@ -624,20 +624,20 @@ group by
 ERROR: COLUMN "SUM_MONTH" DOES NOT EXIST
 #+END_SRC
 
-WITH =HAVING=
-#+BEGIN_SRC SQL
+With =HAVING=
+#+BEGIN_SRC sql
 SELECT
-    M,
-    SUM( AMOUNT ) AS SUM_MONTH
-FROM
-    CUSTOMERORDER
-GROUP BY
-    M
-HAVING
-    SUM( AMOUNT ) > 300
+    m,
+    sum( amount ) as sum_month
+from
+    customerorder
+group by
+    m
+having
+    sum( amount ) > 300
 #+END_SRC
 
-|  M | SUM_MONTH |
+|  m | sum_month |
 |----+-----------|
 | 11 |      1000 |
 |  3 |     425.5 |

@@ -1,3 +1,5 @@
+- Mostly from ecto documentation
+
 * add ecto
 1) generate necessities
    #+BEGIN_SRC
@@ -963,10 +965,305 @@ iex> Friends.Person |> Friends.Repo.get(1)
 - nil comparison in filters, such as where and having, is forbidden
   and it will raise an error:
   #+BEGIN_SRC elixir
-  # Raises if age is nil
+  # Raises if the variable age (in this case used with ^ operator) is nil
   from u in User, where: u.age == ^age
   #+END_SRC
 - check that value is nil, use ~is_nil/1~
   #+BEGIN_SRC elixir
   from u in User, where: is_nil(u.age)
   #+END_SRC
+** Composition
+- Ecto queries are composable
+  #+BEGIN_SRC elixir
+    # Create a query
+    query = from u in User, where: u.age > 18
+
+    # Extend the query
+    query = from u in query, select: u.name
+  #+END_SRC
+- Any value can be used on the right-side of ~in~ as long as it
+  implements the [[https://hexdocs.pm/ecto/Ecto.Queryable.html][~Ecto.Queryable]]~ protocol.
+** Positional bindings
+- On the left side of ~in~ we specify the query bindings. This is done
+  inside ~from~ and ~join~ clauses
+- In the query below ~u~ is a binding and ~u.age~ is a field access using
+  this binding
+  #+BEGIN_SRC elixir
+  query = from u in User, where: u.age > 18
+  #+END_SRC
+- When using joins, the bindings should be matched in the order they
+  are specified:
+  #+BEGIN_SRC elixir
+    # Create a query
+    query = from p in Post,
+              join: c in Comment, where: c.post_id == p.id
+
+    # Extend the query
+    query = from [p, c] in query,
+              select: {p.title, c.body}
+  #+END_SRC
+  + You are not required to specify all bindings when composing
+  + if you are interested only on the last binding (or the last
+    bindings) in a query, you can use ~...~ to specify “all bindings
+    before” and match on the last one.
+    #+BEGIN_SRC elixir
+    from [p, ..., c] in posts_with_comments, select: {p.title, c.body}
+    #+END_SRC
+    * In other words, ~...~ will include all the binding between the
+      first and the last, which may be no binding at all, one or many.
+** Named bindings
+- We can named the bindings. This approach lets us not worry about
+  keeping track of the position of the bindings when composing the
+  query.
+  #+BEGIN_SRC elixir
+    posts_with_comments =
+      from p in query,
+        join: c in Comment, as: :comment, where: c.post_id == p.id
+
+    from [p, comment: c] in posts_with_comments, select: {p.title, c.body}
+  #+END_SRC
+  a name can be assigned to the first binding as well:
+  #+BEGIN_SRC elixir
+    from p in Post, as: :post
+  #+END_SRC
+  Only atoms are accepted for binding names. Named binding references
+  are expected to be placed in the tail position of the bindings list
+
+** Bindingless operations
+- bindings are not necessary when the query has only the ~from~ clause.
+  #+BEGIN_SRC elixir
+    from Post,
+      where: [category: "fresh and new"],
+      order_by: [desc: :published_at],
+      select: [:id, :title, :body]
+
+
+    # It is equivalent to:
+    from p in Post,
+      where: p.category == "fresh and new",
+      order_by: [desc: p.published_at],
+      select: struct(p, [:id, :title, :body])
+
+
+    # we can also dynamically build them
+    where = [category: "fresh and new"]
+    order_by = [desc: :published_at]
+    select = [:id, :title, :body]
+    from Post, where: ^where, order_by: ^order_by, select: ^select
+  #+END_SRC
+** Fragments
+- It is not possible to represent all possible database queries using
+  Ecto’s query syntax. When such is required, it is possible to use
+  fragments to send any expression to the database
+- Ecto provides fragments to inject SQL (and non-SQL) fragments into
+  queries
+  #+BEGIN_SRC elixir
+    from p in Post,
+      where: is_nil(p.published_at) and
+             fragment("lower(?)", p.title) == ^title
+  #+END_SRC
+  we are using the ~lower~ procedure in the database to downcase the
+  ~title~ column
+- [[https://hexdocs.pm/ecto/Ecto.Query.API.html#fragment/1][doc]]
+
+** Macro API
+- keywords query syntax
+  #+BEGIN_SRC elixir
+    import Ecto.Query
+    from u in "users", where: u.age > 18, select: u.name
+  #+END_SRC
+- Ecto also supports a pipe-based syntax:
+  #+BEGIN_SRC elixir
+    "users"
+    |> where([u], u.age > 18)
+    |> select([u], u.name)
+  #+END_SRC
+- The downside of using macros is that the binding must be specified
+  for every operation. However, since keyword-based and pipe-based
+  examples are equivalent, the bindingless syntax also works for
+  macros:
+  #+BEGIN_SRC elixir
+    "users"
+    |> where([u], u.age > 18)
+    |> select([:name])
+  #+END_SRC
+
+** Query Prefix
+- It is possible to set a prefix for the queries. For Postgres users,
+  this will specify the schema where the table is located, while for
+  MySQL users this will specify the database where the table is
+  located. When no prefix is set, Postgres queries are assumed to be
+  in the public schema, while MySQL queries are assumed to be in the
+  database set in the config for the repo.
+- The query prefix may be set either for the whole query or on each
+  individual ~from~ and ~join~ expression. If a ~prefix~ is not given to a
+  ~from~ or a ~join~, the prefix of the schema given to the from or join
+  is used.
+- examples
+  #+BEGIN_SRC elixir
+  results = Repo.all(query, prefix: "accounts")
+  #+END_SRC
+  #+BEGIN_SRC elixir
+    results =
+      query # May be User or an Ecto.Query itself
+      |> Ecto.Queryable.to_query
+      |> Map.put(:prefix, "accounts")
+      |> Repo.all()
+  #+END_SRC
+  #+BEGIN_SRC elixir
+    results =from u in User,
+      prefix: "accounts",
+      join: p in assoc(u, :posts),
+      prefix: "public"
+  #+END_SRC
+- prefix lookup precedence:
+  + The ~:prefix~ option given to ~from~ / ~join~ has the highest precedence
+  + Then it falls back to the ~@schema_prefix~ attribute declared in the
+    schema given to ~from~ / ~join~
+  + Then it falls back to the query prefix
+
+*** functions
+- ~distinct(query, binding \\ [], expr)~
+  #+BEGIN_SRC elixir
+    # Returns the list of different categories in the Post schema
+    from(p in Post, distinct: true, select: p.category)
+
+    # If your database supports DISTINCT ON(),
+    # you can pass expressions to distinct too
+    from(p in Post,
+       distinct: p.category,
+       order_by: [p.date])
+
+    # The DISTINCT ON() also supports ordering similar to ORDER BY.
+    from(p in Post,
+       distinct: [desc: p.category],
+       order_by: [p.date])
+
+    # Using atoms
+    from(p in Post, distinct: :category, order_by: :date)
+
+
+    # Expressions example
+    Post
+    |> distinct(true)
+    |> order_by([p], [p.category, p.author])
+  #+END_SRC
+- ~exclude(query, field)~
+  Resets a previously set field on a query.
+  #+BEGIN_SRC elixir
+  Ecto.Query.exclude(query, :join)
+  Ecto.Query.exclude(query, :where)
+  Ecto.Query.exclude(query, :order_by)
+  Ecto.Query.exclude(query, :group_by)
+  Ecto.Query.exclude(query, :having)
+  Ecto.Query.exclude(query, :distinct)
+  Ecto.Query.exclude(query, :select)
+  Ecto.Query.exclude(query, :combinations)
+  Ecto.Query.exclude(query, :limit)
+  Ecto.Query.exclude(query, :offset)
+  Ecto.Query.exclude(query, :lock)
+  Ecto.Query.exclude(query, :preload)
+  Ecto.Query.exclude(query, :inner_join)
+  Ecto.Query.exclude(query, :cross_join)
+  Ecto.Query.exclude(query, :left_join)
+  Ecto.Query.exclude(query, :right_join)
+  Ecto.Query.exclude(query, :full_join)
+  Ecto.Query.exclude(query, :inner_lateral_join)
+  Ecto.Query.exclude(query, :left_lateral_join)
+  #+END_SRC
+  keep in mind that if a join is removed and its bindings were
+  referenced elsewhere, the bindings won’t be removed, leading to a
+  query that won’t compile.
+- ~group_by(query, binding \\ [], expr)~
+  + Groups together rows from the schema that have the same values in
+    the given fields.
+    #+BEGIN_SRC elixir
+      # Returns the number of posts in each category
+      from(p in Post,
+        group_by: p.category,
+        select: {p.category, count(p.id)})
+
+      # Using atoms
+      from(p in Post, group_by: :category, select: {p.category, count(p.id)})
+
+      # Using direct fields access
+      from(p in Post,
+        join: c in assoc(p, :category)
+        group_by: [p.id, c.name])
+
+      # Expressions example
+      Post |> group_by([p], p.category) |> select([p], count(p.id))
+    #+END_SRC
+- ~having(query, binding \\ [], expr)~
+  + Like ~where~, ~having~ filters rows from the schema, but after the
+    grouping is performed giving it the same semantics as ~select~ for a
+    grouped query. ~having~ groups the query even if
+    the query has no ~group_by~ expression.
+    #+BEGIN_SRC elixir
+      # Returns the number of posts in each category where the
+      # average number of comments is above ten
+      from(p in Post,
+        group_by: p.category,
+        having: avg(p.num_comments) > 10,
+        select: {p.category, count(p.id)})
+
+      # Expressions example
+      Post
+      |> group_by([p], p.category)
+      |> having([p], avg(p.num_comments) > 10)
+      |> select([p], count(p.id))
+    #+END_SRC
+- ~preload(query, bindings \\ [], expr)~
+  #+BEGIN_SRC elixir
+  Repo.all from p in Post, preload: [:comments]
+  #+END_SRC
+  + The example above will fetch all posts from the database and then
+    do a separate query returning all comments associated with the
+    given posts.
+  + you may want posts and comments to be selected and filtered in the
+    same query:
+    #+BEGIN_SRC elixir
+      Repo.all from p in Post,
+                 join: c in assoc(p, :comments),
+                 where: c.published_at > p.updated_at,
+                 preload: [comments: c]
+    #+END_SRC
+  + Note: keep in mind operations like limit and offset in the preload
+    query will affect the whole result set and not each
+    association. For example, the query below:
+    #+BEGIN_SRC elixir
+      comments_query = from c in Comment, order_by: c.popularity, limit: 5
+      Repo.all from p in Post, preload: [comments: ^comments_query]
+    #+END_SRC
+    won’t bring the top of comments per post. Rather, it will only
+    bring the 5 top comments across all posts.
+* Ecto.Repo behaviour
+- A repository maps to an underlying data store, controlled by the
+  adapter. For example, Ecto ships with a Postgres adapter
+- When used, the repository expects the ~:otp_app~ as option. The
+  ~:otp_app~ should point to an OTP application that has the repository
+  configuration.
+  #+BEGIN_SRC elixir
+    defmodule Repo do
+      use Ecto.Repo,
+        otp_app: :my_app,
+        adapter: Ecto.Adapters.Postgres
+    end
+  #+END_SRC
+  + Could be configured with:
+    #+BEGIN_SRC elixir
+      config :my_app, Repo,
+        database: "ecto_simple",
+        username: "postgres",
+        password: "postgres",
+        hostname: "localhost"
+    #+END_SRC
+  + Most of the configuration that goes into the config is specific to
+    the adapter, so check ~Ecto.Adapters.Postgres~ documentation
+- Almost all of the repository operations accept the following
+  options:
+    + ~:timeout~ - The time in milliseconds to wait for the query call
+      to finish, ~:infinity~ will wait indefinitely (default: 15000);
+    + ~:log~ - When false, does not log the query
+    + ~:telemetry_event~ - The telemetry event name to dispatch the
+      event under
