@@ -1262,8 +1262,161 @@ iex> Friends.Person |> Friends.Repo.get(1)
     the adapter, so check ~Ecto.Adapters.Postgres~ documentation
 - Almost all of the repository operations accept the following
   options:
-    + ~:timeout~ - The time in milliseconds to wait for the query call
-      to finish, ~:infinity~ will wait indefinitely (default: 15000);
-    + ~:log~ - When false, does not log the query
-    + ~:telemetry_event~ - The telemetry event name to dispatch the
-      event under
+  + ~:timeout~ - The time in milliseconds to wait for the query call
+    to finish, ~:infinity~ will wait indefinitely (default: 15000);
+  + ~:log~ - When false, does not log the query
+  + ~:telemetry_event~ - The telemetry event name to dispatch the
+    event under
+- ~insert(struct_or_changeset, opts)~
+  - In case a struct is given, the struct is converted into a
+    changeset with all non-nil fields as part of the changeset.
+  - In case a changeset is given, the changes in the changeset are
+    merged with the struct fields, and all of them are sent to the
+     database.
+- ~load(module_or_map, data)~
+  Loads ~data~ into a struct or a map.
+  #+BEGIN_SRC elixir
+    iex> result = Ecto.Adapters.SQL.query!(MyRepo, "SELECT * FROM users", [])
+    iex> Enum.map(result.rows, &MyRepo.load(User, {result.columns, &1}))
+    [%User{...}, ...]
+  #+END_SRC
+- ~preload(structs_or_struct_or_nil, preloads, opts)~
+  + Preloads all associations on the given struct or structs.
+  + This is similar to ~Ecto.Query.preload/3~ except it allows you to
+    preload structs after they have been fetched from the database.
+    #+BEGIN_SRC elixir
+      # Use a single atom to preload an association
+      posts = Repo.preload posts, :comments
+
+      # Use a list of atoms to preload multiple associations
+      posts = Repo.preload posts, [:comments, :authors]
+
+      # Use a keyword list to preload nested associations as well
+      posts = Repo.preload posts, [comments: [:replies, :likes], authors: []]
+
+      # Use a keyword list to customize how associations are queried
+      posts = Repo.preload posts, [comments: from(c in Comment, order_by: c.published_at)]
+
+      # Use a two-element tuple for a custom query and nested association definition
+      query = from c in Comment, order_by: c.published_at
+      posts = Repo.preload posts, [comments: {query, [:replies, :likes]}]
+    #+END_SRC
+- ~transaction(fun_or_multi, opts)~
+  + Runs the given function or ~Ecto.Multi~ inside a transaction.
+    #+BEGIN_SRC elixir
+      import Ecto.Changeset, only: [change: 2]
+
+      MyRepo.transaction(fn ->
+        MyRepo.update!(change(alice, balance: alice.balance - 10))
+        MyRepo.update!(change(bob, balance: bob.balance + 10))
+      end)
+
+      # Roll back a transaction explicitly
+      MyRepo.transaction(fn ->
+        p = MyRepo.insert!(%Post{})
+        if not Editor.post_allowed?(p) do
+          MyRepo.rollback(:posting_not_allowed)
+        end
+      end)
+
+      # With Ecto.Multi
+      Ecto.Multi.new
+      |> Ecto.Multi.insert(:post, %Post{})
+      |> MyRepo.transaction
+    #+END_SRC
+- ~update_all(queryable, updates, opts)~
+  #+BEGIN_SRC elixir
+    MyRepo.update_all(Post, set: [title: "New title"])
+
+    MyRepo.update_all(Post, inc: [visits: 1])
+
+    from(p in Post, where: p.id < 10, select: p.visits)
+    |> MyRepo.update_all(set: [title: "New title"])
+
+    from(p in Post, where: p.id < 10, update: [set: [title: "New title"]])
+    |> MyRepo.update_all([])
+
+    from(p in Post, where: p.id < 10, update: [set: [title: ^new_title]])
+    |> MyRepo.update_all([])
+
+    from(p in Post, where: p.id < 10, update: [set: [title: fragment("upper(?)", ^new_title)]])
+    |> MyRepo.update_all([])
+  #+END_SRC
+* Ecto.Schema
+- An Ecto schema is used to map any data source into an Elixir struct
+- The definition of the schema is possible through two main APIs:
+  ~schema/2~ and ~embedded_schema/1~
+  1) ~schema/2~
+     + is typically used to map data from a persisted source,
+       usually a database table, into Elixir structs and vice-versa.
+     + lso contain a ~__meta__~ field with metadata holding the status
+       of the struct, for example, if it has been built, loaded or
+       deleted.
+  2) ~embedded_schema/1~
+     + is used for defining schemas that are embedded in other schemas
+       or only exist in-memory.
+     + For example, you can use such schemas to receive data from a
+       command line interface and validate it, without ever persisting
+       it elsewhere.
+     + Such structs do not contain a ~__meta__~ field, as they are
+       never persisted.
+- Besides working as data mappers, ~embedded_schema/1~ and ~schema/2~ can
+  also be used together to decouple how the data is represented in
+  your applications from the database.
+- Sample
+  #+BEGIN_SRC elixir
+    defmodule User do
+      use Ecto.Schema
+
+      schema "users" do
+        field :name, :string
+        field :age, :integer, default: 0
+        has_many :posts, Post
+      end
+    end
+  #+END_SRC
+  #+BEGIN_SRC elixir
+    iex> user = %User{name: "jane"}
+    iex> %{user | age: 30}
+  #+END_SRC
+  + a schema will automatically generate a primary key which is named
+    ~id~ and of type ~:integer~
+- structs are cast, validated and manipulated with the ~Ecto.Changeset~
+  module.
+- you can use an embedded schema to represent your UI, mapping and
+  validating its inputs, and then you convert such embedded schema to
+  other schemas that are persisted to the database:
+  #+BEGIN_SRC elixir
+    defmodule SignUp do
+      use Ecto.Schema
+
+      embedded_schema do
+        field :name, :string
+        field :age, :integer
+        field :email, :string
+        field :accepts_conditions, :boolean
+      end
+    end
+
+    defmodule Profile do
+      use Ecto.Schema
+
+      schema "profiles" do
+        field :name
+        field :age
+        belongs_to :account, Account
+      end
+    end
+
+    defmodule Account do
+      use Ecto.Schema
+
+      schema "accounts" do
+        field :email
+      end
+    end
+  #+END_SRC
+  The ~SignUp~ schema can be cast and validated with the help of the
+  ~Ecto.Changeset~ module, and afterwards, you can copy its data to the
+  ~Profile~ and ~Account~ structs that will be persisted to the database
+  with the help of ~Ecto.Repo~
