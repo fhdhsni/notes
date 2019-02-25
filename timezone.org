@@ -1,0 +1,36 @@
+** Meridian
+- A meridian (or line of longitude) is the half of an
+  imaginary great circle on the Earth's surface, terminated by the
+  North Pole and the South Pole, connecting points of equal longitude,
+  as measured in angular degrees east or west of the Prime
+  Meridian. The position of a point along the meridian is given by
+  that longitude and its latitude, measured in angular degrees north
+  or south of the Equator. Each meridian is perpendicular to all
+  circles of latitude.
+
+** Longitude (λ)
+- 0 degree is called prime meridian
+- going from north <-> south (so dividing the earth to west/east hemisphere)
+
+** Latitude (φ)
+- 0 degree is called equator
+- going to from east <-> west (so dividing the earth to north/south hemisphere)
+
+** timezones
+- Earth is divided to 24 timezones, by 24 meridians (each 15 degree,
+  that is to say earth rotates 15° per hour), each
+  increasing/decreasing by 1 hour from prime meridian (0° Longitude)
+  #+BEGIN_SRC
+  15 * 24 = 360
+  #+END_SRC
+- Coordinated Universal Time (UTC aka GMT) is not adjusted for
+  daylight saving time
+- USA
+  + Pacific Time (PST) is -8 from UTC (Seattle, Portland, San Francisco, Las Vegas, Los Angeles...)
+  + Mountain Time (MST) is -7 from UTC (Denver, Phoenix...)
+  + Central Time (CST) is -6 from UTC (Dallas, Chicago, Memphis, Minneapolis...)
+  + Eastern Time (EST) is -5 from UTC (New York, Washington...)
+
+** International Date Line
+- the meridian 180° from prime meridian
+- it's ± 12 hours from prime meridian (starting point of a new day)
