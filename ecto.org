@@ -2092,3 +2092,844 @@ iex> Friends.Person |> Friends.Repo.get(1)
       composite primary key
 - ~has_many(name, queryable, opts \\ [])~
 - ~has_many(name, queryable, opts \\ [])~
+  + Indicates a one-to-many association with another schema.
+  + The current schema has zero or more records of the other
+    schema. The other schema often has a belongs_to field with the
+    reverse association.
+  + ~opts~
+    * ~:foreign_key~ - Sets the foreign key, this should map to a field
+      on the other schema, defaults to the underscored name of the
+      current schema suffixed by ~_id~
+    * ~:references~ - Sets the key on the current schema to be used for
+      the association, defaults to the primary key on the schema
+    * ~:through~ - Allow this association to be defined in terms of
+      existing associations.
+    * ~:on_delete~
+      - The action taken on associations when parent record is deleted.
+      - May be ~:nothing~ (default), ~:nilify_all~ and ~:delete_all~
+      - Using this option is *DISCOURAGED* for most relational
+        databases. Instead, in your migration, set
+        ~references(:parent_id, on_delete: :delete_all)~.
+    * ~:on_replace~
+      - The action taken on associations when the record is replaced
+        when casting or manipulating parent changeset.
+      - May be ~:raise~ (default), ~:mark_as_invalid~, ~:nilify~, or
+        ~:delete~
+    * ~:defaults~
+      - Default values to use when building the association. This
+        overrides any default set on the association schema.
+      - For example, imagine ~Post.has_many :comments, defaults: [public: true]~.
+        Then when using ~Ecto.build_assoc(post, :comments)~ that comment will have ~comment.public == true~.
+    * ~:where~
+      - A filter for the association. It does not apply to ~:through~
+        associations.
+
+  + example
+    #+BEGIN_SRC elixir
+      defmodule Post do
+        use Ecto.Schema
+        schema "posts" do
+          has_many :comments, Comment
+        end
+      end
+
+      # Get all comments for a given post
+      post = Repo.get(Post, 42)
+      comments = Repo.all assoc(post, :comments)
+
+      # The comments can come preloaded on the post struct
+      [post] = Repo.all(from(p in Post, where: p.id == 42, preload: :comments))
+      post.comments #=> [%Comment{...}, ...]
+    #+END_SRC
+    ~has_many~ can be used to define hierarchical relationships within a
+    single schema, for example threaded comments.
+    #+BEGIN_SRC elixir
+      defmodule Comment do
+        use Ecto.Schema
+        schema "comments" do
+          field :content, :string
+          field :parent_id, :integer
+          belongs_to :parent, Comment, foreign_key: :id, references: :parent_id, define_field: false
+          has_many :children, Comment, foreign_key: :parent_id, references: :id
+        end
+      end
+    #+END_SRC
+  + Filtering associations
+    * It is possible to specify a ~:where~ option that will filter the
+      records returned by the association. Querying, joining or
+      preloading the association will use the given conditions
+      #+BEGIN_SRC elixir
+        defmodule Post do
+          use Ecto.Schema
+
+          schema "posts" do
+            has_many :public_comments, Comment,
+              where: [public: true]
+          end
+        end
+      #+END_SRC
+    * The ~:where~ option expects a keyword list where the key is an
+      atom representing the field and the value is either:
+      - ~nil~ - which specifies the field must be nil
+      - ~{:not, nil}~ - which specifies the field must not be ~nil~
+      - ~{:in, list}~ - which specifies the field must be one of the values in a list
+      - or any other value which the field is compared directly against
+  + has_many/has_one :through
+    * defining associations in terms of other associations via the ~:through~ option.
+    * example
+      #+BEGIN_SRC elixir
+        defmodule Post do
+          use Ecto.Schema
+
+          schema "posts" do
+            has_many :comments, Comment
+            has_one :permalink, Permalink
+
+            # In the has_many :through example below, the `:comments`
+            # in the list [:comments, :author] refers to the
+            # `has_many :comments` in the Post own schema and the
+            # `:author` refers to the `belongs_to :author` of the
+            # Comment's schema (the module below).
+            # (see the description below for more details)
+            has_many :comments_authors, through: [:comments, :author]
+
+            # Specify the association with custom source
+            has_many :tags, {"posts_tags", Tag}
+          end
+        end
+
+        defmodule Comment do
+          use Ecto.Schema
+
+          schema "comments" do
+            belongs_to :author, Author
+            belongs_to :post, Post
+            has_one :post_permalink, through: [:post, :permalink]
+          end
+        end
+      #+END_SRC
+      - we have defined a ~has_many~ ~:through~ association named
+        ~:comments_authors~. A ~:through~ association always expects a
+        list and the first element of the list must be a previously
+        defined association in the current module. For example,
+        ~:comments_authors~ first points to ~:comments~ in the same module
+        (~Post~), which then points to ~:author~ in the next schema,
+        ~Comment~.
+
+      - This ~:through~ association will return all authors for all
+        comments that belongs to that post:
+        #+BEGIN_SRC elixir
+          # Get all comments authors for a given post
+          post = Repo.get(Post, 42)
+          authors = Repo.all assoc(post, :comments_authors)
+        #+END_SRC
+      - Although we used the ~:through~ association in the example
+        above, Ecto also allows developers to dynamically build the
+        through associations using the ~Ecto.assoc/2~ function:
+        #+BEGIN_SRC elixir
+        Ecto.assoc(post, [:comments, :author])
+        #+END_SRC
+        * In fact, given ~:through~ associations are read-only, using
+          the ~Ecto.assoc/2~ format is the preferred mechanism for
+          working with through associations.
+      - ~:through~ associations can also be preloaded. In such cases,
+        not only the ~:through~ association is preloaded but all
+        intermediate steps are preloaded too:
+        #+BEGIN_SRC elixir
+          [post] = Repo.all(from(p in Post, where: p.id == 42, preload: :comments_authors))
+          post.comments_authors #=> [%Author{...}, ...]
+
+          # The comments for each post will be preloaded too
+          post.comments #=> [%Comment{...}, ...]
+
+          # And the author for each comment too
+          hd(post.comments).author #=> %Author{...}
+        #+END_SRC
+      - When the ~:through~ association is expected to return one or
+        zero items, ~has_one :through~ should be used instead
+        #+BEGIN_SRC elixir
+          # How we defined the association above
+          has_one :post_permalink, through: [:post, :permalink]
+
+          # Get a preloaded comment
+          [comment] = Repo.all(Comment) |> Repo.preload(:post_permalink)
+          comment.post_permalink #=> %Permalink{...}
+        #+END_SRC
+- ~has_one(name, queryable, opts \\ [])~
+  + Indicates a one-to-one association with another schema.
+  + The current schema has zero or one records of the other
+    schema. The other schema often has a belongs_to field with the
+    reverse association.
+  + ~opts~
+    * ~:foreign_key~
+      - Sets the foreign key, this should map to a field on the other
+        schema, defaults to the underscored name of the current module
+        suffixed by ~_id~
+    * ~:references~
+      - Sets the key on the current schema to be used for the
+        association, defaults to the primary key on the schema
+    * ~:through~
+      - If this association must be defined in terms of existing associations.
+    * ~:on_delete~
+      - The action taken on associations when parent record is deleted
+      - May be ~:nothing~ (default), ~:nilify_all~ and ~:delete_all~.
+      - Using this option is *DISCOURAGED* for most relational
+        databases. Instead, in your migration, set
+        ~references(:parent_id, on_delete: :delete_all)~.
+      - Opposite to the migration option, this option cannot guarantee
+        integrity and it is only triggered for ~Ecto.Repo.delete/~ (and
+        not on ~Ecto.Repo.delete_all/2~) and it never cascades.
+    * ~:on_replace~
+      - The action taken on associations when the record is replaced
+        when casting or manipulating parent changeset.
+      - May be ~:raise~ (default), ~:mark_as_invalid~, ~:nilify~,
+        ~:update~, or ~:delete~
+    * ~:defaults~
+      - Default values to use when building the association.
+      - This overrides any default set on the association schema. For
+        example, imagine ~Post.has_many :comments, defaults: [public: true]~.
+        Then when using ~Ecto.build_assoc(post, :comments)~ that
+        comment will have ~comment.public == true~.
+    * ~:where~ - A filter for the association
+  + example
+    #+BEGIN_SRC elixir
+      defmodule Post do
+        use Ecto.Schema
+
+        schema "posts" do
+          has_one :permalink, Permalink
+
+          # Specify the association with custom source
+          has_one :category, {"posts_categories", Category}
+        end
+      end
+
+      # The permalink can come preloaded on the post struct
+      [post] = Repo.all(from(p in Post, where: p.id == 42, preload: :permalink))
+      post.permalink #=> %Permalink{...}
+    #+END_SRC
+- ~many_to_many(name, queryable, opts \\ [])~
+  + Indicates a many-to-many association with another schema.
+  + The association happens through a join schema or source,
+    containing foreign keys to the associated schemas.
+    #+BEGIN_SRC elixir
+      # from MyApp.Post
+      many_to_many :tags, MyApp.Tag, join_through: "posts_tags"
+    #+END_SRC
+    is backed by relational databases through a join table as follows:
+    #+BEGIN_SRC
+      [Post] <-> [posts_tags] <-> [Tag]
+        id   <--   post_id
+                    tag_id    -->  id
+    #+END_SRC
+  + Options
+    * ~:join_through~
+      - specifies the source of the associated data.
+      - It may be a string, like “posts_tags”, representing the
+        underlying storage table or an atom, like ~MyApp.PostTag~,
+        representing a schema. This option is required.
+    * ~:join_keys~
+      - specifies how the schemas are associated.
+      - It expects a keyword list with two entries, the first being
+        how the join table should reach the current schema and the
+        second how the join table should reach the associated
+        schema.
+      - In the example above, it defaults to: ~[post_id: :id, tag_id: :id]~.
+      - The keys are inflected from the schema names.
+    * ~:on_delete~
+      - The action taken on associations when parent record is deleted
+      - May be ~:nothing~ (default) or ~:delete_all~.
+      - Using this option is *DISCOURAGED* for most relational
+        databases. Instead, in your migration, set
+        ~references(:parent_id, on_delete: :delete_all)~.
+      - Opposite to the migration option, this option cannot guarantee
+        integrity and it is only triggered for ~Ecto.Repo.delete/2~ (and
+        not on ~Ecto.Repo.delete_all/2~).
+      - This option can only remove data from the join source, never
+        the associated records, and it never cascades.
+    * ~:on_replace~
+      - The action taken on associations when the record is replaced
+        when casting or manipulating parent changeset.
+      - May be ~:raise~ (default), ~:mark_as_invalid~, or ~:delete~.
+        + ~:delete~ will only remove data from the join source, never
+          the associated records. See Ecto.Changeset’s section on
+          related data for more info.
+    * ~:defaults~
+      - Default values to use when building the association.
+      - This overrides any default set on the association schema
+      - For example, imagine ~Post.has_many :comments, defaults: [public: true]~.
+        Then when using ~Ecto.build_assoc(post, :comments)~ that comment will have ~comment.public == true~.
+    * ~:unique~
+      - When true, checks if the associated entries are unique.
+      - This is done by checking the primary key of the associated
+        entries during repository operations
+      - Keep in mind this does not guarantee uniqueness at the
+        database level. For such it is preferred to set a unique index
+        in the database. For example: ~create unique_index(:posts_tags, [:post_id, :tag_id])~
+    * ~:where~ - A filter for the association.
+  + Removing data
+    * If you attempt to remove associated ~many_to_many~ data, Ecto will
+      always remove data from the join schema and never from the
+      target associations be it by setting ~:on_replace~ to ~:delete~,
+      ~:on_delete~ to ~:delete_all~ or by using changeset functions such
+      as ~Ecto.Changeset.put_assoc/3~.
+    * For example, if a ~Post~ has a many to many relationship with ~Tag~,
+      setting ~:on_delete~ to ~:delete_all~ will only delete entries from
+      the “posts_tags” table in case ~Post~ is deleted.
+  + Migration
+    * How your migration should be structured depends on the value you
+      pass in ~:join_through~
+    * If ~:join_through~ is simply a string, representing a table, you
+      may define a table without primary keys and you must not include
+      any further columns, as those values won’t be set by Ecto:
+      #+BEGIN_SRC elixir
+        create table(:posts_tags, primary_key: false) do
+          add :post_id, references(:posts)
+          add :tag_id, references(:tags)
+        end
+      #+END_SRC
+    * However, if your ~:join_through~ is a schema, like ~MyApp.PostTag~,
+      your join table may be structured as any other table in your
+      codebase, including timestamps:
+      #+BEGIN_SRC elixir
+        create table(:posts_tags) do
+          add :post_id, references(:posts)
+          add :tag_id, references(:tags)
+          timestamps()
+        end
+      #+END_SRC
+      Because ~:join_through~ contains a schema, in such cases,
+      autogenerated values and primary keys will be automatically
+      handled by Ecto.
+  + example
+    #+BEGIN_SRC elixir
+      defmodule Post do
+        use Ecto.Schema
+        schema "posts" do
+          many_to_many :tags, Tag, join_through: "posts_tags"
+        end
+      end
+
+      # Let's create a post and a tag
+      post = Repo.insert!(%Post{})
+      tag = Repo.insert!(%Tag{name: "introduction"})
+
+      # We can associate at any time post and tags together using changesets
+      post
+      |> Repo.preload(:tags) # Load existing data
+      |> Ecto.Changeset.change() # Build the changeset
+      |> Ecto.Changeset.put_assoc(:tags, [tag]) # Set the association
+      |> Repo.update!
+
+      # In a later moment, we may get all tags for a given post
+      post = Repo.get(Post, 42)
+      tags = Repo.all(assoc(post, :tags))
+
+      # The tags may also be preloaded on the post struct for reading
+      [post] = Repo.all(from(p in Post, where: p.id == 42, preload: :tags))
+      post.tags #=> [%Tag{...}, ...]
+    #+END_SRC
+  + Join Schema Example
+    * You may prefer to use a join schema to handle many_to_many
+      associations. The decoupled nature of Ecto allows us to create a
+      “join” struct which belongs_to both sides of the many to many
+      association.
+      #+BEGIN_SRC elixir
+        defmodule MyApp.Repo.Migrations.CreateUserOrganization do
+          use Ecto.Migration
+
+          def change do
+            create table(:users_organizations) do
+              add :user_id, references(:users)
+              add :organization_id, references(:organizations)
+
+              timestamps()
+            end
+          end
+        end
+
+        defmodule UserOrganization do
+          use Ecto.Schema
+
+          @primary_key false
+          schema "users_organizations" do
+            belongs_to :user, User
+            belongs_to :organization, Organization
+            timestamps() # Added bonus, a join schema will also allow you to set timestamps
+          end
+
+          def changeset(struct, params \\ %{}) do
+            struct
+            |> Ecto.Changeset.cast(params, [:user_id, :organization_id])
+            |> Ecto.Changeset.validate_required([:user_id, :organization_id])
+            # Maybe do some counter caching here!
+          end
+        end
+
+        defmodule User do
+          use Ecto.Schema
+
+          schema "users" do
+            many_to_many :organizations, Organization, join_through: UserOrganization
+          end
+        end
+
+        defmodule Organization do
+          use Ecto.Schema
+
+          schema "organizations" do
+            many_to_many :users, User, join_through: UserOrganization
+          end
+        end
+
+        # Then to create the association, pass in the ID's of an existing
+        # User and Organization to UserOrganization.changeset
+        changeset = UserOrganization.changeset(%UserOrganization{}, %{user_id: id, organization_id: id})
+
+        case Repo.insert(changeset) do
+          {:ok, assoc} -> # Assoc was created!
+          {:error, changeset} -> # Handle the error
+        end
+      #+END_SRC
+- ~schema(source, list)~
+  + Defines a schema struct with a source name and field definitions.
+  + An additional field called ~__meta__~ is added to the struct for
+    storing internal Ecto state. This field always has a
+    ~Ecto.Schema.Metadata~ struct as value and can be manipulated with
+    the ~Ecto.put_meta/2~ function.
+- ~timestamps(opts \\ [])~
+  + Generates ~:inserted_at~ and ~:updated_at~ timestamp fields.
+  + The fields generated by this macro will automatically be set to
+    the current time when inserting and updating values in a
+    repository.
+  + ~opts~
+    * ~:type~ - the timestamps type, defaults to ~:naive_datetime~.
+    * ~:inserted_at~ - the name of the column for insertion times or ~false~
+    * ~:updated_at~ - the name of the column for update times or ~false~
+    * ~:autogenerate~ - a MFA tuple used for generating both
+      ~inserted_at~ and ~updated_at~ timestamps
+    * All options can be pre-configured by setting ~@timestamps_opts~.
+* Ecto.Schema.Metadata
+- Stores metadata of a struct.
+** State
+- The state of the schema is stored in the ~:state~ field and allows
+  following values:
+  + ~:built~ - the struct was constructed in memory and is not
+    persisted to database yet;
+  + ~:loaded~ - the struct was loaded from database and represents
+    persisted data;
+  + ~:deleted~ - the struct was deleted and no longer represents
+    persisted data.
+** Source
+- The ~:source~ tracks the (table or collection) where the struct is
+  or should be persisted to.
+** Prefix
+- Tracks the source prefix in the data storage
+** Context
+- The ~:context~ field represents additional state some databases
+  require for proper updates of data. It is not used by the built-in
+  adapters of ~Ecto.Adapters.Postres~ and ~Ecto.Adapters.MySQL~.
+** Schema
+- The ~:schema~ field refers the module name for the schema this
+  metadata belongs to.
+* Ecto.Type behaviour
+- Defines functions and the ~Ecto.Type~ behaviour for implementing
+  custom types.
+- A custom type expects 4 functions to be implemented
+  1. ~type~
+     + Returns the underlying schema type for the custom type
+     + For example, if you want to provide your own date structures,
+       the type function should return ~:date~.
+  2. ~cast(term)~
+     + Casts the given input to the custom type
+     + This callback is called on external input and can return any
+       type, as long as the ~dump/1~ function is able to convert the
+       returned value into an Ecto native type.
+     + There are two situations where this callback is called:
+       1. When casting values by ~Ecto.Changeset~
+       2. When passing arguments to ~Ecto.Query~
+     + When returning ~{:error, keyword()}~, the returned keyword list
+       will be preserved in the changeset errors, similar to
+       ~Changeset.add_error/4~. Passing a ~:message~ key, will override
+       the default message. It is not possible to override the ~:type~
+       key.
+     + For ~{:array, CustomType}~ or ~{:map, CustomType}~ the returned
+       keyword list will be erased and the default error will be
+       shown.
+
+  3. ~load(term)~
+     + Loads the given term into a custom type
+     + This callback is called when loading data from the database and
+       receive an Ecto native type. It can return any type, as long as
+       the ~dump/1~ function is able to convert the returned value back
+       into an Ecto native type.
+
+  4. ~dump(term)~
+     + Dumps the given term into an Ecto native type
+     + This callback is called with any term that was stored in the
+       struct and it needs to validate them and convert it to an Ecto
+       native type.
+
+- Note: ~nil~ values are always bypassed and cannot be handled by
+  custom types.
+** Example
+- url-shortening service.
+  #+BEGIN_SRC elixir
+    defmodule EctoURI do
+      @behaviour Ecto.Type
+      def type, do: :map
+
+      # Provide custom casting rules.
+      # Cast strings into the URI struct to be used at runtime
+      def cast(uri) when is_binary(uri) do
+        {:ok, URI.parse(uri)}
+      end
+
+      # Accept casting of URI structs as well
+      def cast(%URI{} = uri), do: {:ok, uri}
+
+      # Everything else is a failure though
+      def cast(_), do: :error
+
+      # When loading data from the database, we are guaranteed to
+      # receive a map (as databases are strict) and we will
+      # just put the data back into an URI struct to be stored
+      # in the loaded schema struct.
+      def load(data) when is_map(data) do
+        data =
+          for {key, val} <- data do
+            {String.to_existing_atom(key), val}
+          end
+        {:ok, struct!(URI, data)}
+      end
+
+      # When dumping data to the database, we *expect* an URI struct
+      # but any value could be inserted into the schema struct at runtime,
+      # so we need to guard against them.
+      def dump(%URI{} = uri), do: {:ok, Map.from_struct(uri)}
+      def dump(_), do: :error
+    end
+  #+END_SRC
+  Now we can use our new field type above in our schemas:
+  #+BEGIN_SRC elixir
+    defmodule ShortUrl do
+      use Ecto.Schema
+
+      schema "posts" do
+        field :original_url, EctoURI
+      end
+    end
+  #+END_SRC
+* Ecto.UUID
+* Mix.Ecto
+- Conveniences for writing Ecto related Mix tasks.
+
+* QUERY APIS
+- Lists all functions allowed in the query API.
+  + Comparison operators: ~==~, ~!=~, ~<=~, ~>=~, ~<~, ~>~
+  + Arithmetic operators: ~+~, ~-~, ~*~, ~/~
+  + Boolean operators: ~and~, ~or~, ~not~
+  + Inclusion operator: ~in/2~
+  + Search functions: ~like/2~ and ~ilike/2~
+  + Null check functions: ~is_nil/1~
+  + Aggregates: ~count/0~, ~count/1~, ~avg/1~, ~sum/1~, ~min/1~, ~max/1~
+  + Date/time intervals: ~datetime_add/3~, ~date_add/3~, ~from_now/2~, ~ago/2~
+  + Inside select: ~struct/2~, ~map/2~, ~merge/2~ and literals (map, tuples, lists, etc)
+  + General: ~fragment/1~, ~field/2~ and ~type/2~
+- ~ago(count, interval)~
+  #+BEGIN_SRC elixir
+  from p in Post, where: p.published_at > ago(3, "month")
+  #+END_SRC
+- ~avg(value)~
+  + Calculates the average for the given entry.
+    #+BEGIN_SRC elixir
+    from p in Payment, select: avg(p.value)
+    #+END_SRC
+- ~coalesce(value, expr)~
+  + Takes whichever value is not null, or null if they both are.
+  + In SQL, COALESCE takes any number of arguments, but in ecto it
+    only takes two, so it must be chained to achieve the same effect.
+  #+BEGIN_SRC elixir
+  from p in Payment, select: p.value |> coalesce(p.backup_value) |> coalesce(0)
+  #+END_SRC
+- ~count()~
+  #+BEGIN_SRC elixir
+  from p in Post, select: count()
+  #+END_SRC
+- ~count(value)~
+  + Counts the given entry.
+    #+BEGIN_SRC elixir
+    from p in Post, select: count(p.id)
+    #+END_SRC
+- ~count(value, atom)~
+  + Counts the distinct values in given entry.
+    #+BEGIN_SRC elixir
+    from p in Post, select: count(p.id, :distinct)
+    #+END_SRC
+- ~date_add(date, count, interval)~
+  + Adds a given interval to a date.
+- ~datetime_add(datetime, count, interval)~
+  + Adds a given interval to a datetime.
+  + The first argument is a ~datetime~, the second one is the count for
+    the interval, which may be either positive or negative and the
+    interval value:
+    #+BEGIN_SRC elixir
+      # Get all items published since the last month
+      from p in Post, where: p.published_at >
+                             datetime_add(^NaiveDateTime.utc_now, -1, "month")
+    #+END_SRC
+    we used ~datetime_add/3~ to subtract one month from the current
+    datetime and compared it with the ~p.published_at~. If you want to
+    perform operations on date, ~date_add/3~ could be used.
+  + The following intervals are supported: year, month, week, day,
+    hour, minute, second, millisecond and microsecond.
+- ~field(source, field)~
+  + Allows a field to be dynamically accessed.
+    #+BEGIN_SRC elixir
+      def at_least_four(doors_or_tires) do
+          from c in Car,
+        where: field(c, ^doors_or_tires) >= 4
+      end
+    #+END_SRC
+  + In the example above, ~both at_least_four(:doors)~ and
+    ~at_least_four(:tires)~ would be valid calls as the field is
+    dynamically generated.
+- ~filter(value, filter)~
+  + Applies the given expression as a ~FILTER~ clause against an
+    aggregate. This is currently only supported by Postgres.
+    #+BEGIN_SRC elixir
+      from p in Payment, select: filter(avg(p.value), p.value > 0 and p.value < 100)
+
+      from p in Payment, select: avg(p.value) |> filter(p.value < 0)
+    #+END_SRC
+- ~fragment(fragments)~
+  + Send fragments directly to the database.
+  + It is not possible to represent all possible database queries
+    using Ecto’s query syntax. When such is required, it is possible
+    to use fragments to send any expression to the database:
+    #+BEGIN_SRC elixir
+      def unpublished_by_title(title) do
+        from p in Post,
+          where: is_nil(p.published_at) and
+                 fragment("lower(?)", p.title) == ^title
+      end
+    #+END_SRC
+  + Ecto is unable to do any type casting described above when
+    fragments are used. You can however use the ~type/2~ function to
+    give Ecto some hints:
+    #+BEGIN_SRC elixir
+    fragment("lower(?)", p.title) == type(^title, :string)
+    #+END_SRC
+    Or even say the right side is of the same type as ~p.title~:
+    #+BEGIN_SRC elixir
+    fragment("lower(?)", p.title) == type(^title, p.title)
+    #+END_SRC
+  + It is possible to make use of PostgreSQL’s JSON/JSONB data type
+    with fragments, as well:
+    #+BEGIN_SRC elixir
+    fragment("?->>? ILIKE ?", p.map, "key_name", ^some_value)
+    #+END_SRC
+  + Keyword fragments
+    * In order to support databases that do not have string-based
+      queries, like MongoDB, fragments also allow keywords to be
+      given:
+      #+BEGIN_SRC elixir
+        from p in Post,
+            where: fragment(title: ["$eq": ^some_value])
+      #+END_SRC
+  + Defining custom functions using macros and fragment
+    * You can add a custom Ecto query function using macros. For
+      example to expose SQL’s coalesce function you can define this
+      macro:
+      #+BEGIN_SRC elixir
+        defmodule CustomFunctions do
+          defmacro coalesce(left, right) do
+            quote do
+              fragment("coalesce(?, ?)", unquote(left), unquote(right))
+            end
+          end
+        end
+      #+END_SRC
+      To have ~coalesce/2~ available, just import the module that defines it.
+      #+BEGIN_SRC elixir
+        import CustomFunctions
+      #+END_SRC
+      The only downside is that it will show up as a fragment when
+      inspecting the Elixir query. Other than that, it should be
+      equivalent to a built-in Ecto query function.
+- ~from_now(count, interval)~
+  + Adds the given interval to the current time in UTC.
+  + The current time in UTC is retrieved from Elixir and not from the
+    database.
+    #+BEGIN_SRC elixir
+    from a in Account, where: a.expires_at < from_now(3, "month")
+    #+END_SRC
+- ~ilike(string, search)~
+  + Searches for ~search~ in ~string~ in a case insensitive fashion.
+    #+BEGIN_SRC elixir
+      from p in Post, where: ilike(p.body, "Chapter%")
+    #+END_SRC
+- ~left in right~
+  + The right side may either be a list, a literal list or even a
+    column in the database with array type:
+  #+BEGIN_SRC elixir
+    from p in Post, where: p.id in [1, 2, 3]
+
+    from p in Post, where: "elixir" in p.tags
+  #+END_SRC
+- ~is_nil(value)~
+  Checks if the given value is nil.
+  #+BEGIN_SRC elixir
+    from p in Post, where: is_nil(p.published_at)
+  #+END_SRC
+
+  To check if a given value is not nil use:
+  #+BEGIN_SRC elixir
+    from p in Post, where: not is_nil(p.published_at)
+  #+END_SRC
+- ~like(string, search)~
+  + You should be very careful when allowing user sent data to be used
+    as part of LIKE query, since they allow to perform
+    [[https://githubengineering.com/like-injection/][LIKE-injections]].
+- ~map(source, fields)~
+  + Used in ~select~ to specify which fields should be returned as a
+    map.
+  + For example, if you don’t need all fields to be returned or
+    neither need a struct, you can use ~map/2~ to achieve both:
+    #+BEGIN_SRC elixir
+      from p in Post,
+        select: map(p, [:title, :body])
+    #+END_SRC
+  + ~map/2~ can also be used to dynamically select fields:
+    #+BEGIN_SRC elixir
+      fields = [:title, :body]
+      from p in Post, select: map(p, ^fields)
+    #+END_SRC
+  + If the same source is selected multiple times with a ~map~, the
+    fields are merged in order to avoid fetching multiple copies from
+    the database. In other words, the expression below:
+    #+BEGIN_SRC elixir
+    from(city in City, preload: :country,
+     select: {map(city, [:country_id]), map(city, [:name])}
+    #+END_SRC
+    is expanded to:
+    #+BEGIN_SRC elixir
+      from(city in City, preload: :country,
+           select: {map(city, [:country_id, :name]), map(city, [:country_id, :name])}
+    #+END_SRC
+  + For preloads, the selected fields may be specified from the parent:
+    #+BEGIN_SRC elixir
+      from(city in City, preload: :country,
+           select: map(city, [:country_id, :name, country: [:id, :population]]))
+    #+END_SRC
+    *IMPORTANT*: When filtering fields for associations, you *MUST*
+    include the foreign keys used in the relationship, otherwise Ecto
+    will be unable to find associated records.
+- ~max(value)~
+  + Calculates the maximum for the given entry.
+    #+BEGIN_SRC elixir
+      from p in Payment, select: max(p.value)
+    #+END_SRC
+- ~merge(left_map, right_map)~
+  + Merges the map on the right over the map on the left.
+  + If the map on the left side is a struct, Ecto will check all of
+    the field on the right previously exist on the left before
+    merging.
+  #+BEGIN_SRC
+  from(city in City, select: merge(city, %{virtual_field: "some_value"}))
+  #+END_SRC
+  This function is primarily used by ~Ecto.Query.select_merge/3~ to
+  merge different select clauses.
+- ~min(value)~
+  + Calculates the minimum for the given entry.
+    #+BEGIN_SRC elixir
+    from p in Payment, select: min(p.value)
+    #+END_SRC
+- ~struct(source, fields)~
+  + Used in select to specify which struct fields should be returned.
+  + For example, if you don’t need all fields to be returned as part
+    of a struct, you can filter it to include only certain fields by
+    using ~struct/2~:
+    #+BEGIN_SRC elixir
+      from p in Post,
+        select: struct(p, [:title, :body])
+    #+END_SRC
+  + ~struct/2~ can also be used to dynamically select fields:
+    #+BEGIN_SRC elixir
+      fields = [:title, :body]
+      from p in Post, select: struct(p, ^fields)
+    #+END_SRC
+  + As a convenience, ~select~ allows developers to take fields without
+    an explicit call to ~struct/2~:
+    #+BEGIN_SRC elixir
+    from p in Post, select: [:title, :body]
+    #+END_SRC
+    or even dynamically:
+    #+BEGIN_SRC elixir
+    fields = [:title, :body]
+    from p in Post, select: ^fields
+    #+END_SRC
+  + For preloads, the selected fields may be specified from the
+    parent:
+    #+BEGIN_SRC elixir
+      from(city in City, preload: :country,
+           select: struct(city, [:country_id, :name, country: [:id, :population]]))
+    #+END_SRC
+  + If the same source is selected multiple times with a struct, the
+    fields are merged in order to avoid fetching multiple copies from
+    the database. In other words, the expression below:
+    #+BEGIN_SRC elixir
+    from(city in City, preload: :country,
+     select: {struct(city, [:country_id]), struct(city, [:name])}
+    #+END_SRC
+    is expanded to:
+    #+BEGIN_SRC elixir
+    from(city in City, preload: :country,
+     select: {struct(city, [:country_id, :name]), struct(city, [:country_id, :name])}
+    #+END_SRC
+    *IMPORTANT*: When filtering fields for associations, you *MUST*
+    include the foreign keys used in the relationship, otherwise Ecto
+    will be unable to find associated records.
+- ~sum(value)~
+  + Calculates the sum for the given entry.
+    #+BEGIN_SRC elixir
+    from p in Payment, select: sum(p.value)
+    #+END_SRC
+
+- ~type(interpolated_value, type)~
+  + Casts the given value to the given type at the database level.
+  + Most of the times, Ecto is able to proper cast interpolated values
+    due to its type checking mechanism. In some situations though, you
+    may want to tell Ecto that a parameter has some particular type:
+    #+BEGIN_SRC elixir
+      type(^title, :string)
+    #+END_SRC
+    It is also possible to say the type must match the same of a column:
+    #+BEGIN_SRC elixir
+      type(^title, p.title)
+    #+END_SRC
+  + Ecto will ensure ~^title~ is cast to the given type and enforce such
+    type at the database level. If the value is returned in a ~select~,
+    Ecto will also enforce the proper type throughout.
+  + When performing arithmetic operations, ~type/2~ can be used to cast
+    all the parameters in the operation to the same type:
+    #+BEGIN_SRC elixir
+      from p in Post,
+        select: type(p.visits + ^a_float + ^a_integer, :decimal)
+    #+END_SRC
+  + Inside ~select~, ~type/2~ can also be used to cast fragments:
+    #+BEGIN_SRC elixir
+      type(fragment("NOW"), :naive_datetime)
+
+      # another example
+      from Comment, select: type(fragment("inserted_at"), :naive_datetime)
+      # [~N[2019-02-26 10:01:57], ~N[2019-02-26 10:02:08]]
+    #+END_SRC
+  + Or to type fields from schemaless queries:
+    #+BEGIN_SRC elixir
+      from p in "posts", select: type(p.cost, :decimal)
+    #+END_SRC
+  + Or to type aggregation results:
+    #+BEGIN_SRC elixir
+    from p in Post, select: type(avg(p.cost), :integer)
+    #+END_SRC
