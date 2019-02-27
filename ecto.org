@@ -1,4 +1,4 @@
-- Mostly from ecto documentation
+- Mostly from Ecto documentation
 
 * add ecto
 1) generate necessities
@@ -2933,3 +2933,426 @@ iex> Friends.Person |> Friends.Repo.get(1)
     #+BEGIN_SRC elixir
     from p in Post, select: type(avg(p.cost), :integer)
     #+END_SRC
+* Ecto.Query.WindowAPI
+- [[file:sql.org::*window%20functions][Read notes on window functions]]
+- Windows functions must always be used as the first argument of
+  ~over/2~ where the second argument is the name of a window:
+  #+BEGIN_SRC elixir
+    from e in Employee,
+      select: {e.depname, e.empno, e.salary, over(avg(e.salary), :department)},
+      windows: [department: [partition_by: e.depname]]
+  #+END_SRC
+  + In the example above, we get the average salary per
+    department. ~:department~ is the window name, partitioned by
+    ~e.depname~ and ~avg/1~ is the window function.
+  + defining a window is not necessary, as the window definition can be
+    given as the second argument to over:
+    #+BEGIN_SRC elixir
+      from e in Employee,
+        select: {e.depname, e.empno, e.salary, over(avg(e.salary), partition_by: e.depname)}
+    #+END_SRC
+
+** functions
+- ~cume_dist()~
+  + Returns relative rank of the current row: (number of rows preceding or peer with current row) / (total rows).
+    #+BEGIN_SRC
+    from p in Post,
+       select: cume_dist() |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User,
+            select: {u.gender, u.age, over(cume_dist(), :age)},
+            windows: [age: [partition_by: u.gender, order_by: u.age]]) |>
+            Repo.all
+            # executes
+            # SELECT u0."gender", u0."age", cume_dist() OVER "age"
+            # FROM "users" AS u0
+            # WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age")
+
+            # gender | age | cume_dist
+            # --------+-----+-----------
+            # f      |  10 |       0.5
+            # f      |  30 |         1
+            # m      |  12 |       0.5
+            # m      |  12 |       0.5
+            # m      |  20 |      0.75
+            # m      |  35 |         1
+      [
+       {"f", 10, 0.5},
+       {"f", 30, 1.0},
+       {"m", 12, 0.5},
+       {"m", 12, 0.5},
+       {"m", 20, 0.75},
+       {"m", 35, 1.0}
+      ]
+    #+END_SRC
+- ~dense_rank()~
+  + Returns rank of the current row without gaps; this function counts peer groups.
+    #+BEGIN_SRC elixir
+      from p in Post,
+           select: dense_rank() |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User,
+            select: {u.gender, u.age, over(dense_rank(), :age)},
+            windows: [age: [partition_by: u.gender, order_by: u.age]]) |> Repo.all
+
+      # 11:30:27.645 [debug] QUERY OK source="users" db=2.1ms queue=3.2ms
+      # SELECT u0."gender", u0."age", dense_rank() OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age") []
+
+      [
+         {"f", 10, 1},
+         {"f", 30, 2},
+         {"m", 12, 1},
+         {"m", 12, 1},
+         {"m", 20, 2},
+         {"m", 35, 3}
+      ]
+    #+END_SRC
+- ~first_value(value)~
+  + Returns value evaluated at the row that is the first row of the window frame.
+    #+BEGIN_SRC elixir
+      from p in Post,
+           select: first_value(p.id) |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User,
+        select: %{sex: u.gender, age: u.age, id: u.id, first: over(first_value(u.id), :age)},
+        windows: [age: [partition_by: u.gender, order_by: u.age]]) |> Repo.all
+
+      # 11:35:11.793 [debug] QUERY OK source="users" db=1.1ms queue=1.2ms
+      # SELECT u0."gender", u0."age", u0."id", first_value(u0."id") OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age") []
+
+      [
+        %{age: 10, first: 1, id: 1, sex: "f"},
+        %{age: 30, first: 1, id: 3, sex: "f"},
+        %{age: 12, first: 5, id: 5, sex: "m"},
+        %{age: 12, first: 5, id: 6, sex: "m"},
+        %{age: 20, first: 5, id: 2, sex: "m"},
+        %{age: 35, first: 5, id: 4, sex: "m"}
+      ]
+    #+END_SRC
+- ~lag(value, offset \\ 1, default \\ nil)~
+  - Returns value evaluated at the row that is offset-rows before the
+    current row within the partition.
+
+  - If there is no such row, instead return default (which must be of
+    the same type as value). Both offset and default are evaluated
+    with respect to the current row. If omitted, offset defaults to 1
+    and default to nil.
+    #+BEGIN_SRC elixir
+    from e in Events,
+     windows: [w: [partition_by: e.name, order_by: e.tick]],
+     select: {
+       e.tick,
+       e.action,
+       e.name,
+       lag(e.action) |> over(:w), # previous_action
+       lead(e.action) |> over(:w) # next_action
+     }
+    #+END_SRC
+  - example
+    #+BEGIN_SRC elixir
+      iex> (from u in User,
+            select: %{sex: u.gender, age: u.age, id: u.id, prev: over(lag(u.id), :age)},
+            windows: [age: [partition_by: u.gender, order_by: u.age]]) |> Repo.all
+
+      13:55:12.154 [debug] QUERY OK source="users" db=1.1ms queue=1.3ms
+      SELECT u0."gender", u0."age", u0."id", lag(u0."id") OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age") []
+
+      [
+          %{age: 10, id: 1, prev: nil, sex: "f"},
+          %{age: 30, id: 3, prev: 1, sex: "f"},
+          %{age: 12, id: 5, prev: nil, sex: "m"},
+          %{age: 12, id: 6, prev: 5, sex: "m"},
+          %{age: 20, id: 2, prev: 6, sex: "m"},
+          %{age: 35, id: 4, prev: 2, sex: "m"}
+      ]
+    #+END_SRC
+- ~last_value(value)~
+  - Returns value evaluated at the row that is the last row of the
+    window frame.
+    #+BEGIN_SRC elixir
+      from p in Post,
+           select: last_value(p.id) |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  - example
+    #+BEGIN_SRC sql
+      SELECT
+       product_name,
+       group_name,
+       price,
+       LAST_VALUE (price) OVER (
+       PARTITION BY group_name
+       ORDER BY
+       price RANGE BETWEEN UNBOUNDED PRECEDING
+       AND UNBOUNDED FOLLOWING
+       ) AS highest_price_per_group
+      FROM
+       products
+      INNER JOIN product_groups USING (group_id);
+    #+END_SRC
+    uses the ~LAST_VALUE()~ function to return the highest price per product group.
+- ~lead(value, offset \\ 1, default \\ nil)~
+  + Returns value evaluated at the row that is offset-rows after the
+    current row within the partition.
+  + If there is no such row, instead return default (which must be of
+    the same type as value). Both offset and default are evaluated
+    with respect to the current row. If omitted, offset defaults to 1
+    and default to ~nil~.
+    #+BEGIN_SRC elixir
+      from e in Events,
+           windows: [w: [partition_by: e.name, order_by: e.tick]],
+           select: {
+             e.tick,
+             e.action,
+             e.name,
+             lag(e.action) |> over(:w), # previous_action
+             lead(e.action) |> over(:w) # next_action
+           }
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User, select: %{sex: u.gender, age: u.age, next_same_gender_person_age: over(lead(u.age), :age)}, windows: [age: [partition_by: u.gender, order_by: u.age]]) |> Repo.all
+
+      14:45:55.086 [debug] QUERY OK source="users" db=1.1ms queue=0.9ms
+      SELECT u0."gender", u0."age", lead(u0."age") OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age") []
+
+      [
+        %{age: 10, next_same_gender_person_age: 30, sex: "f"},
+        %{age: 30, next_same_gender_person_age: nil, sex: "f"},
+        %{age: 12, next_same_gender_person_age: 12, sex: "m"},
+        %{age: 12, next_same_gender_person_age: 20, sex: "m"},
+        %{age: 20, next_same_gender_person_age: 35, sex: "m"},
+        %{age: 35, next_same_gender_person_age: nil, sex: "m"}
+      ]
+    #+END_SRC
+- ~max(value)~
+  + Calculates the maximum for the given entry.
+    #+BEGIN_SRC elixir
+    from p in Payment, select: max(p.value)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex(59)> (from u in User,
+        select: %{sex: u.gender, age: u.age, oldest_same_gender_person_age: over(max(u.age), :age)},
+        windows: [age: [partition_by: u.gender, order_by: [desc: u.age]]]) |> Repo.all
+
+      14:48:16.837 [debug] QUERY OK source="users" db=1.1ms queue=1.4ms
+      SELECT u0."gender", u0."age", max(u0."age") OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age" DESC) []
+
+      [
+        %{age: 30, oldest_same_gender_person_age: 30, sex: "f"},
+        %{age: 10, oldest_same_gender_person_age: 30, sex: "f"},
+        %{age: 35, oldest_same_gender_person_age: 35, sex: "m"},
+        %{age: 20, oldest_same_gender_person_age: 35, sex: "m"},
+        %{age: 12, oldest_same_gender_person_age: 35, sex: "m"},
+        %{age: 12, oldest_same_gender_person_age: 35, sex: "m"}
+      ]
+    #+END_SRC
+- ~min(value)~
+  + Calculates the minimum for the given entry.
+    #+BEGIN_SRC
+    from p in Payment, select: min(p.value)
+    #+END_SRC
+- ~nth_value(value, nth)~
+  + Returns value evaluated at the row that is the nth row of the
+    window frame (counting from 1); ~nil~ if no such row.
+    #+BEGIN_SRC elixir
+      from p in Post,
+           select: nth_value(p.id, 4) |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User,
+        select: %{sex: u.gender, age: u.age, foo: over(nth_value(u.age, 2), :age)},
+        windows: [age: [partition_by: u.gender, order_by: [desc: u.age]]]) |> Repo.all
+
+      14:57:24.009 [debug] QUERY OK source="users" db=2.0ms
+      SELECT u0."gender", u0."age", nth_value(u0."age", 2) OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BYu0."gender" ORDER BY u0."age" DESC) []
+
+      [
+          %{age: 30, foo: nil, sex: "f"},
+          %{age: 10, foo: 10, sex: "f"},
+          %{age: 35, foo: nil, sex: "m"},
+          %{age: 20, foo: 20, sex: "m"},
+          %{age: 12, foo: 20, sex: "m"},
+          %{age: 12, foo: 20, sex: "m"}
+      ]
+    #+END_SRC
+- ~ntile(num_buckets)~
+  + Returns integer ranging from 1 to the argument value, dividing the
+    partition as equally as possible.
+    #+BEGIN_SRC elixir
+      from p in Post,
+           select: ntile(10) |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User,
+        select: %{sex: u.gender, age: u.age, foo: over(ntile(3), :age)},
+        windows: [age: [partition_by: u.gender, order_by: [desc: u.age]]]) |> Repo.all
+
+      15:08:08.605 [debug] QUERY OK source="users" db=0.9ms queue=1.0ms
+      SELECT u0."gender", u0."age", ntile(3) OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age" DESC) []
+
+      [
+        %{age: 30, foo: 1, sex: "f"},
+        %{age: 10, foo: 2, sex: "f"},
+        %{age: 35, foo: 1, sex: "m"},
+        %{age: 20, foo: 1, sex: "m"},
+        %{age: 12, foo: 2, sex: "m"},
+        %{age: 12, foo: 3, sex: "m"}
+      ]
+    #+END_SRC
+- ~percent_rank()~
+  + Returns relative rank of the current row: (rank - 1) / (total rows - 1).
+    #+BEGIN_SRC elixir
+      from p in Post,
+           select: percent_rank() |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex(69)> (from u in User,
+        select: %{sex: u.gender, age: u.age, foo: over(percent_rank(), :age)},
+        windows: [age: [partition_by: u.gender, order_by: [desc: u.age]]]) |> Repo.all
+
+      15:16:56.154 [debug] QUERY OK source="users" db=1.0ms queue=0.9ms
+      SELECT u0."gender", u0."age", percent_rank() OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age" DESC) []
+
+      [
+        %{age: 30, foo: 0.0, sex: "f"},
+        %{age: 10, foo: 1.0, sex: "f"},
+        %{age: 35, foo: 0.0, sex: "m"},
+        %{age: 20, foo: 0.3333333333333333, sex: "m"},
+        %{age: 12, foo: 0.6666666666666666, sex: "m"},
+        %{age: 12, foo: 0.6666666666666666, sex: "m"}
+      ]
+    #+END_SRC
+- ~rank()~
+  + Returns rank of the current row with gaps; same as ~row_number/0~ of
+    its first peer.
+    #+BEGIN_SRC elixir
+      from p in Post,
+           select: rank() |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User,
+        select: %{sex: u.gender, age: u.age, foo: over(rank(), :age)},
+        windows: [age: [partition_by: u.gender, order_by: [desc: u.age]]]) |> Repo.all
+
+      15:18:41.985 [debug] QUERY OK source="users" db=1.0ms queue=0.9ms
+      SELECT u0."gender", u0."age", rank() OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age" DESC) []
+
+      [
+          %{age: 30, foo: 1, sex: "f"},
+          %{age: 10, foo: 2, sex: "f"},
+          %{age: 35, foo: 1, sex: "m"},
+          %{age: 20, foo: 2, sex: "m"},
+          %{age: 12, foo: 3, sex: "m"},
+          %{age: 12, foo: 3, sex: "m"}
+      ]
+    #+END_SRC
+- ~row_number()~
+  + Returns number of the current row within its partition, counting
+    from 1.
+    #+BEGIN_SRC elixir
+      from p in Post,
+           select: row_number() |> over(partition_by: p.category_id, order_by: p.date)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User,
+        select: %{sex: u.gender, age: u.age, foo: over(row_number(), :age)},
+        windows: [age: [partition_by: u.gender, order_by: [desc: u.age]]]) |> Repo.all
+
+      15:21:09.304 [debug] QUERY OK source="users" db=1.0ms queue=1.0ms
+      SELECT u0."gender", u0."age", row_number() OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age" DESC) []
+
+      [
+        %{age: 30, foo: 1, sex: "f"},
+        %{age: 10, foo: 2, sex: "f"},
+        %{age: 35, foo: 1, sex: "m"},
+        %{age: 20, foo: 2, sex: "m"},
+        %{age: 12, foo: 3, sex: "m"},
+        %{age: 12, foo: 4, sex: "m"}
+      ]
+    #+END_SRC
+- ~sum(value)~
+  + Calculates the sum for the given entry.
+    #+BEGIN_SRC elixir
+      from p in Payment, select: sum(p.value)
+    #+END_SRC
+  + example
+    #+BEGIN_SRC elixir
+      iex> (from u in User, select: %{sex: u.gender, age: u.age, foo: over(sum(u.age), :age)}, windows: [age: [partition_by: u.gender, order_by: [desc: u.age]]]) |> Repo.all
+
+      15:22:39.592 [debug] QUERY OK source="users" db=1.0ms queue=1.1ms
+      SELECT u0."gender", u0."age", sum(u0."age") OVER "age" FROM "users" AS u0 WINDOW "age" AS (PARTITION BY u0."gender" ORDER BY u0."age" DESC) []
+
+      [
+        %{age: 30, foo: 30, sex: "f"},
+        %{age: 10, foo: 40, sex: "f"},
+        %{age: 35, foo: 35, sex: "m"},
+        %{age: 20, foo: 55, sex: "m"},
+        %{age: 12, foo: 79, sex: "m"},
+        %{age: 12, foo: 79, sex: "m"}
+      ]
+    #+END_SRC
+* Ecto.Adapters.Postgres
+* ecto_sql
+- To interface with migrations, developers typically use mix tasks:
+  + ~mix ecto.migrations~ - lists all available migrations and their status
+  + ~mix ecto.migrate~ - runs a migration
+  + ~mix ecto.rollback~ - rolls back a previously run migration
+- SQL sandbox
+  + ~ecto_sql~ provides a sandbox for testing. The sandbox wraps each
+    test in a transaction, making sure the tests are isolated and can
+    run concurrently
+
+- Structure load and dumping
+  + If you have an existing database, you may want to dump its
+    existing structure and make it reproducible from within Ecto. This
+    can be achieved with two Mix tasks:
+    * ~mix ecto.load~ - loads an existing structure into the database
+    * ~mix ecto.dump~ - dumps the existing database structure to the filesystem
+  + For creating and dropping databases,
+    * ~mix ecto.create~
+    * ~mix ecto.drop~
+** Ecto.Adapters.SQL
+- ~query(repo, sql, params \\ [], opts \\ [])~
+  + Runs custom SQL query on given repo.
+  + Examples
+    #+BEGIN_SRC elixir
+      iex> Ecto.Adapters.SQL.query(MyRepo, "SELECT $1::integer + $2", [40, 2])
+      {:ok, %{rows: [[42]], num_rows: 1}}
+    #+END_SRC
+    For convenience, this function is also available under the repository:
+    #+BEGIN_SRC elixir
+      iex> MyRepo.query("SELECT $1::integer + $2", [40, 2])
+      {:ok, %{rows: [[42]], num_rows: 1}}
+    #+END_SRC
+- ~stream(repo, sql, params \\ [], opts \\ [])~
+  + Returns a stream that runs a custom SQL query on given repo when
+    reduced.
+  + Example
+    #+BEGIN_SRC elixir
+    iex> Ecto.Adapters.SQL.stream(MyRepo, "SELECT $1::integer + $2", [40, 2]) |> Enum.to_list()
+    [%{rows: [[42]], num_rows: 1}]
+   #+END_SRC
+- ~to_sql(kind, repo, queryable)~
+  + Converts the given query to SQL according to its kind and the
+    adapter in the given repository.
+  + example
+    #+BEGIN_SRC elixir
+      iex> Ecto.Adapters.SQL.to_sql(:all, repo, Post)
+      {"SELECT p.id, p.title, p.inserted_at, p.created_at FROM posts as p", []}
+
+      iex> Ecto.Adapters.SQL.to_sql(:update_all, repo, from(p in Post, update: [set: [title: ^"hello"]]))
+      {"UPDATE posts AS p SET title = $1", ["hello"]}
+    #+END_SRC
+    This function is also available under the repository with name ~to_sql~:
