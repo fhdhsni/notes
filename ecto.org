@@ -3900,6 +3900,22 @@ iex> Friends.Person |> Friends.Repo.get(1)
     #+END_SRC
 
 - ~flush()~
+  + (someone from Slack:) it explicitly flushes any pending migrations prior to your
+    ~change/0~, ~up/0~, or ~down/0~ migration functions
+    complete. Essentially you should need to call ~flush()~ if you
+    wanted to perform any subsequent data migration tasks in the same
+    migration.
+    #+BEGIN_SRC elixir
+      def change do
+        alter table(:deployments) do
+          add :status, :text
+        end
+
+        flush()
+
+        Repo.update_all(Deployment, [set: [status: "completed"]], prefix: prefix())
+      end
+    #+END_SRC
 
 - ~fragment(expr)~
   + Generates a fragment to be used as a default value.
