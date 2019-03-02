@@ -926,21 +926,578 @@
   + HTTP/2 does not support chunking and will instead stream the
     response without a transfer encoding.
   + When using HTTP/1.1, the Cowboy adapter will stream the response
-    instead of emitting chunks if the content-length header has been
+    instead of emitting chunks if the ~content-length~ header has been
     set before calling ~send_chunked/2~.
-
-
 - ~send_file(conn, status, file, offset \\ 0, length \\ :all)~
-  + Sends a file as the response body with the given status and optionally starting at the given offset until the given length
-
+  + Sends a file as the response body with the given ~status~ and
+    optionally starting at the given offset until the given length
+  + If available, the file is sent directly over the socket using the
+    operating system ~sendfile~ operation.
+  + It expects a connection that has not been ~:sent~ yet and sets its
+    state to ~:file~ afterwards. Otherwise raises
+    ~Plug.Conn.AlreadySentError~.
+  + e.g.
+    #+BEGIN_SRC elixir
+      Plug.Conn.send_file(conn, 200, "README.md")
+    #+END_SRC
 - ~send_resp(conn)~
   + Sends a response to the client
+  + It expects the connection state to be ~:set~, otherwise raises an
+    ~ArgumentError~ for ~:unset~ connections or a
+    ~Plug.Conn.AlreadySentError~ for already ~:sent~ connections.
+  + At the end sets the connection state to ~:sent~.
+  + Note that this function does not halt the connection, so if
+    subsequent plugs try to send another response, it will error
+    out. Use ~halt/1~ after this function if you want to halt the plug
+    pipeline.
+  + e.g.
+    #+BEGIN_SRC elixir
+      conn
+      |> Plug.Conn.resp(404, "Not found")
+      |> Plug.Conn.send_resp()
+    #+END_SRC
 
 - ~send_resp(conn, status, body)~
   + Sends a response with the given status and body
+  + This is equivalent to setting the status and the body and then
+    calling ~send_resp/1~
+  + Note that this function does not halt the connection, so if
+    subsequent plugs try to send another response, it will error
+    out. Use ~halt/1~ after this function if you want to halt the plug
+    pipeline.
+  + e.g.
+    #+BEGIN_SRC elixir
+      Plug.Conn.send_resp(conn, 404, "Not found")
+    #+END_SRC
 
 - ~update_req_header(conn, key, initial, fun)~
   + Updates a request header if present, otherwise it sets it to an initial value
+  + Raises a ~Plug.Conn.AlreadySentError~ if the connection has
+    already been ~:sent~ or ~:chunked~.
+  + Only the first value of the header key is updated if present.
+  + e.g.
+    #+BEGIN_SRC elixir
+      Plug.Conn.update_req_header(
+        conn,
+        "accept",
+        "application/json; charset=utf-8",
+        &(&1 <> "; charset=utf-8")
+      )
+    #+END_SRC
 
 - ~update_resp_header(conn, key, initial, fun)~
-  + Updates a response header if present, otherwise it sets it to an initial value
+  + Updates a response header if present, otherwise it sets it to an
+    initial value
+  + Raises a ~Plug.Conn.AlreadySentError~ if the connection has already
+    been ~:sent~ or ~:chunked~.
+  + Only the first value of the header ~key~ is updated if present.
+  + e.g.
+    #+BEGIN_SRC elixir
+      Plug.Conn.update_resp_header(
+        conn,
+        "content-type",
+        "application/json; charset=utf-8",
+        &(&1 <> "; charset=utf-8")
+      )
+    #+END_SRC
+* Plug.Debugger
+- A module (not a plug) for debugging in development.
+- This module is commonly used within a ~Plug.Builder~ or a ~Plug.Router~
+  and it wraps the ~call/2~ function.
+- Notice ~Plug.Debugger~ does not catch errors, as errors should still
+  propagate so that the Elixir process finishes with the proper
+  reason.
+- This module does not perform any logging either, as all logging is
+  done by the web server handler.
+- If this module is used with ~Plug.ErrorHandler~, only one of
+  them will effectively handle errors. For this reason, it is
+  recommended that ~Plug.Debugger~ is used before ~Plug.ErrorHandler~ and
+  only in particular environments, like ~:dev~.
+- e.g.
+  #+BEGIN_SRC elixir
+    defmodule MyApp do
+      use Plug.Builder
+
+      if Mix.env == :dev do
+        use Plug.Debugger, otp_app: :my_app
+      end
+
+      plug :boom
+
+      def boom(conn, _) do
+        # Error raised here will be caught and displayed in a debug page
+        # complete with a stacktrace and other helpful info.
+        raise "oops"
+      end
+    end
+  #+END_SRC
+  + ~opts~
+    * ~:otp_app~ - the OTP application that is using Plug. This option
+      is used to filter stacktraces that belong only to the given
+      application.
+    * ~:style~ - custom styles
+    * ~:banner~ - the optional MFA which receives exception details
+      and returns banner contents to appear at the top of the
+      page. May be any string, including markup.
+** Custom styles
+- You may pass a ~:style~ option to customize the look of the HTML
+  page.
+  #+BEGIN_SRC elixir
+    use Plug.Debugger, style:
+      [primary: "#c0392b", logo: "data:image/png;base64,..."]
+  #+END_SRC
+  The following keys are available:
+    ~:primary~ - primary color
+    ~:accent~ - accent color
+    ~:logo~ - logo URI, or ~nil~ to disable. The ~:logo~ is preferred to be a base64-encoded data URI
+** Custom Banners
+- You may pass an MFA (~{module, function, args}~) to be invoked when an
+  error is rendered which provides a custom banner at the top of the
+  debugger page. The function receives the following arguments, with
+  the passed ~args~ concentated at the end:
+  #+BEGIN_SRC elixir
+  [conn, status, kind, reason, stacktrace]
+  #+END_SRC
+  For example, the following ~:banner~ option:
+  #+BEGIN_SRC elixir
+  use Plug.Debugger, banner: {MyModule, :debug_banner, []}
+  #+END_SRC
+  would invoke the function:
+  #+BEGIN_SRC elixir
+  MyModule.debug_banner(conn, status, kind, reason, stacktrace)
+  #+END_SRC
+** Links to the text editor
+- If a ~PLUG_EDITOR~ environment variable is set, ~Plug.Debugger~ will
+  use it to generate links to your text editor. The variable should be
+  set with ~__FILE__~ and ~__LINE__~ placeholders which will be correctly
+  replaced.
+
+* Plug.ErrorHandler
+- A module to be used in your existing plugs in order to provide error handling.
+- once this module is used, a callback named ~handle_errors/2~ should be
+  defined in your plug
+- ~handle_errors/2~ callback should accept a connection and a map
+  containing:
+  + the exception kind (~:throw~, ~:error~ or ~:exit~),
+  + the reason (an exception for errors or a term for others)
+  + the stacktrace
+- e.g.
+  #+BEGIN_SRC elixir
+    defmodule AppRouter do
+      use Plug.Router
+      use Plug.ErrorHandler
+
+      plug :match
+      plug :dispatch
+
+      get "/hello" do
+        send_resp(conn, 200, "world")
+      end
+
+      def handle_errors(conn, %{kind: _kind, reason: _reason, stack: _stack}) do
+        send_resp(conn, conn.status, "Something went wrong")
+      end
+    end
+  #+END_SRC
+- After the callback is invoked, the error is re-raised.
+- It is advised to do as little work as possible when handling errors
+  and avoid accessing data like parameters and session, as the parsing
+  of those is what could have led the error to trigger in the first
+  place.
+- Also notice that these pages are going to be shown in production. If
+  you are looking for error handling to help during development,
+  consider using ~Plug.Debugger~.
+- *Note*: If this module is used with ~Plug.Debugger~, it must be used
+  after ~Plug.Debugger~.
+* Plug.Exception protocol
+- A protocol that extends exceptions to be status-code aware.
+- By default, it looks for an implementation of the protocol,
+  otherwise checks if the exception has the ~:plug_status~ field or
+  simply returns 500.
+** Functions
+- ~status(exception)~
+  + Receives an exception and returns its HTTP status code.
+* Plug.HTML
+- Conveniences for generating HTML.
+** Functions
+- ~html_escape(data)~
+  + Escapes the given HTML to string
+  + e.g.
+    #+BEGIN_SRC elixir
+      iex> Plug.HTML.html_escape("foo")
+      "foo"
+
+      iex> Plug.HTML.html_escape("<foo>")
+      "&lt;foo&gt;"
+
+      iex> Plug.HTML.html_escape("quotes: \" & \'")
+      "quotes: &quot; &amp; &#39;"
+    #+END_SRC
+
+- ~html_escape_to_iodata(data)~
+  + Escapes the given HTML to iodata
+  + e.g.
+    #+BEGIN_SRC elixir
+      iex> Plug.HTML.html_escape_to_iodata("foo")
+      "foo"
+
+      iex> Plug.HTML.html_escape_to_iodata("<foo>")
+      [[[] | "&lt;"], "foo" | "&gt;"]
+
+      iex> Plug.HTML.html_escape_to_iodata("quotes: \" & \'")
+      [[[[], "quotes: " | "&quot;"], " " | "&amp;"], " " | "&#39;"]
+    #+END_SRC
+* Plug.Router
+- A DSL to define a routing algorithm that works with Plug.
+- It provides a set of macros to generate routes. For example:
+  #+BEGIN_SRC elixir
+    defmodule AppRouter do
+      use Plug.Router
+
+      plug :match
+      plug :dispatch
+
+      get "/hello" do
+        send_resp(conn, 200, "world")
+      end
+
+      match _ do
+        send_resp(conn, 404, "oops")
+      end
+    end
+  #+END_SRC
+- Each route receives a ~conn~ variable containing a ~Plug.Conn~ struct
+  and it needs to return a connection, as per the Plug spec.
+- A catch-all match is recommended to be defined, otherwise routing
+  fails with a function clause error.
+- The router is itself a plug, which means it can be invoked as:
+  #+BEGIN_SRC elixir
+  AppRouter.call(conn, AppRouter.init([]))
+  #+END_SRC
+- Each ~Plug.Router~ has a plug pipeline, defined by ~Plug.Builder~, and
+  by default it requires two plugs: ~:match~ and ~:dispatch~.
+- ~:match~ is responsible for finding a matching route which is then
+  forwarded to ~:dispatch~.
+  * This means users can easily hook into the router mechanism and add
+    behaviour before match, before dispatch, or after both.
+- All of the options given to use ~Plug.Router~ are forwarded to
+  ~Plug.Builder~.
+** Routes
+- e.g.
+   #+BEGIN_SRC elixir
+     get "/hello" do
+       send_resp(conn, 200, "world")
+     end
+   #+END_SRC
+  a request will only match if it is a ~GET~ request and the route is
+  ~/hello~. The supported HTTP methods are ~get~, ~post~, ~put~, ~patch~,
+  ~delete~ and ~options~.
+- A route can also specify parameters which will then be available in
+  the function body:
+  #+BEGIN_SRC elixir
+    get "/hello/:name" do
+      send_resp(conn, 200, "hello #{name}")
+    end
+  #+END_SRC
+  The ~:name~ parameter will also be available in the function body as
+  ~conn.params["name"]~ and ~conn.path_params["name"]~.
+- globbing
+  + a glob can’t be followed by other segments
+  + e.g.
+    #+BEGIN_SRC elixir
+      get "/hello/*_rest" do
+        send_resp(conn, 200, "matches all routes starting with /hello")
+      end
+    #+END_SRC
+    or if you want to use it
+    #+BEGIN_SRC elixir
+      get "/hello/*glob" do
+        send_resp(conn, 200, "route after /hello: #{inspect glob}")
+      end
+    #+END_SRC
+- match
+  + A ~match~ will match any route regardless of the HTTP method.
+  + e.g.
+    #+BEGIN_SRC elixir
+      match "/hello" do
+        send_resp(conn, 200, "world")
+      end
+    #+END_SRC
+** Parameter Parsing
+- Handling request data can be done through the ~Plug.Parsers~ plug.
+- It provides support for parsing
+  1. URL-encoded
+  2. form-data
+  3. JSON
+- It provides a behaviour that others parsers can adopt
+- Example of ~Plug.Parsers~ can be used in a ~Plug.Router~ router to parse
+  the JSON-encoded body of a POST reques
+  #+BEGIN_SRC elixir
+    defmodule AppRouter do
+      use Plug.Router
+
+      plug :match
+      plug Plug.Parsers, parsers: [:json],
+                         pass:  ["application/json"],
+                         json_decoder: Jason
+      plug :dispatch
+
+      post "/hello" do
+        IO.inspect conn.body_params # Prints JSON POST body
+        send_resp(conn, 200, "Success!")
+      end
+    end
+  #+END_SRC
+  + It is important that ~Plug.Parsers~ is placed before the
+    ~:dispatch~ plug in the pipeline, otherwise the matched clause
+    route will not receive the parsed body in its ~Plug.Conn~ argument
+    when dispatched.
+  + ~Plug.Parsers~ can also be plugged between ~:match~ and
+    ~:dispatch~: this means that ~Plug.Parsers~ will run only if there
+    is a matching route. This can be useful to perform actions such as
+    authentication before parsing the body, which should only be
+    parsed if a route matches afterwards.
+** Passing data between routes and plugs
+- It is also possible to assign data to the ~Plug.Conn~ that will be
+  available to any plug invoked after the ~:match~ plug. This is very
+  useful if you want a matched route to customize how later plugs will
+  behave.
+  + You can use ~:assigns~ (which contains user data) or ~:private~ (which
+    contains library/framework data) for this. For example:
+    #+BEGIN_SRC elixir
+      get "/hello", assigns: %{an_option: :a_value} do
+        send_resp(conn, 200, "world")
+      end
+    #+END_SRC
+    It basically calls ~assign(conn, :an_option, :a_value)~. so
+    ~conn.assigns[:an_option]~ will be available to all plugs invoked
+    after ~:match~. Such plugs can read from ~conn.assigns~ (or
+    ~conn.private~) to configure their behaviour based on the matched
+    route.
+
+** Routes compilation
+- All routes are compiled to a match function that receives three
+  arguments: the method, the request path split on ~/~ and the
+  connection.
+  #+BEGIN_SRC elixir
+    match "/foo/bar", via: :get do
+      send_resp(conn, 200, "hello world")
+    end
+  #+END_SRC
+  It is compiled to:
+  #+BEGIN_SRC elixir
+  defp match("GET", ["foo", "bar"], conn) do
+    send_resp(conn, 200, "hello world")
+  end
+  #+END_SRC
+  This means guards can be given to ~match~:
+  #+BEGIN_SRC elixir
+    match "/foo/bar/:baz" when byte_size(baz) <= 3, via: :get do
+      send_resp(conn, 200, "hello world")
+    end
+  #+END_SRC
+  After a match is found, the block given as ~do/end~ is stored as a
+  function in the connection. This function is then retrieved and
+  invoked in the ~dispatch~ plug.
+** Routes options
+- Sometimes you may want to customize how a route behaves during
+  dispatch. This can be done by accessing the ~opts~ variable inside
+  the route:
+  #+BEGIN_SRC elixir
+    defmodule AppRouter do
+      use Plug.Router
+
+      plug :match
+      plug :dispatch, content: "hello world"
+
+      get "/hello" do
+        send_resp(conn, 200, opts[:content])
+      end
+
+      match _ do
+        send_resp(conn, 404, "oops")
+      end
+    end
+  #+END_SRC
+  - useful when used with ~Plug.Builder.builder_opts/0~. ~builder_opts/0~
+    allows us to pass options received when initializing ~AppRouter~ to
+    a specific plug, such as dispatch itself. So if instead of:
+    #+BEGIN_SRC elixir
+    plug :dispatch, content: "hello world"
+    #+END_SRC
+    we do:
+    #+BEGIN_SRC elixir
+    plug :dispatch, builder_opts()
+    #+END_SRC
+    now the content can be given when starting the router, like this:
+    #+BEGIN_SRC elixir
+    Plug.Cowboy.http AppRouter, [content: "hello world"]
+    #+END_SRC
+    Or as part of a pipeline like this:
+    #+BEGIN_SRC elixir
+    plug AppRouter, content: "hello world"
+    #+END_SRC
+    ~builder_opts()~ allows us to pass the options given when
+    initializing the router to a dispatch.
+** Functions
+- ~delete(path, options, contents \\ [])~
+  + Dispatches to the path only if the request is a DELETE
+    request. See ~match/3~
+
+- ~forward(path, options)~
+  + Forwards requests to another Plug. The ~path_info~ of the forwarded
+    connection will exclude the portion of the path specified in the
+    call to ~forward~.
+  + If the path contains any parameters, those will be available in
+    the target Plug in ~conn.params~ and ~conn.path_params~
+  + ~options~
+    * ~:to~ - a Plug the requests will be forwarded to.
+    * ~:init_opts~ - the options for the target Plug.
+      - If ~:init_opts~ is undefined, then all remaining options are
+        passed to the target plug.
+    * ~:host~ - a string representing the host or subdomain, exactly like in ~match/3~.
+    * ~:private~ - values for conn.private, exactly like in ~match/3~.
+    * ~:assigns~ - values for conn.assigns, exactly like in ~match/3~.
+
+  + e.g.
+    #+BEGIN_SRC elixir
+    forward "/users", to: UserRouter
+    #+END_SRC
+    a request to ~/users/sign_in~ will be forwarded to the ~UserRouter~
+    plug, which will receive what it will see as a request to
+    ~/sign_in~.
+  + e.g.
+    #+BEGIN_SRC elixir
+    forward "/foo/:bar/qux", to: FooPlug
+    #+END_SRC
+    a request to ~/foo/BAZ/qux~ will be forwarded to the ~FooPlug~ plug,
+    which will receive what it will see as a request to ~/~, and
+    ~conn.params["bar"]~ will be set to ~"BAZ"~.
+  + e.g.
+    #+BEGIN_SRC elixir
+    forward "/foo/bar", to: :foo_bar_plug, host: "foobar."
+    forward "/baz", to: BazPlug, init_opts: [plug_specific_option: true]
+    #+END_SRC
+
+- ~get(path, options, contents \\ [])~
+  + Dispatches to the path only if the request is a GET request. See
+    ~match/3~
+
+- ~match(path, options, contents \\ [])~
+  + Main API to define routes
+  + It accepts an expression representing the path and many options
+    allowing the match to be configured.
+  + The route can dispatch either to a function body or a Plug module.
+  + e.g.
+    #+BEGIN_SRC elixir
+      match "/foo/bar", via: :get do
+        send_resp(conn, 200, "hello world")
+      end
+
+      match "/baz", to: MyPlug, init_opts: [an_option: :a_value]
+    #+END_SRC
+  + ~options~
+    ~match/3~ and the other route macros accept the following options:
+    * ~:host~ - the host which the route should match. Defaults to
+      ~nil~, meaning no host match, but can be a string like
+      ~"example.com"~ or a string ending with ~"."~, like ~subdomain.~ for
+      a subdomain match.
+    * ~:private~ - assigns values to ~conn.private~ for use in the match
+    * ~:via~ - matches the route against some specific HTTP method
+      (specified as an atom, like ~:get~ or ~:put~)
+    * ~:do~ - contains the implementation to be invoked in case the route matches.
+    * ~:to~ - a Plug that will be called in case the route matches.
+      - A route should specify only one of ~:do~ or ~:to~ options.
+    * ~:init_opts~ - the options for the target Plug given by ~:to~.
+
+- ~match_path(conn)~
+  + Returns the path of the route that the request was matched to
+
+- ~options(path, options, contents \\ [])~
+  + Dispatches to the path only if the request is an OPTIONS
+    request. See ~match/3~
+
+- ~patch(path, options, contents \\ [])~
+  + Dispatches to the path only if the request is a PATCH request. See
+    ~match/3~
+
+- ~post(path, options, contents \\ [])~
+  + Dispatches to the path only if the request is a POST request. See
+    ~match/3~
+
+- ~put(path, options, contents \\ [])~
+  + Dispatches to the path only if the request is a PUT request. See
+    ~match/3~
+* Plug.Test
+- Conveniences for testing plugs
+- This module can be used in your test cases, like this:
+  #+BEGIN_SRC elixir
+  use ExUnit.Case, async: true
+  use Plug.Test
+  #+END_SRC
+- Using this module will:
+  + import all the functions from this module
+  + import all the functions from the ~Plug.Conn~ module
+- By default, Plug tests checks for invalid header keys, e.g. header
+  keys which include uppercase letters, and raises a
+  ~Plug.Conn.InvalidHeaderError~ when it finds one. To disable it, set
+  ~:validate_header_keys_during_test~ to ~false~ on the app config.
+** Functions
+- ~conn(method, path, params_or_body \\ nil)~
+  + Creates a test connection
+  + The request ~method~ and ~path~ are required arguments. method may be
+    any value that implements ~to_string/1~ and it will properly
+    converted and normalized (e.g., ~:get~ or ~"post"~).
+  + The ~params_or_body~ field must be one of:
+    * ~nil~ - meaning there is no body;
+    * a binary - containing a request body. For such cases, ~:headers~
+      must be given as option with a ~content-type~;
+    * a map or list - containing the parameters which will
+      automatically set the ~content-type~ to multipart. The map or list
+      may contain other lists or maps and all entries will be
+      normalized to string keys;
+  + e.g.
+    #+BEGIN_SRC elixir
+      conn(:get, "/foo?bar=10")
+      conn(:get, "/foo", %{bar: 10})
+      conn(:post, "/")
+      conn("patch", "/", "") |> put_req_header("content-type", "application/json")
+    #+END_SRC
+
+- ~delete_req_cookie(conn, key)~
+  + Deletes a request cookie
+
+- ~init_test_session(conn, session)~
+  + Initializes the session with the given contents
+  + If the session has already been initialized, the new contents will
+    be merged with the previous ones.
+
+- ~put_http_protocol(conn, http_protocol)~
+  + Puts the http protocol
+  + This function copies the cookie information in ~old_conn~ into
+    ~new_conn~, emulating multiple requests done by clients where
+    cookies are always passed forward, and returns the new version of
+    ~new_conn~.
+
+- ~put_peer_data(conn, peer_data)~
+  + Puts the peer data
+
+- ~put_req_cookie(conn, key, value)~
+  + Puts a request cookie
+
+- ~recycle_cookies(new_conn, old_conn)~
+  + Moves cookies from a connection into a new connection for
+    subsequent requests
+
+- ~sent_informs(conn)~
+  + Return the informational requests that have been sent
+
+- ~sent_pushes(conn)~
+  + Return the assets that have been pushed
+
+- ~sent_resp(conn)~
+  + Returns the sent response
+* Plug.Upload
+- A server (a GenServer specifically) that manages uploaded files.
+- Uploaded files are stored in a temporary directory and removed from
+  that directory after the process that requested the file dies.

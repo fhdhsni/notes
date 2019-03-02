@@ -456,3 +456,9 @@ interactive (see also linux keyboard shortcuts)
 
 - To add a user to the sudo group:
   ~usermod -aG sudo username~
+* watch a file
+  #+BEGIN_SRC sh
+  # pacman -S inotify-tools
+
+  while inotifywait -e close_write myfile.py; do ./myfile.py; done
+  #+END_SRC
