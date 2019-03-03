@@ -1498,6 +1498,569 @@
 - ~sent_resp(conn)~
   + Returns the sent response
 * Plug.Upload
-- A server (a GenServer specifically) that manages uploaded files.
+- A server (a ~GenServer~ specifically) that manages uploaded files.
 - Uploaded files are stored in a temporary directory and removed from
   that directory after the process that requested the file dies.
+- During the request, files are represented with a ~Plug.Upload~ struct
+  that contains three fields:
+  + ~:path~ - the path to the uploaded file on the filesystem
+  + ~:content_type~ - the content type of the uploaded file
+  + ~:filename~ - the filename of the uploaded file given in the request
+- Note: as mentioned in the documentation for ~Plug.Parsers~, the ~:plug~
+  application has to be started in order to upload files and use the
+  ~Plug.Upload~ module.
+** Functions
+- ~child_spec(init_arg)~
+  + Returns a specification to start this module under a supervisor
+
+- ~init(atom)~
+  + Invoked when the server is started. ~start_link/3~ or ~start/3~ will
+    block until it returns
+  + ~init_arg~ is the argument term (second argument) passed to
+    ~start_link/3~.
+  + Returning ~{:ok, state}~ will cause ~start_link/3~ to return
+    ~{:ok, pid}~ and the process to enter its loop.
+  +
+
+- ~random_file!(prefix)~
+  + Requests a random file to be created in the upload directory with
+    the given prefix. Raises on failure
+
+- ~random_file(prefix)~
+  + Requests a random file to be created in the upload directory with
+    the given prefix
+
+- ~start_link()~
+  + Starts the upload handling server
+* Plugs
+** Plug.CSRFProtection
+- Plug to protect from cross-site request forgery.
+- For this plug to work, it expects a session to have been previously
+  fetched.
+- It will compare the token stored in the session with the one
+  sent by the request to determine the validity of the request. For an
+  invalid request the action taken is based on the ~:with~ option.
+- The token may be sent by the request either via the params with key
+  ~"_csrf_token"~ or a header with name ~"x-csrf-token"~.
+- GET requests are not protected, as they should not have any
+  side-effect or change your application state.
+  + JavaScript requests are an exception: by using a script tag,
+    external websites can embed server-side generated JavaScript,
+    which can leak information. For this reason, this plug also
+    forbids any GET JavaScript request that is not XHR (or AJAX).
+- Note that it is recommended to enable ~CSRFProtection~ whenever a
+  session is used, even for JSON requests.
+*** Token generation
+- This plug won’t generate tokens automatically. Instead, tokens will
+  be generated only when required by calling ~get_csrf_token/0~.
+- In case you are generating the token for certain specific URL, you
+  should use ~get_csrf_token_for/1~ as that will avoid tokens from being
+  leaked to other applications.
+- Once a token is generated, it is cached in the process
+  dictionary. The CSRF token is usually generated inside forms which
+  may be isolated from ~Plug.Conn~.
+  + Storing them in the process dictionary allows them to be generated
+    as a side-effect only when necessary,
+*** Cross-host protection
+- If you are sending data to a full URI, such as
+  ~//subdomain.host.com/path~ or ~//external.com/path~, instead of a
+  simple path such as ~/path~, you may want to consider using
+  ~get_csrf_token_for/1~, as that will encode the host in the CSRF
+  token. Once received, Plug will only consider the CSRF token to be
+  valid if the ~host~ encoded in the token is the same as the one in
+  ~conn.host~.
+  + You can pass the ~:allow_hosts~ option to control any host that you
+    may want to allow. The values in ~:allow_hosts~ may either be a full
+    host name or a host suffix. For example: ~["www.example.com", ".subdomain.example.com"]~
+    will allow the exact host of ~"www.example.com"~ and any host that ends with ~".subdomain.example.com"~.
+*** Options
+- ~:session_key~ - the name of the key in session to store the token under
+- ~:allow_hosts~ - a list with hosts to allow on cross-host tokens
+- ~:with~ - should be one of :exception or :clear_session. Defaults to ~:exception~.
+  + ~:exception~ - for invalid requests, this plug will raise
+    ~Plug.CSRFProtection.InvalidCSRFTokenError~.
+  + ~:clear_session~ - for invalid requests, this plug will set an
+    empty session for only this request. Also any changes to the
+    session during this request will be ignored.
+*** Disabling
+- You may disable this plug by doing ~Plug.Conn.put_private(conn,
+  :plug_skip_csrf_protection, true)~.
+- This was made available for disabling ~Plug.CSRFProtection~ in tests
+  and not for dynamically skipping ~Plug.CSRFProtection~ in production
+  code.
+-  If you want specific routes to skip ~Plug.CSRFProtection~, then use a
+  different stack of plugs for that route that does not include
+  ~Plug.CSRFProtection~.
+*** Examples
+    #+BEGIN_SRC elixir
+      plug Plug.Session, ...
+      plug :fetch_session
+      plug Plug.CSRFProtection
+    #+END_SRC
+*** Functions
+- ~call(conn, arg)~
+  + Callback implementation for ~Plug.call/2~
+
+- ~delete_csrf_token()~
+  + Deletes the CSRF token from the process dictionary
+  + This will force the token to be deleted once the response is sent.
+
+- ~get_csrf_token()~
+  + Gets the CSRF token
+  + Generates a token and stores it in the process dictionary if one does not exist.
+
+- ~get_csrf_token_for(url)~
+  + Gets the CSRF token for the associated URL (as a string or a URI struct)
+  + If the URL has a host, a CSRF token that is tied to that host will
+    be generated. If it is a relative path URL, a simple token emitted
+    with ~get_csrf_token/0~ will be used.
+- ~init(opts)~
+  + Callback implementation for ~Plug.init/1~
+** Plug.Head
+- A Plug to convert ~HEAD~ requests to ~GET~ requests.
+- e.g.
+  #+BEGIN_SRC elixir
+    Plug.Head.call(conn, [])
+  #+END_SRC
+** Plug.Logger
+- A plug for logging basic request information in the format:
+  #+BEGIN_SRC
+  GET /index.html
+  Sent 200 in 572ms
+  #+END_SRC
+- To use it, just plug it into the desired module.
+  #+BEGIN_SRC elixir
+  plug Plug.Logger, log: :debug
+  #+END_SRC
+- Options
+  + ~:log~ - The log level at which this plug should log its request
+    info. Default is ~:info~.
+** Plug.MethodOverride
+- This plug overrides the request’s ~POST~ method with the method
+  defined in the ~_method~ request parameter.
+- The ~POST~ method can be overridden only by these HTTP methods:
+  + ~PUT~
+  + ~PATCH~
+  + ~DELETE~
+- This plug expects the body parameters to be already parsed and
+  fetched. Those can be fetched with ~Plug.Parsers~.
+-  Examples
+  #+BEGIN_SRC elixir
+  Plug.MethodOverride.call(conn, [])
+  #+END_SRC
+** Plug.Parsers behaviour
+- A plug for parsing the request body.
+- This module also specifies a behaviour that all the parsers to be
+  used with Plug should adopt.
+- This plug also fetches query params in the connection through
+  ~Plug.Conn.fetch_query_params/2~.
+- Once a connection goes through this plug, it will have ~:body_params~
+  set to the map of params parsed by one of the parsers listed in
+  ~:parsers~ and ~:params~ set to the result of merging the ~:body_params~
+  and ~:query_params~.
+- This plug will raise ~Plug.Parsers.UnsupportedMediaTypeError~ by
+  default if the request cannot be parsed by any of the given types
+  and the MIME type has not been explicitly accepted with the ~:pass~
+  option.
+- ~Plug.Parsers.RequestTooLargeError~ will be raised if the request
+  goes over the given limit.
+- Parsers may raise a ~Plug.Parsers.ParseError~ if the request has a
+  malformed body.
+- This plug only parses the body if the request method is one of the
+  following:
+  + ~POST~
+  + ~PUT~
+  + ~PATCH~
+  + ~DELETE~
+  + For requests with a different request method, this plug will only
+    fetch the query params.
+*** Options
+- ~:parsers~ - a list of modules or atoms of built-in parsers to be
+  invoked for parsing. These modules need to implement the behaviour
+  outlined in this module.
+- ~:pass~ - an optional list of MIME type strings that are allowed to
+  pass through. Any mime not handled by a parser and not explicitly
+  listed in ~:pass~ will raise ~UnsupportedMediaTypeError~. For example:
+  ~["*/*"]~ - never raises
+  ~["text/html", "application/*"]~ - doesn’t raise for those values
+  ~[]~ - always raises (default)
+- ~:query_string_length~ - the maximum allowed size for query strings
+- ~:body_reader~ - an optional replacement (or wrapper) for
+  ~Plug.Conn.read_body/2~ to provide a function that gives access to the
+  raw body before it is parsed and discarded. It is in the standard
+  format of ~{Module, :function, [args]}~ (MFA) and defaults to
+  ~{Plug.Conn, :read_body, []}~.
+*** Examples
+#+BEGIN_SRC elixir
+plug Plug.Parsers, parsers: [:urlencoded, :multipart]
+
+plug Plug.Parsers, parsers: [:urlencoded, :json],
+                   pass: ["text/*"],
+                   json_decoder: Jason
+#+END_SRC
+- Each parser also accepts options to be given directly to it by using
+  tuples. For example, to support file uploads it is common to pass
+  the ~:length~, ~:read_length~ and ~:read_timeout~ option to the multipart
+  parser:
+  #+BEGIN_SRC elixir
+    plug Plug.Parsers,
+         parsers: [
+           :url_encoded,
+           {:multipart, length: 20_000_000} # Increase to 20MB max upload
+         ]
+  #+END_SRC
+*** Built-in parsers
+- Plug ships with the following parsers:
+  + ~Plug.Parsers.URLENCODED~ - parses
+    ~application/x-www-form-urlencoded~ requests (can be used as
+    ~:urlencoded~ as well in the ~:parsers~ option)
+
+  + ~Plug.Parsers.MULTIPART~ - parses ~multipart/form-data~ and
+    ~multipart/mixed~ requests (can be used as ~:multipart~ as well in the
+    ~:parsers~ option)
+
+  + ~Plug.Parsers.JSON~ - parses ~application/json~ requests with the
+    given ~:json_decoder~ (can be used as ~:json~ as well in the ~:parsers~
+    option)
+*** File handling
+- If a file is uploaded via any of the parsers, Plug will stream the
+  uploaded contents to a file in a temporary directory in order to
+  avoid loading the whole file into memory. For such, the ~:plug~
+  application needs to be started in order for file uploads to work.
+- Read [[https://hexdocs.pm/plug/Plug.Upload.html][Plug.Upload]]
+- When a file is uploaded, the request parameter that identifies that
+  file will be a Plug.Upload struct with information about the
+  uploaded file (e.g. filename and content type) and about where the
+  file is stored.
+- The temporary directory where files are streamed to can be
+  customized by setting the ~PLUG_TMPDIR~ environment variable on the
+  host system. If ~PLUG_TMPDIR~ isn’t set, Plug will look at some
+  environment variables which usually hold the value of the system’s
+  temporary directory (like ~TMPDIR~ or ~TMP~). If no value is found in
+  any of those variables, ~/tmp~ is used as a default.
+*** Custom body reader
+- Sometimes you may want to customize how a parser reads the body from
+  the connection. For example, you may want to cache the body to
+  perform verification later, such as HTTP Signature
+  Verification. This can be achieved with a custom body reader that
+  would read the body and store it in the connection, such as:
+  #+BEGIN_SRC elixir
+    defmodule CacheBodyReader do
+      def read_body(conn, opts) do
+        {:ok, body, conn} = Plug.Conn.read_body(conn, opts)
+        conn = update_in(conn.assigns[:raw_body], &[body | (&1 || [])])
+        {:ok, body, conn}
+      end
+    end
+  #+END_SRC
+  which could then be set as:
+  #+BEGIN_SRC elixir
+    plug Plug.Parsers,
+      parsers: [:urlencoded, :json],
+      pass: ["text/*"],
+      body_reader: {CacheBodyReader, :read_body, []},
+      json_decoder: Jason
+  #+END_SRC
+*** Callbacks
+- ~init(opts)~
+- ~parse(conn, type, subtype, params, opts)~
+  + Attempts to parse the connection’s request body given the
+    content-type type, subtype, and its parameters.
+  + The arguments are:
+    * the ~Plug.Conn~ connection
+
+    * ~type~, the content-type type (e.g., ~"x-sample"~ for the
+      ~"x-sample/json"~ content-type)
+
+    * ~subtype~, the content-type subtype (e.g., ~"json"~ for the
+      ~"x-sample/json"~ content-type)
+
+    * ~params~, the content-type parameters (e.g., ~%{"foo" => "bar"}~
+      for the ~"text/plain; foo=bar"~ content-type)
+- This function should return:
+  + ~{:ok, body_params, conn}~ if the parser is able to handle the
+    given content-type; ~body_params~ should be a map
+
+  + ~{:next, conn}~ if the next parser should be invoked
+
+  + ~{:error, :too_large, conn}~ if the request goes over the given
+    limit
+
+** Plug.RequestId
+- A plug for generating a unique request id for each request.
+- The generated request id will be in the format
+  "uq8hs30oafhj5vve8ji5pmp7mtopc08f".
+- If a request id already exists as the "x-request-id" HTTP request
+  header, then that value will be used assuming it is between 20 and
+  200 characters. If it is not, a new request id will be generated.
+- The request id is added to the Logger metadata as ~:request_id~ and
+  the response as the "x-request-id" HTTP header. To see the request
+  id in your log output, configure your logger backends to include the
+  ~:request_id~ metadata:
+  #+BEGIN_SRC elixir
+    config :logger, :console, metadata: [:request_id]
+  #+END_SRC
+- It is recommended to include this metadata configuration in your
+  production configuration file.
+- To use it
+  #+BEGIN_SRC elixir
+  plug Plug.RequestId
+  #+END_SRC
+*** Options
+- ~:http_header~ - The name of the HTTP request header to check for
+  existing request ids. This is also the HTTP response header that
+  will be set with the request id. Default value is "x-request-id"
+  #+BEGIN_SRC elixir
+  plug Plug.RequestId, http_header: "custom-request-id"
+  #+END_SRC
+** Plug.SSL
+- A plug to force SSL connections and enable HSTS.
+- If the scheme of a request is ~https~, it’ll add a
+  ~strict-transport-security~ header to enable HTTP Strict Transport
+  Security by default.
+- Otherwise, the request will be redirected to a corresponding
+  location with the ~https~ scheme by setting the ~location~ header of the
+  response. The status code will be 301 if the method of ~conn~ is ~GET~
+  or ~HEAD~, or 307 in other situations.
+*** x-forwarded-proto
+- If your Plug application is behind a proxy that handles HTTPS, you
+  will need to tell Plug to parse the proper protocol from the
+  ~x-forwarded-proto~ header. This can be done using the ~:rewrite_on~
+  option:
+  #+BEGIN_SRC elixir
+    plug Plug.SSL, rewrite_on: [:x_forwarded_proto]
+  #+END_SRC
+  The command above will effectively change the value of ~conn.scheme~
+  to the one sent in ~x-forwarded-proto~.
+- Since rewriting the scheme based on ~x-forwarded-proto~ can open up
+  security vulnerabilities, only provide the option above if:
+  + your app is behind a proxy
+  + your proxy strips ~x-forwarded-proto~ headers from all incoming requests
+  + your proxy sets the ~x-forwarded-proto~ and sends it to Plug
+*** Options
+- ~:rewrite_on~ - rewrites the scheme to https based on the given
+  headers
+
+- ~:hsts~ - a boolean on enabling HSTS or not, defaults to ~true~
+
+- ~:expires~ - seconds to expires for HSTS, defaults to ~7884000~ (three
+  months)
+
+- ~:preload~ - a boolean to request inclusion on the HSTS preload list
+  (see: [[hstspreload.org][Chromium HSTS submission site]] and [[https://blog.mozilla.org/security/2012/11/01/preloading-hsts/][Firefox]]), defaults to ~false~
+
+- ~:subdomains~ - a boolean on including subdomains or not in HSTS,
+  defaults to ~false~
+
+- ~:exclude~ - exclude the given hosts from redirecting to the ~https~
+  scheme. Defaults to ~["localhost"]~
+
+- ~:host~ - a new host to redirect to if the request’s scheme is
+  ~http~, defaults to ~conn.host~. It may be set to a binary or a
+  tuple ~{module, function, args}~ that will be invoked on demand
+
+- ~:log~ - The log level at which this plug should log its request
+  info. Default is ~:info~. Can be ~false~ to disable logging.
+***  Port
+- It is not possible to directly configure the port in ~Plug.SSL~
+  because HSTS expects the port to be 443 for SSL. If you are not
+  using HSTS and want to redirect to HTTPS on another port, you can
+  sneak it alongside the host, for example: host: ~"example.com:443"~.
+** Plug.Session
+- A plug to handle session cookies and session stores.
+- The session is accessed via functions on ~Plug.Conn~. Cookies and
+  session have to be fetched with ~Plug.Conn.fetch_session/1~ before the
+  session can be accessed.
+- Consider using ~Plug.CSRFProtection~ when using ~Plug.Session~.
+*** Session stores
+- See ~[[https://hexdocs.pm/plug/Plug.Session.Store.html][Plug.Session.Store]]~ for the specification session stores are
+  required to implement.
+- Plug ships with the following session stores:
+  + ~Plug.Session.ETS~
+  + ~Plug.Session.COOKIE~
+*** Options
+- ~:store~ - session store module (required);
+- ~:key~ - session cookie key (required);
+- ~:domain~ - see ~[[https://hexdocs.pm/plug/Plug.Conn.html#put_resp_cookie/4][Plug.Conn.put_resp_cookie/4]]~;
+- ~:max_age~ - see ~[[https://hexdocs.pm/plug/Plug.Conn.html#put_resp_cookie/4][Plug.Conn.put_resp_cookie/4]]~;
+- ~:path~ - see ~[[https://hexdocs.pm/plug/Plug.Conn.html#put_resp_cookie/4][Plug.Conn.put_resp_cookie/4]]~;
+- ~:secure~ - see ~[[https://hexdocs.pm/plug/Plug.Conn.html#put_resp_cookie/4][Plug.Conn.put_resp_cookie/4]]~;
+- ~:http_only~ - see ~[[https://hexdocs.pm/plug/Plug.Conn.html#put_resp_cookie/4][Plug.Conn.put_resp_cookie/4]]~;
+- ~:extra~ - see ~[[https://hexdocs.pm/plug/Plug.Conn.html#put_resp_cookie/4][Plug.Conn.put_resp_cookie/4]]~;
+- Additional options can be given to the session store,
+
+*** Examples
+#+BEGIN_SRC elixir
+plug Plug.Session, store: :ets, key: "_my_app_session", table: :session
+#+END_SRC
+
+*** Plug.Session.ETS
+- Stores the session in an in-memory ETS table.
+- This store does not create the ETS table; it expects that an
+  existing named table with public properties is passed as an
+  argument.
+- We don’t recommend using this store in production as every session
+  will be stored in ETS and never cleaned until you create a task
+  responsible for cleaning up old entries.
+- Also, since the store is in-memory, it means sessions are not shared
+  between servers. If you deploy to more than one machine, using this
+  store is again not recommended.
+- This store, however, can be used as an example for creating custom
+  storages, based on Redis, Memcached, or a database itself.
+**** Options
+- ~:table~ - ETS table name (required)
+**** Storage
+- The data is stored in ETS in the following format:
+  #+BEGIN_SRC elixir
+  {sid :: String.t, data :: map, timestamp :: :erlang.timestamp}
+  #+END_SRC
+  + The timestamp is updated whenever there is a read or write to the
+    table and it may be used to detect if a session is still active.
+**** Examples
+#+BEGIN_SRC elixir
+# Create an ETS table when the application starts
+:ets.new(:session, [:named_table, :public, read_concurrency: true])
+
+# Use the session plug with the table name
+plug Plug.Session, store: :ets, key: "sid", table: :session
+#+END_SRC
+
+**** Functions
+- ~delete(conn, sid, table)~
+  + Removes the session associated with given session id from the
+    store
+  + Callback implementation for ~Plug.Session.Store.delete/3~.
+
+- ~get(conn, sid, table)~
+  + Parses the given cookie
+  + Returns a session id and the session contents. The session id is
+    any value that can be used to identify the session by the store.
+  + The session id may be ~nil~ in case the cookie does not identify any
+    value in the store. The session contents must be a map.
+  + Callback implementation for ~Plug.Session.Store.get/3~.
+
+- ~init(opts)~
+  + Initializes the store
+  + The options returned from this function will be given to ~get/3~,
+    ~put/4~ and ~delete/3~.
+  + Callback implementation for ~Plug.Session.Store.init/1~.
+
+- ~put(conn, sid, data, table)~
+  + Stores the session associated with given session id
+  + If ~nil~ is given as id, a new session id should be generated and
+    returned.
+  + Callback implementation for ~Plug.Session.Store.put/4~.
+*** Plug.Session.COOKIE
+- Stores the session in a cookie.
+- This cookie store is based on ~Plug.Crypto.MessageVerifier~ and
+  ~Plug.Crypto.MessageEncryptor~ which encrypts and signs each cookie to
+  ensure they can’t be read nor tampered with.
+- Since this store uses crypto features, it requires you to set the
+  ~:secret_key_base~ field in your connection. This can be easily
+  achieved with a plug:
+  #+BEGIN_SRC elixir
+  def put_secret_key_base(conn, _) do
+    put_in conn.secret_key_base, "-- LONG STRING WITH AT LEAST 64 BYTES --"
+  end
+  #+END_SRC
+**** Options
+- ~:encryption_salt~ - a salt used with ~conn.secret_key_base~ to
+  generate a key for encrypting/decrypting a cookie, can be either a
+  binary or an MFA returning a binary;
+
+- ~:signing_salt~ - a salt used with ~conn.secret_key_base~ to generate
+  a key for signing/verifying a cookie, can be either a binary or an
+  MFA returning a binary;
+
+- ~:key_iterations~ - option passed to ~Plug.Crypto.KeyGenerator~ when
+  generating the encryption and signing keys. Defaults to 1000;
+
+- ~:key_length~ - option passed to ~Plug.Crypto.KeyGenerator~ when
+  generating the encryption and signing keys. Defaults to 32;
+
+- ~:key_digest~ - option passed to ~Plug.Crypto.KeyGenerator~ when
+  generating the encryption and signing keys. Defaults to ~:sha256~;
+
+- ~:serializer~ - cookie serializer module that defines ~encode/1~ and
+  ~decode/1~ returning an ~{:ok, value}~ tuple. Defaults to
+  ~:external_term_format~.
+
+- ~:log~ - Log level to use when the cookie cannot be
+  decoded. Defaults to ~:debug~, can be set to ~false~ to disable it.
+**** example
+#+BEGIN_SRC elixir
+  defmodule MyPlug do
+    use Plug.Router
+    use Plug.Debugger
+    use Plug.ErrorHandler
+    plug(Plug.Logger)
+
+    plug(:match)
+    plug(:put_secret_key_base)    # <---------
+
+    plug(Plug.Session,            # <---------
+      store: :cookie,
+      key: "_cookie_key_stored_in_browser",
+      encryption_salt: "cookie store encryption salt",
+      signing_salt: "cookie store signing salt",
+      key_length: 64,
+      log: :debug
+    )
+
+    plug(:dispatch)
+
+    get "/hello" do
+
+      # conn                        # <--------- put in session
+      # |> fetch_session()
+      # |> put_session("foo", "barzoo")
+      # |> send_resp(200, "hi")
+
+      value =                             # # <--------- read from session
+        conn
+        |> fetch_session()
+        |> get_session("foo")
+
+      send_resp(conn, 200, value)
+    end
+
+    match _ do
+      send_resp(conn, 404, "oops")
+    end
+
+    def put_secret_key_base(conn, _) do     # <---------
+      put_in(
+        conn.secret_key_base,
+        "e90d979e-26cc-4f38-9383-a7370bcc90b4fc1aad45-462f-4bed-806b-b608dcff302c"
+      )
+    end
+
+    defp handle_errors(conn, %{kind: _kind, reason: _reason, stack: _stack}) do
+      send_resp(conn, conn.status, "Something went wrong")
+    end
+  end
+#+END_SRC
+**** Functions
+- ~delete(conn, sid, opts)~
+  + Removes the session associated with given session id from the store.
+  + Callback implementation for ~Plug.Session.Store.delete/3~.
+
+- ~get(conn, cookie, opts)~
+  + Parses the given cookie.
+  + Returns a session id and the session contents. The session id is
+    any value that can be used to identify the session by the store.
+  + The session id may be nil in case the cookie does not identify any
+    value in the store. The session contents must be a map.
+  + Callback implementation for ~Plug.Session.Store.get/3~.
+
+- ~init(opts)~
+  + Initializes the store.
+  + The options returned from this function will be given to ~get/3~,
+    ~put/4~ and ~delete/3~.
+  + Callback implementation for ~Plug.Session.Store.init/1~.
+
+- ~put(conn, sid, term, opts)~
+  + Stores the session associated with given session id.
+  + If ~nil~ is given as id, a new session id should be generated and
+    returned.
+  + Callback implementation for ~Plug.Session.Store.put/4~.

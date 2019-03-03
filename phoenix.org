@@ -78,7 +78,7 @@
         config :my_app, MyApp.Endpoint,
           force_ssl: [rewrite_on: [:x_forwarded_proto], host: nil]
       #+END_SRC
-- [[https://hexdocs.pm/phoenix/endpoint.html#hsts][HSTS]] or “strict-transport-security” is a mechanism that allows a
+- [[https://hexdocs.pm/phoenix/endpoint.html#hsts][HSTS]] or “http strict-transport-security” is a mechanism that allows a
   website to declare itself as only accessible via a secure connection
   (HTTPS). But it does have other consequenses. RFC6797 which defines
   HSTS also specifies that the browser should keep track of the policy
