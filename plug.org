@@ -738,7 +738,7 @@
     contains control feed (~\r~) or newline (~\n~) characters.
   + e.g.
     #+BEGIN_SRC elixir
-      Plug.Conn.put_resp_header(conn, "content-type", "application/json")
+    Plug.Conn.put_resp_header(conn, "content-type", "application/json")
     #+END_SRC
 - ~put_session(conn, key, value)~
   + Puts the specified ~value~ in the session for the given ~key~

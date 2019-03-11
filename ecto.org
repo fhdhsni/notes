@@ -3836,7 +3836,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
         timestamps()
       end
     #+END_SRC
-
 - ~create_if_not_exists(index)~
   + Creates an index or a table with only ~:id~ field if one does not
     yet exist.
@@ -3846,15 +3845,12 @@ iex> Friends.Person |> Friends.Repo.get(1)
 
     create_if_not_exists table("version")
     #+END_SRC
-
 - ~create_if_not_exists(object, list)~
   + Creates a table if it does not exist.
   + Works just like ~create/2~ but does not raise an error when the
     table already exists.
-
 - ~direction()~
   + Gets the migrator direction.
-
 - ~drop(index_or_table_or_constraint)~
   + Drops one of the following:
     * an index
@@ -3866,7 +3862,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
       drop table("posts")
       drop constraint("products", "price_must_be_positive")
     #+END_SRC
-
 - ~drop_if_exists(index_or_table)~
   + Drops a table or index if it exists.
   + Does not raise an error if the specified table or index does not
@@ -3876,7 +3871,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
     drop_if_exists index("posts", [:name])
     drop_if_exists table("posts")
     #+END_SRC
-
 - ~execute(command)~
   + Executes arbitrary SQL or a keyword command.
   + Reversible commands can be defined by calling ~execute/2~.
@@ -3886,7 +3880,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
 
     execute create: "posts", capped: true, size: 1024
     #+END_SRC
-
 - ~execute(up, down)~
   + Executes reversible SQL commands.
   + This is useful for database-specific functionality that does not
@@ -3898,7 +3891,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
     #+BEGIN_SRC elixir
     execute "CREATE EXTENSION postgres_fdw", "DROP EXTENSION postgres_fdw"
     #+END_SRC
-
 - ~flush()~
   + (someone from Slack:) it explicitly flushes any pending migrations prior to your
     ~change/0~, ~up/0~, or ~down/0~ migration functions
@@ -3916,7 +3908,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
         Repo.update_all(Deployment, [set: [status: "completed"]], prefix: prefix())
       end
     #+END_SRC
-
 - ~fragment(expr)~
   + Generates a fragment to be used as a default value.
   + Examples
@@ -3925,7 +3916,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
         add :inserted_at, :naive_datetime, default: fragment("now()")
       end
     #+END_SRC
-
 - ~index(table, columns, opts \\ [])~
   + Returns an index struct that can be given to ~create/1~, ~drop/1~,
     etc.
@@ -4013,7 +4003,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
       create index("products", ["(to_tsvector('english', name))"],
                    name: :products_name_vector, using: "GIN")
     #+END_SRC
-
 - ~modify(column, type, opts \\ [])~
   + Modifies the type of a column when altering a table.
   + This command is not reversible unless the ~:from~ option is
@@ -4057,7 +4046,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
     * ~:on_update~ - What to do if the referenced entry is
       updated. May be ~:nothing~ (default), ~:update_all~, ~:nilify_all~, or
       ~:restrict~.
-
 - ~remove(column)~
   + Removes a column when altering a table.
   + This command is not reversible as Ecto does not know what type it
@@ -4069,7 +4057,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
         remove :title
       end
     #+END_SRC
-
 - ~remove(column, type, opts \\ [])~
   + Removes a column in a reversible way when altering a table.
   + ~type~ and ~opts~ are exactly the same as in ~add/3~, and they are
@@ -4082,7 +4069,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
         remove :title, :string, default: ""
       end
     #+END_SRC
-
 - ~remove_if_exists(column, type)~
   + Removes a column only if the column exists when altering the
     constraint if the reference type is passed once it only has the
@@ -4095,24 +4081,20 @@ iex> Friends.Person |> Friends.Repo.get(1)
         remove_if_exists :title, :string
       end
     #+END_SRC
-
 - ~rename(table_current, list)~
   + Renames a table.
   + Examples
     #+BEGIN_SRC elixir
     rename table("posts"), to: table("new_posts")
     #+END_SRC
-
 - ~rename(table, current_column, list)~
   + Renames a column outside of the ~alter~ statement.
   + Example
     #+BEGIN_SRC
      rename table("posts"), :title, to: :summary
     #+END_SRC
-
 - ~repo()~
   + Gets the migrator repo.
-
 - ~table(name, opts \\ [])~
   + Returns a table struct that can be given to ~create/2~, ~alter/2~,
     ~drop/1~, etc.
@@ -4139,7 +4121,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
     * :options - provide custom options that will be appended after
       the generated statement. For example, “WITH”, “INHERITS”, or “ON
       COMMIT” clauses.
-
 - ~timestamps(opts \\ [])~
   + Adds ~:inserted_at~ and ~:updated_at~ timestamp columns.
   + Those columns are of ~:naive_datetime~ type and by default cannot
@@ -4152,7 +4133,6 @@ iex> Friends.Person |> Friends.Repo.get(1)
       last-updated-at times. Setting it to ~false~ disables the column.
     * ~:type~ - the type of the ~:inserted_at~ and ~:updated_at~
       columns. Defaults to ~:naive_datetime~.
-
 - ~unique_index(table, columns, opts \\ [])~
   + Shortcut for creating a unique index.
 ** Ecto.Adapters.Postgres

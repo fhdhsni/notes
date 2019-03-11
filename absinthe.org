@@ -1,0 +1,54 @@
+- Object type: has fields and represents a complex value,
+  + Object types can have fields that point to themselves
+
+- Scalar types: they have no fields of their own (e.g. Int and String)
+
+- All queries start at a root object we have on our schema graph
+  (we’re calling it ~RootQueryType~).
+
+- Building a schema presents two major categories of work: describing
+  the types and the edges between types (both by defining them and
+  adding built-in documentation, which you’ll see later), and writing
+  the business logic that edges use to find their data.
+
+- how a GraphQL request is handled
+  #+BEGIN_SRC
+  --> client request (with a graphql document payload) -->
+                                                       --> Phoenix routing
+                                                       --> the absinthe_plug package
+                                                       --> the absinthe package
+                                                       --> Your GraphQL Schema
+                                                       --> Your business logic
+                                JSON response <-----------
+
+  #+END_SRC
+
+* Building a Schema
+** Defining an Object Type
+- sample
+  #+BEGIN_SRC elixir
+    defmodule PlateSlateWeb.Schema do
+      use Absinthe.Schema
+
+      query do
+        # ...
+      end
+
+      object :menu_item do
+        field(:id, :id)
+        field(:name, :string)
+        field(:description, :string)
+      end
+    end
+  #+END_SRC
+- built-in scalar types
+  | GraphQL | Absinthe   | Description                                                        |
+  |---------+------------+--------------------------------------------------------------------|
+  | Int     | ~:integer~ | Signed 32-bit numeric non-fractional values                        |
+  | Float   | ~:float~   | Signed double-precision fractional values as specified by IEEE 754 |
+  | String  | ~:string~  | Textual data, represented as UTF-8 character sequences             |
+  | Boolean | ~:boolean~ | true or false                                                      |
+  | Null    | ~:null~    | Null values, represented as the keyword null                       |
+  | ID      | ~:id~      | A unique identifier, often used to re-fetch an object or as        |
+
+** Making a Query

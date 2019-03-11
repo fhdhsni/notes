@@ -1,0 +1,87 @@
+* Creational
+** Factory Method
+** Abstract Factory
+** Singlton
+- Ensures that only one object of a particular class is ever created.
+* Structural
+** Decorator
+- Decorator pattern lets you dynamically change the behavior of an
+  object (~foo~) at run time by wrapping them in an object of a decorator
+  class.
+- Decorator /is-a/ and /has-a/ ~foo~ at the same time.
+  #+BEGIN_SRC text
+                                          +-------------------+
+                                          |   Component       |
+                                          |-------------------|
+                                          |-------------------|<-------------
+                                          |                   |             |
+                                          | + operation()     |             |
+                                          +-------------------+           has-a
+                                                  /|\                       |
+                                                   |                        |
+                                                   |                        |
+                         -----is-a---------------------------is-a-------|   |
+                         |                                              |   |
+                         |                                              |   |
+                         |                                              |   |
+              +----------------------+                          +------------+---------+
+              |   ConcreteComponent  |                          |   decorator          |
+              |----------------------|                          |----------------------|
+              |----------------------|                          | - compoent           |
+              |                      |                          |----------------------|
+              |                      |                          |                      |
+              | + operation()        |                          | + operation()        |
+              +----------------------+                          +----------------------+
+                                                                         /|\
+                                                                          |
+                                                                         is-a
+                                                                          |
+                                                                          |
+                                                                +----------+-----------+
+                                                                |   ConcreteComponent  |
+                                                                |----------------------|
+                                                                |----------------------|
+                                                                |                      |
+                                                                | + operation()        |
+                                                                +----------------------+
+  #+END_SRC
+** Facade
+- Facade pattern provides a simplified interface to a complex subsystem.
+
+** Adapter (Wrapper)
+- Makes interfaces compatible
+** Proxy
+- it adds additional behavior with the intent of controlling access
+- types
+  1. Remote
+     + access resources that are remote (for e.g. a different server)
+  2. Virtual
+     + controls access to a resource that is expensive to create
+  3. Protection
+     + controls access to a resource based on access rights
+** Bridge
+- the intent is to decouple an abstraction from its implementation, so
+  that the two can vary independently
+
+* Behavioral
+** Strategy
+- Strategy pattern allows you to switch the algorithm or strategy
+  based upon the situation.
+** Observer
+- Observable (aka subject) pushes to observers, that's it.
+#+BEGIN_SRC
++---------------------+                         +---------------------+
+| IObservable         |                         |IObserver            |
+|---------------------|                 0..*    |---------------------|
+| add(IObserver)      +-----------------------> |update()             |
+| remove(IObserver)   |                         |                     |
+| notify()            |                         |                     |
++---------------------+                         +---------------------+
+
+#+END_SRC
+** Command
+- Allows you to encapsulate actions in objects. The key idea behind
+  this pattern is to provide the means to decouple client from
+  receiver.
+- General treatment of Computer Systems including Compilers,
+  Interpreters and Runtimes.
