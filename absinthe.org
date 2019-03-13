@@ -52,3 +52,171 @@
   | ID      | ~:id~      | A unique identifier, often used to re-fetch an object or as        |
 
 ** Making a Query
+   #+BEGIN_SRC elixir
+     defmodule PlateSlateWeb.Schema do
+       alias PlateSlate.{Menu, Repo}
+       use Absinthe.Schema
+
+       query do
+         @desc "The list of available items on the menu"
+         field :menu_items, list_of(:menu_item) do
+           resolve(fn _, _, _ ->
+             {:ok, Repo.all(Menu.Item)}
+           end)
+         end
+       end
+
+       @desc "each fucking menu item"
+       object :menu_item do
+         @desc "this is the fucking id"
+         field(:id, :id)
+         @desc "this is the fucking name"
+         field(:name, :string)
+         field(:description, :string)
+         field(:price, :float)
+       end
+     end
+   #+END_SRC
+** Writing a test
+   #+BEGIN_SRC elixir
+     defmodule PlateSlateWeb.Schema.Query.MenuItemsTest do
+       use PlateSlateWeb.ConnCase, async: true
+
+       setup do
+         PlateSlate.Seeds.run()
+       end
+
+       @query """
+       {
+         menuItems {
+           name
+         }
+       }
+       """
+
+       test "menuItems field returns menu items" do
+         conn = build_conn()
+         conn = get(conn, "/api", query: @query)
+
+         assert json_response(conn, 200) == %{
+                  "data" => %{
+                    "menuItems" => [
+                      %{"name" => "Reuben"},
+                      %{"name" => "Croque Monsieur"},
+                      %{"name" => "Muffuletta"},
+                      # ...
+                    ]
+                  }
+                }
+       end
+     end
+   #+END_SRC
+* taking user input
+** defining field arguments
+- sample
+  #+begin_src elixir
+      query do
+        @desc "the list of available items on the menu"
+        field :menu_items, list_of(:menu_item) do
+          arg(:matching, :string)
+
+          resolve(&resolvers.menu_items/3)
+        end
+      end
+  #+end_src
+  and ~resolvers.menu_items/3~
+  #+begin_src elixir
+    defmodule plateslateweb.resolvers.menu do
+      alias plateslate.menu
+
+      def menu_items(_, args, _) do
+        {:ok, menu.list_items(args)}
+      end
+    end
+  #+end_src
+  ~menu.list_items/1~
+  #+begin_src elixir
+      def list_items(%{matching: name}) when is_binary(name) do
+        item
+        |> where([m], ilike(m.name, ^"%#{name}%"))
+        |> repo.all()
+      end
+
+      def list_items(_) do
+        list_items()
+      end
+  #+end_src
+  and to call it
+  #+begin_src elixir
+    {
+      menuitems(matching: "re") {
+        name
+        price
+        addedon
+      }
+    }
+  #+end_src
+** using variable
+- here’s our menu items query operation with a definition for a
+  variable we’ll be using, $term, and then its use for the matching
+  argument:
+  #+begin_src javascript
+    query ($term: string) {
+      menuitems(matching: $term) {
+        name
+      }
+    }
+  #+end_src
+  + variable declarations are provided directly before the curly braces
+  that start the body of an operation, and are placed inside a set of
+  parentheses. variable names start with a dollar sign (~$~), and their
+  graphql types follow after a colon (~:~) and a space character. if we
+  were declaring multiple variables, we’d list them separated by
+  commas.
+  #+begin_src javascript
+    "{
+      "query": "query foo($term: string) {\n  menuitems(matching: $term) {\n    name\n  }\n}\n",
+      "variables": {
+        "term": "re"
+      },
+      "operationname": "foo"
+    }"
+  #+end_src
+  naming is optional
+** using enumeration types
+- sample
+  #+begin_src elixir
+    enum :sort_order do
+        value(:asc)
+        value(:desc)
+      end
+  #+end_src
+  to get as an argument
+  #+begin_src elixir
+    query do
+        field :menu_items, list_of(:menu_item) do
+          arg(:order, type: :sort_order, default_value: :asc)
+
+          resolve(&resolvers.menu.menu_items/3)
+        end
+      end
+  #+end_src
+  to use it
+  #+begin_src javascript
+    {
+      menuitems(order: desc) {
+        name
+      }
+    }
+  #+end_src
+  or with variables
+  #+begin_src javascript
+    query ($order: SortOrder) {
+      menuItems(order: $order) {
+        name
+      }
+    }
+
+    // variables
+    {"order": "ASC"}
+  #+END_SRC
