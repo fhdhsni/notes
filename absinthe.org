@@ -191,7 +191,7 @@
         value(:desc)
       end
   #+end_src
-  to get as an argument
+  to make it an argument in our query
   #+begin_src elixir
     query do
         field :menu_items, list_of(:menu_item) do
@@ -220,3 +220,265 @@
     // variables
     {"order": "ASC"}
   #+END_SRC
+  sample test
+  #+BEGIN_SRC elixir
+    @query """
+    query ($order: SortOrder!) {
+      menuItems(order: $order) {
+        name
+      }
+    }
+    """
+    @variables %{"order" => "DESC"}
+    test "menuItems field returns items descending using variables" do
+      response = get(build_conn(), "/api", query: @query, variables: @variables)
+      assert %{
+        "data" => %{"menuItems" => [%{"name" => "Water"} | _]}
+      } = json_response(response, 200)
+    end
+  #+END_SRC
+  notice the ~!~, this makes the variable mandatory
+** input object types
+- We can collect multiple arguments and model them as a special object
+  type used just for argument values.
+- Here are some things to keep in mind when building input objects:
+  + Input objects can be nested. You can define an input object field
+    as having an input object type. This nesting can be arbitrarily
+    deep.
+  + Input object types, unlike normal object types, do not support
+    circular references. You can’t have two input types that refer to
+    each other, either directly or through an intermediary.
+  + Input object type fields can be of any type that a field argument
+    might use. It’s best to just think of them as structured
+    arguments.
+
+- sample
+  #+BEGIN_SRC elixir
+    @desc "Filtering options for the menu item list"
+    input_object :menu_item_filter do
+      @desc "Matching a name"
+      field :name, :string
+      @desc "Matching a category name"
+      field :category, :string
+      @desc "Matching a tag"
+      field :tag, :string
+      @desc "Priced above a value"
+      field :priced_above, :float
+      @desc "Priced below a value"
+      field :priced_below, :float
+    end
+  #+END_SRC
+  note that we’re not using ~arg~ anymore.
+  - and to use it in a query
+    #+BEGIN_SRC elixir
+      query do
+        @desc "The list of available items on the menu"
+        field :menu_items, list_of(:menu_item) do
+          arg(:filter, :menu_item_filter)
+          arg(:order, type: :sort_order, default_value: :asc)
+
+          resolve(&Resolvers.Menu.menu_items/3)
+        end
+      end
+    #+END_SRC
+    and from client it would be
+    #+BEGIN_SRC elixir
+      query {
+        menuItems(filter: {category: "Sandwiches", tag: "Vegetarian"}) {
+          name,
+          price
+        }
+      }
+    #+END_SRC
+    or with variable
+    #+BEGIN_SRC elixir
+    query ($category: String, $tag: String) {
+        menuItems(filter: {category: $category, tag: $tag}) {
+          name,
+          price
+        }
+      }
+      # variables
+      {"category": "Sandwiches", "tag": "Vegetarian"}
+    #+END_SRC
+    even better
+    #+BEGIN_SRC elixir
+      query ($filter: MenuItemFilter!) {
+        menuItems(filter: $filter) {
+          name,
+          price
+        }
+      }
+      #
+      {"filter": {"category": "Sandwiches", "tag": "Vegetarian"}}
+    #+END_SRC
+** Marking Arguments as Non-Null
+- front-end developer can use variable declarations with exclamation
+  marks to ensure variable values are provided.
+  #+BEGIN_SRC elixir
+    query ($filter: MenuItemFilter!) {
+      menuItems(filter: $filter) {
+        name
+      }
+    }
+  #+END_SRC
+- but schema designer can enforce non-null constraints on the backend
+  as well. We can do this by using the Absinthe ~non_null~ macro,
+  wrapping the argument type:
+  #+BEGIN_SRC elixir
+    field :menu_items, list_of(:menu_item) do
+      arg :filter, non_null(:menu_item_filter) # <--
+      arg :order, type: :sort_order, default_value: :asc
+      resolve &Resolvers.Menu.menu_items/3
+    end
+
+  #+END_SRC
+  Our use of ~non_null~ here ensures that the ~:filter~ argument is
+  always provided. but still we can do
+  #+BEGIN_SRC elixir
+    query {
+      menuItems(filter: {}) {
+        name
+        price
+      }
+    }
+  #+END_SRC
+  but we can go deeper can make on the ~:menu_item_filter~ input
+  object and make one of its field non-null
+  #+BEGIN_SRC elixir
+    input_object :menu_item_filter do
+      field :category, non_null(:string)
+      field :tag, :string
+      field :priced_above, :float
+      field :priced_below, :float
+    end
+  #+END_SRC
+  and to use it
+  #+BEGIN_SRC elixir
+    query {
+      menuItems(filter: {category: "Sandwiches"}) {
+        name
+        price
+      }
+    }
+  #+END_SRC
+- Non-Nullability
+  + When the field for an input object is non-nullable—just as with
+    arguments—validation will fail when a non-null value isn’t
+    provided for that field. It’s different for normal (output) object
+    fields. Declaring an output object field as non-nullable means
+    that the schema will guarantee the field resolver’s result will
+    always be non-null.
+  + Non-nullability for input object fields means the client needs to
+    provide a non-null value as part of the request. Non-nullability
+    for output object fields means the server needs to provide a non-
+    null value as part of the response.
+- Dealing with Dependent Arguments
+  + Make the field arguments more complex: try grouping arguments that
+    go together into input objects. this lets you leave the input
+    object nullable but individual input object fields as
+    non-nullable. Sometimes it’s more important to keep a field
+    cohesive.
+  + Make the field simpler: split it into multiple, simpler fields
+    that handle narrower use cases and have their own documentation
+    (via ~@desc~). Don’t be afraid to create more, case-specific fields,
+    each with a narrow focus. You can always share resolution logic
+    and output types.
+** Creating Your Own Scalar Types
+- building a ~:date~ type to be used like
+  #+BEGIN_SRC elixir
+    {
+      menuItems(addedBefore: "2017-01-31") {
+        name
+      }
+    }
+  #+END_SRC
+  or
+  #+BEGIN_SRC elixir
+    {
+      menuItem {
+        name
+        addedOn
+      }
+    }
+  #+END_SRC
+  * define
+     #+BEGIN_SRC elixir
+       scalar :date do
+         parse(fn input ->
+           with %Absinthe.Blueprint.Input.String{value: value} <- input,
+           {:ok, date} <- Date.from_iso8601(value) do
+             {:ok, date}
+           else
+             _ -> :error
+           end
+         end)
+
+         serialize(fn date ->
+           Date.to_iso8601(date)
+         end)
+       end
+     #+END_SRC
+    + ~parse~ converts a value coming from the user into an Elixir term
+      (or returns ~:error~).
+    + ~serialize~ converts an Elixir term back into a value that can be
+      returned via JSON.
+  * Whole schema using ~:date~ scalar
+    #+BEGIN_SRC elixir
+      defmodule PlateSlateWeb.Schema do
+        alias PlateSlateWeb.Resolvers
+        use Absinthe.Schema
+
+        query do
+          @desc "The list of available items on the menu"
+          field :menu_items, list_of(:menu_item) do
+            arg(:filter, non_null(:menu_item_filter))
+            arg(:order, type: :sort_order, default_value: :asc)
+
+            resolve(&Resolvers.Menu.menu_items/3)
+          end
+        end
+
+        object :menu_item do
+          field(:id, :id)
+          field(:name, :string)
+          field(:description, :string)
+          field(:price, :float)
+          field(:added_on, :date)
+        end
+
+        enum :sort_order do
+          value(:asc)
+          value(:desc)
+        end
+
+        @desc "Filtering options for the menu item list"
+        input_object :menu_item_filter do
+          field(:name, :string)
+          # field(:category, non_null(:string))
+          field(:category, :string)
+          field(:tag, :string)
+          field(:priced_above, :float)
+          field(:priced_below, :float)
+          @desc "Added to the menu before this date"
+          field(:added_before, :date) # <--------
+          @desc "Added to the menu after this date"
+          field(:added_after, :date) # <---------
+        end
+
+        scalar :date do
+          parse(fn input ->
+            with %Absinthe.Blueprint.Input.String{value: value} <- input,
+                 {:ok, date} <- Date.from_iso8601(value) do
+              {:ok, date}
+            else
+              _ -> :error
+            end
+          end)
+
+          serialize(fn date ->
+            Date.to_iso8601(date)
+          end)
+        end
+      end
+    #+END_SRC
