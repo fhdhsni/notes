@@ -1,3 +1,5 @@
+* Cheatsheet
+
 - Raw JS
   #+BEGIN_SRC reason
     let add = [%raw "a + b"];
@@ -40,4 +42,412 @@
     let result1: Js.Nullable.t(string) = Js.Nullable.return("hello");
     let result2: Js.Nullable.t(int) = Js.Nullable.fromOption(Some(10));
     let result3: option(int) = Js.Nullable.toOption(Js.Nullable.return(10));
+  #+END_SRC
+- Hash Map Mode
+  #+BEGIN_SRC reason
+  let myMap = Js.Dict.empty();
+  Js.Dict.set(myMap, "Allison", 10);
+  #+END_SRC
+- Record Mode
+  #+BEGIN_SRC reason
+    [@bs.deriving abstract]
+    type person = {
+      [@bs.optional] name: string,
+      age: int,
+      mutable job: string,
+    };
+
+    [@bs.send] external getNickname : person => string = "getNickname";
+
+    [@bs.val] external john : person = "john";
+
+    let age = john->ageGet;
+    john->jobSet("Accountant");
+    let nick = john->getNickname;
+  #+END_SRC
+- New Instance
+  #+BEGIN_SRC reason
+    type t;
+    [@bs.new] external createDate : unit => t = "Date";
+  #+END_SRC
+- Object Method & Chaining
+  #+BEGIN_SRC reason
+    [@bs.send] external map : (array('a), 'a => 'b) => array('b) = "";
+    [@bs.send] external filter : (array('a), 'a => 'b) => array('b) = "";
+
+    /* 2, 4 */
+    [|1, 2, 3|]
+    ->map(a => a + 1)
+    ->filter(a => a mod 2 == 0)
+    ->Js.log;
+  #+END_SRC
+- Variadic (was bs.splice prior to version 4.08)
+  #+BEGIN_SRC reason
+    [@bs.module "path"] [@bs.variadic]
+    external join : array(string) => string = "";
+  #+END_SRC
+
+- Polymorphic Function
+  #+BEGIN_SRC reason
+    [@bs.module "Drawing"] external drawCat: unit => unit = "draw";
+    [@bs.module "Drawin2g"] external drawDog: (~giveName: string) => unit = "draw";
+
+    drawCat();
+    drawDog(~giveName="foo");
+  #+END_SRC
+  #+BEGIN_SRC reason
+    [@bs.val]
+    external padLeft:
+      (string, [@bs.unwrap] [ | `Str(string) | `Int(int)]) => string =
+      "";
+
+    padLeft("Hello World", `Int(4));
+    padLeft("Hello World", `Str("foo"));
+
+  #+END_SRC
+- curry/uncurry
+  #+BEGIN_SRC reason
+    let add = (. x, y, z) => x + y + z;
+    let six = add(. 1, 2, 3);
+  #+END_SRC
+- Module
+  #+BEGIN_SRC reason
+    [@bs.module "path"] external dirname : string => string = "dirname";
+  #+END_SRC
+- Import Default
+  #+BEGIN_SRC reason
+  [@bs.module] external a_func: string => unit = "./foo";
+
+  a_func("jafar");
+  #+END_SRC
+  while foo.js is
+  #+BEGIN_SRC js
+    function blah(name) {
+      console.log("hello " + name);
+    }
+
+    module.exports = blah;
+  #+END_SRC
+  + Import ES6 default compiled from Babel:
+
+    foo.js
+    #+BEGIN_SRC js
+      function blah(name) {
+        console.log("hello " + name);
+      }
+
+      export default blah;
+    #+END_SRC
+
+    foo.compiled.js
+    #+BEGIN_SRC js
+      "use strict";
+
+      Object.defineProperty(exports, "__esModule", {
+        value: true
+      });
+      exports.default = void 0;
+
+      function blah(name) {
+        console.log("hello " + name);
+      }
+
+      var _default = blah;
+      exports.default = _default;
+    #+END_SRC
+
+    Play.re
+    #+BEGIN_SRC reason
+    [@bs.module "./foo.compiled"] external a_func: string => unit = "default";
+    a_func("Farhad");
+    #+END_SRC
+
+    #+BEGIN_SRC shell
+    node Play.bs.js # hello Farhad
+    #+END_SRC
+
+- Export ES6 default
+  Play.re
+  #+BEGIN_SRC reason
+  let default = "Bob";
+  #+END_SRC
+  foo.js
+  #+BEGIN_SRC js
+    import blah from "./Play.bs.js"
+
+    console.log(blah); // Bob
+  #+END_SRC
+
+* Embed Raw JavaScript
+- sample
+  #+BEGIN_SRC reason
+    let add = [%raw {|
+      function(a, b) {
+        console.log("hello from raw JavaScript!");
+        return a + b
+      }
+    |}];
+
+    Js.log(add(1, 2));
+  #+END_SRC
+
+- ~[%raw foo]~ allows you to embed an expression. For top-level
+   declarations in OCaml/Reason, use ~[%%raw foo]~ (two ~%~):
+  #+BEGIN_SRC reason
+    [%%raw "var a = 1"];
+
+    let f = [%raw "function() {return 1}"];
+  #+END_SRC
+- You can also pass a function declaration with a string body in raw:
+  #+BEGIN_SRC reason
+  let f: (int, int) => int = [%raw (a, b) => "{return a + b}"];
+  #+END_SRC
+** Debugger
+   #+BEGIN_SRC reason
+     let f = (x, y) => {
+       [%debugger];
+       x + y;
+     };
+   #+END_SRC
+** Detect Global Variables
+   #+BEGIN_SRC reason
+     switch ([%external __filename]) {
+     | Some(f) => Js.log(f)
+     | None => Js.log("non-node environment")
+     };
+   #+END_SRC
+
+   Output:
+   #+BEGIN_SRC js
+     var match = typeof (__filename) === "undefined" ? undefined : (__filename);
+
+     if (match !== undefined) {
+       console.log(match);
+     } else {
+       console.log("non-node environment");
+     }
+   #+END_SRC
+* Common Data Types
+** Shared Data Types
+- Unicode Support
+  + OCaml string is an immutable byte sequence. If the user types some unicode:
+    #+BEGIN_SRC reason
+    Js.log("你好")
+    #+END_SRC
+    It'll compile to the following JS:
+    #+BEGIN_SRC javascript
+    console.log("\xe4\xbd\xa0\xe5\xa5\xbd");
+    #+END_SRC
+    To rectify this,
+    #+BEGIN_SRC reason
+      Js.log({js|你好，
+      世界|js})
+    #+END_SRC
+    will compile to
+    #+BEGIN_SRC javascript
+    console.log("你好，\n世界");
+    #+END_SRC
+- Interpolation
+  #+BEGIN_SRC reason
+    let a = 8;
+    let b = 9;
+    let res = a + b;
+
+    Js.log({j|$a + $b is $res|j});
+  #+END_SRC
+
+- [[https://bucklescript.github.io/bucklescript/api/Js.Float.html][float]]
+- [[https://bucklescript.github.io/bucklescript/api/Js.Int.html][Int]]
+  + Ints are 32-bits! Be careful, you can potentially treat them as JS
+    numbers and vice-versa, but if the number's large, then you better
+    treat JS numbers as floats. For example, we bind to ~Js.Date~ using
+    floats.
+- Array
+  + Idiomatic OCaml arrays are supposed to be fix-sized. This
+    constraint is relaxed on the BuckleScript size. You can change its
+    length using the usual [[https://bucklescript.github.io/bucklescript/api/Js.Array.html#VALdefault][JS Array API]]. BuckleScript's own [[https://reasonml.github.io/api/Array.html][Array API]]
+    is here.
+- Tuple
+  + OCaml tuples are compiled to JS arrays. Convenient when you're
+    interop-ing with a JS array that contains heterogeneous values,
+    but happens to have a fixed length. Model it as a tuple on the BS
+    side!
+
+- Bool
+
+** Non-shared Data Types
+- Record, variant (including ~option~ and ~list~), object and others can
+  be exported as well, but you should not rely on their internal
+  representation on the JS side. Aka, don't grab a BS list and start
+  manipulating its structure on the JS side.
+- However:
+  + for record and variant, we provide [[https://bucklescript.github.io/docs/en/generate-converters-accessors][generation of converters and accessors]].
+    Once you convert e.g. a record to a JS object, you can naturally use them on the JS side.
+  + For list, use ~Array.of_list~ and ~Array.to_list~ in the Array module.
+** Cheat Sheet
+- [[https://bucklescript.github.io/docs/en/common-data-types#shared][Shared]]
+- [[https://bucklescript.github.io/docs/en/common-data-types#non-shared][Non-shared]]
+* [[https://bucklescript.github.io/bucklescript/api/Belt.html][Belt]]
+* Intro to External
+- external is a keyword for declaring a value in
+  BuckleScript/OCaml/Reason:
+  #+BEGIN_SRC reason
+  external myCFunction : int => string = "theCFunctionName";
+  #+END_SRC
+** Bind to Global Values
+- First, make sure the value you'd like to model doesn't already exist
+  in our provided API. For a quick search of values, see the [[https://bucklescript.github.io/bucklescript/api/index_values.html][index of values]].
+- Then, make sure it's not already on https://github.com/reasonml-community or NPM.
+- Now, here's how you bind to a JS value:
+  #+BEGIN_SRC reason
+    [@bs.val] external setTimeout : (unit => unit, int) => float = "setTimeout";
+    [@bs.val] external clearTimeout : float => unit = "clearTimeout";
+    /* or */
+    [@bs.val] external clearTimeout : float => unit = "";
+  #+END_SRC
+- Abstract Type
+  + The above still isn't ideal. See how ~setTimeout~ returns a ~float~
+    and ~clearTimeout~ accepts one. There's no guarantee that you're
+    passing the float created by ~setTimeout~ into ~clearTimeout~!
+  + Let's leverage a popular feature to solve this problem: abstract types.
+    #+BEGIN_SRC reason
+      type timerId;
+      [@bs.val] external setTimeout : (unit => unit, int) => timerId = "setTimeout";
+      [@bs.val] external clearTimeout : timerId => unit = "clearTimeout";
+    #+END_SRC
+** Global Modules
+- If you want to bind to a value inside a global module,
+  e.g. ~Math.random~, attach a ~bs.scope~ to your ~bs.val~ external:
+  #+BEGIN_SRC reason
+    [@bs.scope "Math"] [@bs.val] external random : unit => float = "random";
+    let someNumber = random();
+
+    [@bs.val] [@bs.scope ("window", "location", "ancestorOrigins")] external length : int = "length";
+    /* window.location.ancestorOrigins.length. */
+  #+END_SRC
+
+* Null, Undefined & Option
+  Here's its definition from the standard library:
+  #+BEGIN_SRC reason
+  type option('a) = None | Some('a)
+  #+END_SRC
+- The ~Option~ helper module is [[https://bucklescript.github.io/bucklescript/api/Belt.Option.html][here]].
+
+** Interoperate with JavaScript undefined and null
+- The option type is common enough that we special-case it when
+  compiling to JavaScript: ~Some(5)~ simply compiles down to 5, and
+  ~None~ compiles to ~undefined~! If you've got e.g. a string in
+  JavaScript that you know might be ~undefined~, type it as
+  ~option(string)~ and you're done! Likewise, you can send a ~Some(5)~ or
+  ~None~ to the JS side and expect it to be interpreted correctly.
+*** Caveat 1
+- The option-to-undefined translation isn't perfect, because on our
+  side, option values can be composed:
+  ~Some(Some(Some(5)))~ This still compiles to 5, but this gets troublesome:
+  #+BEGIN_SRC
+  Some(None)
+  #+END_SRC
+  This is compiled into the following JS:
+  #+BEGIN_SRC
+  Js_primitive.some(undefined);
+  #+END_SRC
+  What's this ~Js_primitive~ thing? Why can't this compile to ~undefined~?
+  Long story short, when dealing polymorphic ~option~ type (aka
+  ~option('a)~, for any ~'a~), many operations become tricky if we don't
+  mark the value with some special annotation. If this doesn't make
+  sense, don't worry; just remember the following rule:
+  + Never, EVER, pass a nested option value (e.g. ~Some(Some(Some(5)))~)
+    into the JS side.
+  + Never, EVER, annotate a value coming from JS as ~option('a)~. Always
+    give the concrete, non-polymorphic type.
+*** Caveat 2
+- lots of times, your JavaScript value might be both ~null~ or
+  ~undefined~. In that case, you unfortunately can't type such value as
+  e.g. ~option(int)~, since our option type only checks for ~undefined~
+  and *not null* when dealing with a ~None~.
+
+- *Solution*: More Sophisticated ~undefined~ & ~null~ Interop To solve
+  this
+  + we provide access to more elaborate ~null~ and ~undefined~ helpers
+    through the ~Js.Nullable~ module. This somewhat works like an ~option~
+    type, but is different from it.
+*** Examples
+- To create a JS ~null~, use the value ~Js.Nullable.null~.
+- To create a JS ~undefined~, use ~Js.Nullable.undefined~
+  + you can naturally use ~None~ too, but that's not the point here; the
+    ~Js.Nullable.*~ helpers wouldn't work with it.
+- If you're receiving, for example, a JS string that can be ~null~ and
+  ~undefined~, type it as:
+  #+BEGIN_SRC reason
+  [@bs.module "MyConstant"] external myId: Js.Nullable.t(string) = "myId"
+  #+END_SRC
+- To create such a nullable string from our side (presumably to pass
+  it to the JS side, for interop purpose), do:
+  #+BEGIN_SRC reason
+  [@bs.module "MyIdValidator"] external validate: Js.Nullable.t(string) => bool = "validate";
+  let personId: Js.Nullable.t(string) = Js.Nullable.return("abc123");
+
+  let result = validate(personId);
+  #+END_SRC
+  The ~return~ part "wraps" a string into a nullable string, to make the
+  type system understand and track the fact that, as you pass this
+  value around, it's not just a string, but a string that can be ~null~
+  or ~undefined~.
+- Convert to/from option
+  + ~Js.Nullable.fromOption~ converts from a option to
+    ~Js.Nullable.t~. ~Js.Nullable.to~Option does the opposite.
+* Object
+- As a hash map (or "dictionary"), where keys can be dynamically
+  added/removed and where values are of the same type.
+
+  for e.g. a a use-case would be:
+  #+BEGIN_SRC
+  {"John": 10, "Allison": 20, "Jimmy": 15}
+  #+END_SRC
+- As a record, where fields are fixed (though still maybe sometimes
+  optional) and where values can be of different types.
+
+  for e.g. a a use-case would be:
+  #+BEGIN_SRC
+  {name: "John", age: 10, job: "CEO"}
+  #+END_SRC
+** Hash Map Mode
+- when
+  + might or might not add/remove arbitrary keys (it's mutable)
+  + values might or might not be accessed using a dynamic/computed key
+  + *values are all of the same type*
+- sample
+  #+BEGIN_SRC reason
+    let myMap = Js.Dict.empty();
+    Js.Dict.set(myMap, "Allison", 25); /* mutator */
+
+    /* Js.Dict.set(myMap, "job", "Programmer");  error */
+  #+END_SRC
+- sample_2
+  #+BEGIN_SRC reason
+    %raw
+    "var student = {Joe: 25}";
+
+    /* Use an existing JS object */
+    [@bs.val] external studentAges: Js.Dict.t(int) = "student";
+    switch (Js.Dict.get(studentAges, "Joe")) {
+    | None => Js.log("Joe can't be found")
+    | Some(age) => Js.log("Joe is " ++ string_of_int(age))
+    };
+  #+END_SRC
+- ~Js.Dict.keys~, get values through ~Js.Dict.values~
+** Record Mode
+- If your JS object:
+  + has a known, fixed set of fields
+  + might or might not contain values of different types
+- in BuckleScript is modeled with the ~bs.deriving abstract~ feature:
+  #+BEGIN_SRC reason
+    [@bs.deriving abstract]
+    type person = {
+      name: string,
+      age: int,
+      job: string,
+    };
+
+    [@bs.val] external john : person = "john";
   #+END_SRC
