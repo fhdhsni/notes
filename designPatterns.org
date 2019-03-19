@@ -85,3 +85,7 @@
   receiver.
 - General treatment of Computer Systems including Compilers,
   Interpreters and Runtimes.
+** Template method
+- Template method defines the skeleton of how a certain algorithm
+  could be performed, but defers the implementation of those steps to
+  the children classes.
