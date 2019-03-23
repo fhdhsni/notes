@@ -1135,5 +1135,386 @@
   #+END_SRC
   ~on_closed~ will compile to 0, ~on_open~ to 20 and ~in_bin~ to 21.
 
-
 ** Special-case: Event Listeners
+   #+BEGIN_SRC reason
+     type readline;
+
+     [@bs.send]
+     external on: (
+         readline,
+         [@bs.string] [ | `close(unit => unit) | `line(string => unit)]
+       )
+       => readline = "on";
+
+     let register = rl =>
+       rl
+       ->on(`close(event => ()))
+       ->on(`line(line => print_endline(line)));
+   #+END_SRC
+   output:
+   #+BEGIN_SRC javascript
+     function register(rl) {
+       return rl.on("close", (function () {
+                   return /* () */0;
+                 }))
+                 .on("line", (function (line) {
+                   console.log(line);
+                   return /* () */0;
+                 }));
+     }
+   #+END_SRC
+** Fixed Arguments
+- Sometimes it's convenient to bind to a function using an ~external~,
+  while passing predetermined argument values to the JS function:
+  #+BEGIN_SRC reason
+    [@bs.val]
+    external process_on_exit: (
+      [@bs.as "exit"] _,
+      int => unit
+    ) => unit = "process.on";
+
+    let () = process_on_exit(exit_code =>
+      Js.log("error code: " ++ string_of_int(exit_code))
+    );
+  #+END_SRC
+  Output:
+  #+BEGIN_SRC javascript
+    process.on("exit", function (exit_code) {
+      console.log("error code: " + exit_code);
+      return /* () */0;
+    });
+  #+END_SRC
+  The ~[@bs.as "exit"]~ and the placeholder ~_~ argument together
+  indicates that you want the first argument to compile to the string
+  ~"exit"~. You can also use any JSON literal with bs.as: ~[@bs.as {json|true|json}]~,
+  ~[@bs.as {json|{"name": "John"}|json}]~, etc
+** Curry & Uncurry
+- sample
+  #+BEGIN_SRC reason
+    let add = (x, y, z) => x + y + z;
+    let addFive = add(5);
+    let twelve = addFive(3, 4);
+  #+END_SRC
+  Type signatures:
+  #+BEGIN_SRC reason
+    let add: (int, int, int) => int;
+    let addFive: (int, int) => int;
+    let twelve: int;
+  #+END_SRC
+*** Drawback
+1. When all the arguments of a function are supplied (aka no
+   currying), BS does its best to to compile e.g. a 3-arguments call
+   into a plain JS call with 3 arguments.
+2. If it's too hard to detect whether a function application is
+   complete*, BS will use a runtime mechanism (the ~Curry~ module) to
+   curry as many args as we can and check whether the result is fully
+   applied.
+
+3. Some JS APIs like ~throttle~, ~debounce~ and ~promise~ might mess with
+   context, aka use the function ~bind~ mechanism, carry around ~this~,
+   etc. Such implementation clashes with the previous currying logic.
+
+- BS tries to do #1 as much as it can. Even when it bails and uses
+  #2's currying mechanism, it's usually harmless.
+
+- *However*, if you encounter #3, heuristics are not good enough: you
+  need a guaranteed way of fully applying a function, without
+  intermediate currying steps. We provide such guarantee through the
+  use of the ~[@bs]~ "uncurrying" annotation on a function declaration &
+  call site.
+*** Solution: Guaranteed Uncurrying
+- If you annotate a function declaration signature on an ~external~ or
+  ~let~ with a ~[@bs]~ (or, in Reason syntax, annotate the start of the
+  parameters with a dot), you'll turn that function into an
+  similar-looking one that's guaranteed to be uncurried:
+  #+BEGIN_SRC reason
+    type timer_id;
+
+    [@bs.val]
+    external set_timeout: ((. unit) => unit, int) => timer_id = "setTimeout";
+
+    let id = set_timeout((.) => Js.log("hi"), 1000);
+  #+END_SRC
+  Note: both the declaration site and the call site need to have the
+  uncurry annotation. That's part of the guarantee/requirement.
+- When you try to curry such a function, you'll get a type error:
+  #+BEGIN_SRC reason
+  let add = (. x, y, z) => x + y + z;
+  let addFiveOops = add(5);
+  #+END_SRC
+  Error:
+  #+BEGIN_SRC
+  This is an uncurried BuckleScript function. It must be applied with a dot.
+  #+END_SRC
+**** Extra Solution
+- The above solution is safe, guaranteed, and performant, but
+  sometimes visually a little burdensome. We provide an alternative
+  solution if:
+    1. you're using ~external~
+    2. the ~external~ function takes in an argument that's another function
+    3. you want the user not to need to annotate the call sites with ~[@bs]~ or the dot in Reason
+  Then try ~[@bs.uncurry]~:
+
+  #+BEGIN_SRC reason
+    [@bs.send] external map: (array('a), [@bs.uncurry] ('a => 'b)) => array('b) = "map";
+    map([|1, 2, 3|], x => x + 1);
+  #+END_SRC
+
+***** pitfall
+ - If you try to do this:
+   #+BEGIN_SRC reason
+   let id: (. 'a) => 'a = (. v) => v;
+   #+END_SRC
+   You’ll get this cryptic error message:
+   #+BEGIN_SRC
+   Error: The type of this expression, ('_a -> '_a [@bs]),
+        contains type variables that cannot be generalized
+   #+END_SRC
+   - The issue here isn’t that the function is polymorphic. You can use
+     polymorphic uncurried functions as inline callbacks, but you can’t
+     export them (and lets are exposed by default unless you hide it
+     with an interface file).
+   - The issue here is a combination of the uncurried call,
+     polymorphism and exporting the function. It’s an unfortunate
+     limitation of how OCaml’s type system incorporates side-effects,
+     and how BS handles uncurrying.
+   - The simplest solution is in most cases to just not export it, by
+     adding an interface to the module.
+   - Alternatively, if you really need to export it, you can do so in
+     its curried form, and then wrap it in an uncurried lambda at the
+     call site. E.g.:
+     #+BEGIN_SRC reason
+     map(v => id(. v));
+     #+END_SRC
+***** Design Decisions
+- In general, ~bs.uncurry~ is recommended; the compiler will do lots
+  of optimizations to resolve the currying to uncurrying at compile
+  time. However, there are some cases the compiler can't optimize
+  it. In these cases, it will be converted to a runtime check.
+- This means ~[@bs]~ are completely static behavior (no runtime cost),
+  while ~[@bs.uncurry]~ is more convenient for end users but, in some
+  rare cases, might be slower than ~[@bs]~.
+
+** Modeling this-based Callbacks
+- Many JS libraries have callbacks which rely on ~this~ (the source),
+  for example:
+  #+BEGIN_SRC javascript
+    x.onload = function(v) {
+      console.log(this.response + v)
+    }
+  #+END_SRC
+  Here, ~this~ would point to ~x~ (actually, it depends on how onload is
+  called, but we digress). It's not correct to declare ~x.onload~ of
+  type ~unit → unit [@bs]~. Instead, we introduced a special attribute,
+  ~bs.this~, which allows us to type ~x~ as so:
+  #+BEGIN_SRC reason
+    type x;
+    [@bs.val] external x: x = "x";
+    [@bs.set] external set_onload: (x, [@bs.this] ((x, int) => unit)) => unit = "onload";
+    [@bs.get] external resp: x => int = "response";
+
+    set_onload(x, [@bs.this] ((o, v) => Js.log(resp(o) + v)));
+  #+END_SRC
+  Output:
+  #+BEGIN_SRC javascript
+    x.onload = (function (v) {
+        var o = this;
+        console.log(o.response + v | 0);
+        return /* () */0;
+      });
+  #+END_SRC
+  ~bs.this~ is the same as ~bs~, except that its first parameter is
+  reserved for ~this~ and for arity of 0, there is no need for a
+  redundant ~unit~ type.
+* Import & Export
+** Export
+- BuckleScript allows compiling to:
+  + CommonJS (~require('myFile')~)
+  + ES6 modules (~import * from 'myFile'~)
+  + AMD (~define(['myFile'], ...)~)
+
+- By default, every ~let~ binding is exported. If their values are safe
+  to use on the JS side, you can directly require the generated JS
+  file and use them.
+- To only export a few selected ~let~s, simply add an interface file
+  that hides some of the ~let~ bindings.
+** Export an ES6 default value
+- If your JS project is using ES6 modules, you're likely exporting & importing some default values:
+  #+BEGIN_SRC javascript
+    // student.js
+    export default name = "Al";
+
+    // teacher.js
+    import studentName from 'student.js';
+  #+END_SRC
+- Technically, since a BuckleScript file maps to a module, there's no
+  such thing as "default" export, only named ones. However, we've made
+  an exception to support default module when you do the following:
+  #+BEGIN_SRC reason
+  /* FavoriteStudent.re */
+  let default = "Bob"
+  #+END_SRC
+
+  You can then require the default as normal JS side:
+  #+BEGIN_SRC javascript
+  // teacher2.js
+  import studentName from 'FavoriteStudent.js';
+  #+END_SRC
+  Note: the above JS snippet only works if you're using that ES6
+  import/export syntax in JS. If you're still using require, you'd
+  need to do:
+  #+BEGIN_SRC js
+  let studentName = require('FavoriteStudent').default;
+  #+END_SRC
+
+** import
+- Use ~bs.module~. It's like a ~bs.val~ that accepts a string that's
+  the module name or path.
+  #+BEGIN_SRC reason
+  [@bs.module "path"] external dirname : string => string = "dirname";
+  let root = dirname("/User/chenglou");
+  #+END_SRC
+  Output:
+  #+BEGIN_SRC javascript
+    var Path = require("path");
+    var root = Path.dirname("/User/chenglou");
+  #+END_SRC
+  Note: the string inside bs.module can be anything: ~"./src/myJsFile"~,
+  "~@myNpmNamespace/myLib~", etc.
+
+** Import a Default Value
+- By omitting the payload to ~bs.module~, you bind to the whole JS
+  module:
+  #+BEGIN_SRC reason
+  [@bs.module] external leftPad : string => int => string = "./leftPad";
+  let paddedResult = leftPad("hi", 5);
+  #+END_SRC
+  Output:
+  #+BEGIN_SRC javascript
+    var LeftPad = require("./leftPad");
+    var paddedResult = LeftPad("hi", 5);
+  #+END_SRC
+
+*** Import an ES6 Default Value
+- If your JS project is using ES6, you're likely using Babel to
+  compile it to regular JavaScript. Babel's ES6 default export
+  actually exports the default value under the name ~default~. You'd
+  bind to it like this:
+  #+BEGIN_SRC reason
+  [@bs.module "./student"] external studentName : string = "default";
+  Js.log(studentName);
+  #+END_SRC
+  output:
+  #+BEGIN_SRC js
+  var Student = require("./student");
+
+  console.log(Student.default);
+  #+END_SRC
+
+* Regular Expression
+- Creation
+  + We have a shorthand for creating the regex:
+  #+BEGIN_SRC reason
+  let f = [%bs.re "/b/g"]
+  #+END_SRC
+
+  Output:
+  #+BEGIN_SRC javascript
+  var f = /b/g
+  #+END_SRC
+* Exceptions
+- In the JS world, exception could be any data, while an OCaml
+  exception is a structured data format and supports pattern matching.
+- Catching an OCaml exception on JS side therefore doesn't work as
+  intended.
+- JS exceptions can be raised from the BuckleScript side by using the
+  ~JS.Exn.raise*~ functions, and can be caught as a BS exception of the
+  type ~Js.Exn.Error~ with the JS exception as its payload, typed as
+  ~Js.Exn.t~.
+- The JS Exception can then either be manipulated with the accessor
+  functions in ~Js.Exn~, or casted to a more appropriate type.
+  #+BEGIN_SRC reason
+    try (
+      Js.Exn.raiseError("oops!")
+    ) {
+    | Js.Exn.Error(e) =>
+      switch (Js.Exn.message(e)) {
+      | Some(message) => Js.log({j|Error: $message|j})
+      | None => Js.log("An unknown error occurred")
+      }
+    };
+
+  #+END_SRC
+- Usage
+  + Take promise for example:
+    #+BEGIN_SRC reason
+      exception UnhandledPromise;
+
+      let handlePromiseFailure =
+        [@bs.open]
+        (
+          fun
+          | Not_found => {
+              Js.log("Not found");
+              Js.Promise.resolve()
+            }
+        );
+
+      Js.Promise.reject(Not_found)
+        |> Js.Promise.catch(
+           (error) =>
+             switch (handlePromiseFailure(error)) {
+             | Some(x) => x
+             | None => raise(UnhandledPromise)
+             }
+         );
+    #+END_SRC
+* JSON
+** Unsafe Conversion
+- This emulates JavaScript's JSON conversion.
+*** Parse
+- Simply use the (last resort) special [[https://bucklescript.github.io/docs/en/intro-to-external#special-identity-external][identity external]]:
+  #+BEGIN_SRC reason
+    [@bs.deriving abstract]
+    type data = {name: string};
+
+    [@bs.scope "JSON"] [@bs.val]
+      external parseIntoMyData : string => data = "parse";
+
+    let result = parseIntoMyData("{\"name\": \"Luke\"}");
+    let n = nameGet(result);
+  #+END_SRC
+
+  Output:
+  #+BEGIN_SRC javascript
+  var result = JSON.parse("{\"name\": \"Luke\"}");
+  var n = result.name;
+  #+END_SRC
+  Where ~data~ can be any type you assume the JSON is. As you can see,
+  this compiles to a straightforward ~JSON.parse~ call. As with regular
+  JS, this is convenient, but has no guarantee that e.g. the data is
+  correctly shaped, or even syntactically valid.
+*** Stringify
+- Since ~JSON.stringify~ is slightly safer than ~JSON.parse~, we've
+  provided it out of the box in ~Js.Json~. It compiles to
+  ~JSON.stringify~.
+  #+BEGIN_SRC reason
+    let dict = Js.Dict.empty();
+    Js.Dict.set(dict, "name", Js.Json.string("free name"));
+    Js.Dict.set(dict, "age", Js.Json.number(float_of_int(30)));
+    Js.Dict.set(
+      dict,
+      "likes",
+      Js.Json.stringArray([|"bucklescript", "ocaml", "js"|]),
+    );
+
+    Js.Json.stringify(Js.Json.object_(dict));
+  #+END_SRC
+** Properly Use ~Js.Json~
+- Technically, the correct way to handle JSON is to recursively parse
+  each field, and handle invalid data accordingly. ~Js.Json~ provides
+  such low-level building blocks. See the examples in the API docs.
+
+** Higher-level Helpers
+- pseudo-official JSON helper library called [[https://github.com/reasonml-community/bs-json][bs-json]].
+- https://github.com/state-machine-systems/JsonCodec
