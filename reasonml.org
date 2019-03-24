@@ -1,1520 +1,2020 @@
-* Cheatsheet
+* BuckleScript
+** Cheatsheet
 
-- Raw JS
-  #+BEGIN_SRC reason
-    let add = [%raw "a + b"];
-    [%%raw "var a = 1"];
-    let myFunction = [%raw (a, b) => "return a + b"];
-  #+END_SRC
-- String Unicode & Interpolation
-  #+BEGIN_SRC reason
-    Js.log({js|你好，
-    世界|js});
-
-    let world = "world";
-    let helloWorld = {j|hello, $world|j};
-  #+END_SRC
-- Global Value
-  #+BEGIN_SRC reason
-  [@bs.val] external setTimeout : (unit => unit, int) => float = "setTimeout";
-  #+END_SRC
-- Global Module
-  #+BEGIN_SRC reason
-    [@bs.val] [@bs.scope "Math"] external random : unit => float = "random";
-    let someNumber = random();
-
-    [@bs.val] [@bs.scope ("window", "location", "ancestorOrigins")] external length : int = "length";
-  #+END_SRC
-- Nullable
-  #+BEGIN_SRC reason
-    let a = Some(5); /* compiles to 5 */
-    let b = None; /* compiles to undefined */
-  #+END_SRC
-
-  Handling a value that can be ~undefined~ and ~null~, by ditching the
-  ~option~ type and using ~Js.Nullable.t~:
-  #+BEGIN_SRC reason
-    let jsNull = Js.Nullable.null;
-    let jsUndefined = Js.Nullable.undefined;
-
-    let result1: Js.Nullable.t(string) = Js.Nullable.return("hello");
-    let result2: Js.Nullable.t(int) = Js.Nullable.fromOption(Some(10));
-    let result3: option(int) = Js.Nullable.toOption(Js.Nullable.return(10));
-  #+END_SRC
-- Hash Map Mode
-  #+BEGIN_SRC reason
-  let myMap = Js.Dict.empty();
-  Js.Dict.set(myMap, "Allison", 10);
-  #+END_SRC
-- Record Mode
-  #+BEGIN_SRC reason
-    [@bs.deriving abstract]
-    type person = {
-      [@bs.optional] name: string,
-      age: int,
-      mutable job: string,
-    };
-
-    [@bs.send] external getNickname : person => string = "getNickname";
-
-    [@bs.val] external john : person = "john";
-
-    let age = john->ageGet;
-    john->jobSet("Accountant");
-    let nick = john->getNickname;
-  #+END_SRC
-- New Instance
-  #+BEGIN_SRC reason
-    type t;
-    [@bs.new] external createDate : unit => t = "Date";
-  #+END_SRC
-- Object Method & Chaining
-  #+BEGIN_SRC reason
-    [@bs.send] external map : (array('a), 'a => 'b) => array('b) = "";
-    [@bs.send] external filter : (array('a), 'a => 'b) => array('b) = "";
-
-    /* 2, 4 */
-    [|1, 2, 3|]
-    ->map(a => a + 1)
-    ->filter(a => a mod 2 == 0)
-    ->Js.log;
-  #+END_SRC
-- Variadic (was bs.splice prior to version 4.08)
-  #+BEGIN_SRC reason
-    [@bs.module "path"] [@bs.variadic]
-    external join : array(string) => string = "";
-  #+END_SRC
-  - [[*Variadic Function Arguments][read]]
-- Polymorphic Function
-  - [[*Trick 2: Polymorphic Variant + ~bs.unwrap~][read]]
-  #+BEGIN_SRC reason
-    [@bs.module "Drawing"] external drawCat: unit => unit = "draw";
-    [@bs.module "Drawin2g"] external drawDog: (~giveName: string) => unit = "draw";
-
-    drawCat();
-    drawDog(~giveName="foo");
-  #+END_SRC
-  #+BEGIN_SRC reason
-    [@bs.val]
-    external padLeft:
-      (string, [@bs.unwrap] [ | `Str(string) | `Int(int)]) => string =
-      "";
-
-    padLeft("Hello World", `Int(4));
-    padLeft("Hello World", `Str("foo"));
-
-  #+END_SRC
-- curry/uncurry
-  #+BEGIN_SRC reason
-    let add = (. x, y, z) => x + y + z;
-    let six = add(. 1, 2, 3);
-  #+END_SRC
-- Module
-  #+BEGIN_SRC reason
-  [@bs.module "path"] external dirname : string => string = "dirname";
-  #+END_SRC
-  which outputs to
-  #+BEGIN_SRC javascript
-    'use strict';
-    var Path = require("path");
-    Path.dirname("blah");
-  #+END_SRC
-- Import Default
-  #+BEGIN_SRC reason
-  [@bs.module] external a_func: string => unit = "./foo";
-
-  a_func("jafar");
-  #+END_SRC
-  while foo.js is
-  #+BEGIN_SRC js
-    function blah(name) {
-      console.log("hello " + name);
-    }
-
-    module.exports = blah;
-  #+END_SRC
-  + Import ES6 default compiled from Babel:
-
-    foo.js
-    #+BEGIN_SRC js
-      function blah(name) {
-        console.log("hello " + name);
-      }
-
-      export default blah;
-    #+END_SRC
-
-    foo.compiled.js
-    #+BEGIN_SRC js
-      "use strict";
-
-      Object.defineProperty(exports, "__esModule", {
-        value: true
-      });
-      exports.default = void 0;
-
-      function blah(name) {
-        console.log("hello " + name);
-      }
-
-      var _default = blah;
-      exports.default = _default;
-    #+END_SRC
-
-    Play.re
-    #+BEGIN_SRC reason
-    [@bs.module "./foo.compiled"] external a_func: string => unit = "default";
-    a_func("Farhad");
-    #+END_SRC
-
-    #+BEGIN_SRC shell
-    node Play.bs.js # hello Farhad
-    #+END_SRC
-- Export ES6 default
-  Play.re
-  #+BEGIN_SRC reason
-  let default = "Bob";
-  #+END_SRC
-  foo.js
-  #+BEGIN_SRC js
-    import blah from "./Play.bs.js"
-
-    console.log(blah); // Bob
-  #+END_SRC
-- named import
-  Play.re
-  #+BEGIN_SRC reason
-    [@bs.module "./foo.js"] external shout: string => unit = "func";
-
-    shout("hi");
-  #+END_SRC
-  foo.js
-  #+BEGIN_SRC reason
-    module.exports = {
-      func(str) {
-        console.log(str.toUpperCase());
-      }
-    };
-  #+END_SRC
-  output
-  #+BEGIN_SRC javascript
-    'use strict';
-    var FooJs = require("./foo.js");
-    function shout(prim) {
-      FooJs.func(prim);
-      return /* () */0;
-    }
-    FooJs.func("hi");
-    exports.shout = shout;
-  #+END_SRC
-* Embed Raw JavaScript
-- sample
-  #+BEGIN_SRC reason
-    let add = [%raw {|
-      function(a, b) {
-        console.log("hello from raw JavaScript!");
-        return a + b
-      }
-    |}];
-
-    Js.log(add(1, 2));
-  #+END_SRC
-
-- ~[%raw foo]~ allows you to embed an expression. For top-level
-   declarations in OCaml/Reason, use ~[%%raw foo]~ (two ~%~):
-  #+BEGIN_SRC reason
-    [%%raw "var a = 1"];
-
-    let f = [%raw "function() {return 1}"];
-  #+END_SRC
-- You can also pass a function declaration with a string body in raw:
-  #+BEGIN_SRC reason
-  let f: (int, int) => int = [%raw (a, b) => "{return a + b}"];
-  #+END_SRC
-** Debugger
+ - Raw JS
    #+BEGIN_SRC reason
-     let f = (x, y) => {
-       [%debugger];
-       x + y;
-     };
+     let add = [%raw "a + b"];
+     [%%raw "var a = 1"];
+     let myFunction = [%raw (a, b) => "return a + b"];
+   #+END _SRC
+ - String Unicode & Interpolation
+   #+BEGIN_SRC reason
+     Js.log({js|你好，
+     世界|js});
+
+     let world = "world";
+     let helloWorld = {j|hello, $world|j};
    #+END_SRC
-** Detect Global Variables
+ - Global Value
    #+BEGIN_SRC reason
-     switch ([%external __filename]) {
-     | Some(f) => Js.log(f)
-     | None => Js.log("non-node environment")
-     };
+   [@bs.val] external setTimeout : (unit => unit, int) => float = "setTimeout";
+   #+END_SRC
+ - Global Module
+   #+BEGIN_SRC reason
+     [@bs.val] [@bs.scope "Math"] external random : unit => float = "random";
+     let someNumber = random();
+
+     [@bs.val] [@bs.scope ("window", "location", "ancestorOrigins")] external length : int = "length";
+   #+END_SRC
+ - Nullable
+   #+BEGIN_SRC reason
+     let a = Some(5); /* compiles to 5 */
+     let b = None; /* compiles to undefined */
    #+END_SRC
 
-   Output:
+   Handling a value that can be ~undefined~ and ~null~, by ditching the
+   ~option~ type and using ~Js.Nullable.t~:
+   #+BEGIN_SRC reason
+     let jsNull = Js.Nullable.null;
+     let jsUndefined = Js.Nullable.undefined;
+
+     let result1: Js.Nullable.t(string) = Js.Nullable.return("hello");
+     let result2: Js.Nullable.t(int) = Js.Nullable.fromOption(Some(10));
+     let result3: option(int) = Js.Nullable.toOption(Js.Nullable.return(10));
+   #+END_SRC
+ - Hash Map Mode
+   #+BEGIN_SRC reason
+   let myMap = Js.Dict.empty();
+   Js.Dict.set(myMap, "Allison", 10);
+   #+END_SRC
+ - Record Mode
+   #+BEGIN_SRC reason
+     [@bs.deriving abstract]
+     type person = {
+       [@bs.optional] name: string,
+       age: int,
+       mutable job: string,
+     };
+
+     [@bs.send] external getNickname : person => string = "getNickname";
+
+     [@bs.val] external john : person = "john";
+
+     let age = john->ageGet;
+     john->jobSet("Accountant");
+     let nick = john->getNickname;
+   #+END_SRC
+ - New Instance
+   #+BEGIN_SRC reason
+     type t;
+     [@bs.new] external createDate : unit => t = "Date";
+   #+END_SRC
+ - Object Method & Chaining
+   #+BEGIN_SRC reason
+     [@bs.send] external map : (array('a), 'a => 'b) => array('b) = "";
+     [@bs.send] external filter : (array('a), 'a => 'b) => array('b) = "";
+
+     /* 2, 4 */
+     [|1, 2, 3|]
+     ->map(a => a + 1)
+     ->filter(a => a mod 2 == 0)
+     ->Js.log;
+   #+END_SRC
+ - Variadic (was bs.splice prior to version 4.08)
+   #+BEGIN_SRC reason
+     [@bs.module "path"] [@bs.variadic]
+     external join : array(string) => string = "";
+   #+END_SRC
+   - [[*Variadic Function Arguments][read]]
+ - Polymorphic Function
+   - [[*Trick 2: Polymorphic Variant + ~bs.unwrap~][read]]
+   #+BEGIN_SRC reason
+     [@bs.module "Drawing"] external drawCat: unit => unit = "draw";
+     [@bs.module "Drawin2g"] external drawDog: (~giveName: string) => unit = "draw";
+
+     drawCat();
+     drawDog(~giveName="foo");
+   #+END_SRC
+   #+BEGIN_SRC reason
+     [@bs.val]
+     external padLeft:
+       (string, [@bs.unwrap] [ | `Str(string) | `Int(int)]) => string =
+       "";
+
+     padLeft("Hello World", `Int(4));
+     padLeft("Hello World", `Str("foo"));
+
+   #+END_SRC
+ - curry/uncurry
+   #+BEGIN_SRC reason
+     let add = (. x, y, z) => x + y + z;
+     let six = add(. 1, 2, 3);
+   #+END_SRC
+ - Module
+   #+BEGIN_SRC reason
+   [@bs.module "path"] external dirname : string => string = "dirname";
+   #+END_SRC
+   which outputs to
+   #+BEGIN_SRC javascript
+     'use strict';
+     var Path = require("path");
+     Path.dirname("blah");
+   #+END_SRC
+ - Import Default
+   #+BEGIN_SRC reason
+   [@bs.module] external a_func: string => unit = "./foo";
+
+   a_func("jafar");
+   #+END_SRC
+   while foo.js is
    #+BEGIN_SRC js
-     var match = typeof (__filename) === "undefined" ? undefined : (__filename);
-
-     if (match !== undefined) {
-       console.log(match);
-     } else {
-       console.log("non-node environment");
+     function blah(name) {
+       console.log("hello " + name);
      }
+
+     module.exports = blah;
    #+END_SRC
-* Common Data Types
-** Shared Data Types
-- Unicode Support
-  + OCaml string is an immutable byte sequence. If the user types some unicode:
-    #+BEGIN_SRC reason
-    Js.log("你好")
-    #+END_SRC
-    It'll compile to the following JS:
-    #+BEGIN_SRC javascript
-    console.log("\xe4\xbd\xa0\xe5\xa5\xbd");
-    #+END_SRC
-    To rectify this,
-    #+BEGIN_SRC reason
-      Js.log({js|你好，
-      世界|js})
-    #+END_SRC
-    will compile to
-    #+BEGIN_SRC javascript
-    console.log("你好，\n世界");
-    #+END_SRC
-- Interpolation
-  #+BEGIN_SRC reason
-    let a = 8;
-    let b = 9;
-    let res = a + b;
+   + Import ES6 default compiled from Babel:
 
-    Js.log({j|$a + $b is $res|j});
-  #+END_SRC
+     foo.js
+     #+BEGIN_SRC js
+       function blah(name) {
+         console.log("hello " + name);
+       }
 
-- [[https://bucklescript.github.io/bucklescript/api/Js.Float.html][float]]
-- [[https://bucklescript.github.io/bucklescript/api/Js.Int.html][Int]]
-  + Ints are 32-bits! Be careful, you can potentially treat them as JS
-    numbers and vice-versa, but if the number's large, then you better
-    treat JS numbers as floats. For example, we bind to ~Js.Date~ using
-    floats.
-- Array
-  + Idiomatic OCaml arrays are supposed to be fix-sized. This
-    constraint is relaxed on the BuckleScript size. You can change its
-    length using the usual [[https://bucklescript.github.io/bucklescript/api/Js.Array.html#VALdefault][JS Array API]]. BuckleScript's own [[https://reasonml.github.io/api/Array.html][Array API]]
-    is here.
-- Tuple
-  + OCaml tuples are compiled to JS arrays. Convenient when you're
-    interop-ing with a JS array that contains heterogeneous values,
-    but happens to have a fixed length. Model it as a tuple on the BS
-    side!
-
-- Bool
-
-** Non-shared Data Types
-- Record, variant (including ~option~ and ~list~), object and others can
-  be exported as well, but you should not rely on their internal
-  representation on the JS side. Aka, don't grab a BS list and start
-  manipulating its structure on the JS side.
-- However:
-  + for record and variant, we provide [[https://bucklescript.github.io/docs/en/generate-converters-accessors][generation of converters and accessors]].
-    Once you convert e.g. a record to a JS object, you can naturally use them on the JS side.
-  + For list, use ~Array.of_list~ and ~Array.to_list~ in the Array module.
-** Cheat Sheet
-- [[https://bucklescript.github.io/docs/en/common-data-types#shared][Shared]]
-- [[https://bucklescript.github.io/docs/en/common-data-types#non-shared][Non-shared]]
-* [[https://bucklescript.github.io/bucklescript/api/Belt.html][Belt]]
-* Intro to External
-- external is a keyword for declaring a value in
-  BuckleScript/OCaml/Reason:
-  #+BEGIN_SRC reason
-  external myCFunction : int => string = "theCFunctionName";
-  #+END_SRC
-** Bind to Global Values
-- First, make sure the value you'd like to model doesn't already exist
-  in our provided API. For a quick search of values, see the [[https://bucklescript.github.io/bucklescript/api/index_values.html][index of values]].
-- Then, make sure it's not already on https://github.com/reasonml-community or NPM.
-- Now, here's how you bind to a JS value:
-  #+BEGIN_SRC reason
-    [@bs.val] external setTimeout : (unit => unit, int) => float = "setTimeout";
-    [@bs.val] external clearTimeout : float => unit = "clearTimeout";
-    /* or */
-    [@bs.val] external clearTimeout : float => unit = "";
-  #+END_SRC
-- Abstract Type
-  + The above still isn't ideal. See how ~setTimeout~ returns a ~float~
-    and ~clearTimeout~ accepts one. There's no guarantee that you're
-    passing the float created by ~setTimeout~ into ~clearTimeout~!
-  + Let's leverage a popular feature to solve this problem: abstract types.
-    #+BEGIN_SRC reason
-      type timerId;
-      [@bs.val] external setTimeout : (unit => unit, int) => timerId = "setTimeout";
-      [@bs.val] external clearTimeout : timerId => unit = "clearTimeout";
-    #+END_SRC
-** Global Modules
-- If you want to bind to a value inside a global module,
-  e.g. ~Math.random~, attach a ~bs.scope~ to your ~bs.val~ external:
-  #+BEGIN_SRC reason
-    [@bs.scope "Math"] [@bs.val] external random : unit => float = "random";
-    let someNumber = random();
-
-    [@bs.val] [@bs.scope ("window", "location", "ancestorOrigins")] external length : int = "length";
-    /* window.location.ancestorOrigins.length. */
-  #+END_SRC
-
-* Null, Undefined & Option
-  Here's its definition from the standard library:
-  #+BEGIN_SRC reason
-  type option('a) = None | Some('a)
-  #+END_SRC
-- The ~Option~ helper module is [[https://bucklescript.github.io/bucklescript/api/Belt.Option.html][here]].
-
-** Interoperate with JavaScript undefined and null
-- The option type is common enough that we special-case it when
-  compiling to JavaScript: ~Some(5)~ simply compiles down to 5, and
-  ~None~ compiles to ~undefined~! If you've got e.g. a string in
-  JavaScript that you know might be ~undefined~, type it as
-  ~option(string)~ and you're done! Likewise, you can send a ~Some(5)~ or
-  ~None~ to the JS side and expect it to be interpreted correctly.
-*** Caveat 1
-- The option-to-undefined translation isn't perfect, because on our
-  side, option values can be composed:
-  ~Some(Some(Some(5)))~ This still compiles to 5, but this gets troublesome:
-  #+BEGIN_SRC
-  Some(None)
-  #+END_SRC
-  This is compiled into the following JS:
-  #+BEGIN_SRC
-  Js_primitive.some(undefined);
-  #+END_SRC
-  What's this ~Js_primitive~ thing? Why can't this compile to ~undefined~?
-  Long story short, when dealing polymorphic ~option~ type (aka
-  ~option('a)~, for any ~'a~), many operations become tricky if we don't
-  mark the value with some special annotation. If this doesn't make
-  sense, don't worry; just remember the following rule:
-  + Never, EVER, pass a nested option value (e.g. ~Some(Some(Some(5)))~)
-    into the JS side.
-  + Never, EVER, annotate a value coming from JS as ~option('a)~. Always
-    give the concrete, non-polymorphic type.
-*** Caveat 2
-- lots of times, your JavaScript value might be both ~null~ or
-  ~undefined~. In that case, you unfortunately can't type such value as
-  e.g. ~option(int)~, since our option type only checks for ~undefined~
-  and *not null* when dealing with a ~None~.
-
-- *Solution*: More Sophisticated ~undefined~ & ~null~ Interop To solve
-  this
-  + we provide access to more elaborate ~null~ and ~undefined~ helpers
-    through the ~Js.Nullable~ module. This somewhat works like an ~option~
-    type, but is different from it.
-*** Examples
-- To create a JS ~null~, use the value ~Js.Nullable.null~.
-- To create a JS ~undefined~, use ~Js.Nullable.undefined~
-  + you can naturally use ~None~ too, but that's not the point here; the
-    ~Js.Nullable.*~ helpers wouldn't work with it.
-- If you're receiving, for example, a JS string that can be ~null~ and
-  ~undefined~, type it as:
-  #+BEGIN_SRC reason
-  [@bs.module "MyConstant"] external myId: Js.Nullable.t(string) = "myId"
-  #+END_SRC
-- To create such a nullable string from our side (presumably to pass
-  it to the JS side, for interop purpose), do:
-  #+BEGIN_SRC reason
-  [@bs.module "MyIdValidator"] external validate: Js.Nullable.t(string) => bool = "validate";
-  let personId: Js.Nullable.t(string) = Js.Nullable.return("abc123");
-
-  let result = validate(personId);
-  #+END_SRC
-  The ~return~ part "wraps" a string into a nullable string, to make the
-  type system understand and track the fact that, as you pass this
-  value around, it's not just a string, but a string that can be ~null~
-  or ~undefined~.
-- Convert to/from option
-  + ~Js.Nullable.fromOption~ converts from a option to
-    ~Js.Nullable.t~. ~Js.Nullable.to~Option does the opposite.
-* Object
-- As a hash map (or "dictionary"), where keys can be dynamically
-  added/removed and where values are of the same type.
-
-  for e.g. a use-case would be:
-  #+BEGIN_SRC
-  {"John": 10, "Allison": 20, "Jimmy": 15}
-  #+END_SRC
-- As a record, where fields are fixed (though still maybe sometimes
-  optional) and where values can be of different types.
-
-  for e.g. a a use-case would be:
-  #+BEGIN_SRC
-  {name: "John", age: 10, job: "CEO"}
-  #+END_SRC
-** Hash Map Mode
-- when
-  + might or might not add/remove arbitrary keys (it's mutable)
-  + values might or might not be accessed using a dynamic/computed key
-  + *values are all of the same type*
-- sample
-  #+BEGIN_SRC reason
-    let myMap = Js.Dict.empty();
-    Js.Dict.set(myMap, "Allison", 25); /* did mutate myMap */
-
-    /* Js.Dict.set(myMap, "job", "Programmer");  error, because value is a string  */
-  #+END_SRC
-- sample_2
-  #+BEGIN_SRC reason
-    %raw
-    "var student = {Joe: 25}";
-
-    /* Use an existing JS object */
-    [@bs.val] external studentAges: Js.Dict.t(int) = "student"; /* to values are all int */
-    switch (Js.Dict.get(studentAges, "Joe")) {
-    | None => Js.log("Joe can't be found")
-    | Some(age) => Js.log("Joe is " ++ string_of_int(age))
-    };
-  #+END_SRC
-
-** Record Mode
-- If your JS object:
-  + has a known, fixed set of fields
-  + might or might not contain values of different types
-- in BuckleScript is modeled with the ~bs.deriving abstract~ feature:
-  #+BEGIN_SRC reason
-    [@bs.deriving abstract]
-    type person = {
-      name: string,
-      age: int,
-      job: string,
-    };
-
-    [@bs.val] external john : person = "john";
-  #+END_SRC
-
-*** creation
-- use the creation function of the same name as the record type,
-  implicitly generated by the ~bs.deriving abstract~ annotation:
-  #+BEGIN_SRC reason
-    [@bs.deriving abstract]
-    type person = {
-      name: string,
-      age: int,
-      job: string,
-    };
-
-    let joe = person(~name="Joe", ~age=20, ~job="teacher")
-  #+END_SRC
-
-- Rename Fields
-  + Sometimes you might be binding to a JS object with field names
-    that are invalid in BuckleScript/Reason. Two examples would be
-    ~{type: "foo"}~ (reserved keyword in BS/Reason) and ~{"aria-checked": true}~.
-    Choose a valid field name then use ~[@bs.as]~ to circumvent this:
-    #+BEGIN_SRC reason
-      [@bs.deriving abstract]
-      type data = {
-        [@bs.as "type"]
-        type_: string,
-        [@bs.as "aria-label"]
-        aria_label: string,
-      };
-
-      let d = data(~type_="htmlElement", ~aria_label="awesome");
-    #+END_SRC
-
-- Optional Labels
-  #+BEGIN_SRC reason
-    [@bs.deriving abstract]
-    type person = {
-      [@bs.optional] name: string,
-      age: int,
-      job: string,
-    };
-
-    let joe = person(~age=20, ~job="teacher", ());
-  #+END_SRC
-  + Note: now that your creation function contains optional fields, we
-    mandate an unlabeled ~()~ at the end to indicate that you've
-    finished applying the function.
-*** Accessors
-- Again, since ~bs.deriving abstract~ hides the actual record shape, you
-  can't access a field using e.g. joe.age. We remediate this by
-  generating getter and setters.
-- read
-  + One getter function is generated per ~bs.deriving abstract~ record
-    type field. In the above example, you'd get 3 functions: ~nameGet~,
-    ~ageGet~, ~jobGet~. They take in a ~person~ value and return ~string~,
-    ~int~, ~string~ respectively:
-    #+BEGIN_SRC reason
-      [@bs.deriving abstract]
-      type person = {
-        name: string,
-        age: int,
-        job: string,
-      };
-
-      let joe = person(~age=28, ~job="no job", ~name="Joe");
-
-      let age = joe->ageGet; // or ageGet(joe)
-    #+END_SRC
-- write
-  + A ~bs.deriving abstract~ value is immutable by default. To mutate
-    such value, you need to first mark one of the abstract record
-    field as ~mutable~, the same way you'd mark a normal record as
-    mutable:
-    #+BEGIN_SRC reason
-      [@bs.deriving abstract]
-      type person = {
-        name: string,
-        mutable age: int,
-        job: string,
-      };
-
-      let joe = person(~age=28, ~job="no job", ~name="Joe");
-
-      ageSet(joe, 29);                /* or joe->ageSet(29) */
-    #+END_SRC
-- Mutability
-  + You can mark a field as mutable in the implementation (~ml~ / ~re~)
-    file, while hiding such mutability in the interface file:
-    #+BEGIN_SRC reason
-      /* test.re */
-      [@bs.deriving abstract]
-      type cord = {
-        [@bs.optional] mutable x: int,
-        y: int,
-      };
-    #+END_SRC
-    #+BEGIN_SRC reason
-      /* test.rei */
-      [@bs.deriving abstract]
-      type cord = {
-        [@bs.optional] x: int,
-        y: int,
-      };
-    #+END_SRC
-- Hide the Creation Function
-  + Mark the record as private to disable the creation function:
-    #+BEGIN_SRC reason
-      [@bs.deriving abstract]
-      type cord = pri {
-        [@bs.optional] x: int,
-        y: int,
-      };
-    #+END_SRC
-    * The accessors are still there, but you can no longer create such
-      data structure. Great for binding to a JS object while
-      preventing others from creating more such object!
-
-* Object 2 (Js.t)
-- When:
-  + You don't want to declare a type beforehand
-  + You want your object to be "structural", e.g. your function wants
-    to accept "any object with the field ~age~, not just a particular
-    object whose type definition is declared above".
-
-- read [[https://reasonml.github.io/docs/en/object][here]] and [[https://bucklescript.github.io/docs/en/object-2][here]]
-
-** ReasonML
-*** Type Declaration
-   + one dot
-     #+BEGIN_SRC reason
-       type tesla = {
-         .
-         color: string
-       };
+       export default blah;
      #+END_SRC
-     * The dot at the beginning indicates that this is a "closed"
-       object type, which means that an object based on this type must
-       have exactly this shape.
 
-   + two dot
-     #+BEGIN_SRC reason
-       type car('a) = {
-         ..
-         color: string
-       } as 'a;
+     foo.compiled.js
+     #+BEGIN_SRC js
+       "use strict";
+
+       Object.defineProperty(exports, "__esModule", {
+         value: true
+       });
+       exports.default = void 0;
+
+       function blah(name) {
+         console.log("hello " + name);
+       }
+
+       var _default = blah;
+       exports.default = _default;
      #+END_SRC
-     * Two dots, also called an elision, indicate that this is an
-       "open" object type, and therefore can also contain other values
-       and methods. An open object is also polymorphic and therefore
-       requires a parameter.
-*** creation
- - sample 1
-    #+BEGIN_SRC reason
-      type tesla = {
-        .
-        color: string,
-      };
 
-      let obj: tesla = {
-        val red = "Red";
-        pub color = red;
-      };
+     Play.re
+     #+BEGIN_SRC reason
+     [@bs.module "./foo.compiled"] external a_func: string => unit = "default";
+     a_func("Farhad");
+     #+END_SRC
 
-      Js.log(obj#color) /* "Red" */
-    #+END_SRC
-   + Here we have a simple object with the method color and the
-     property red. This method takes no arguments and returns the
-     private property red. Because the method color is a public method
-     we can access it using object notation. Remember, objects only
-     export methods and all properties are private.
- - sample 2
+     #+BEGIN_SRC shell
+     node Play.bs.js # hello Farhad
+     #+END_SRC
+ - Export ES6 default
+   Play.re
    #+BEGIN_SRC reason
-     type tesla = {.
-       drive: int => int
-     };
+   let default = "Bob";
+   #+END_SRC
+   foo.js
+   #+BEGIN_SRC js
+     import blah from "./Play.bs.js"
 
-     let obj: tesla = {
-       val hasEnvy = ref(false);
-       pub drive = (speed) => {
-         this#enableEnvy(true);
-         speed
-       };
-       pri enableEnvy = (envy) => hasEnvy := envy
+     console.log(blah); // Bob
+   #+END_SRC
+ - named import
+   Play.re
+   #+BEGIN_SRC reason
+     [@bs.module "./foo.js"] external shout: string => unit = "func";
+
+     shout("hi");
+   #+END_SRC
+   foo.js
+   #+BEGIN_SRC reason
+     module.exports = {
+       func(str) {
+         console.log(str.toUpperCase());
+       }
      };
    #+END_SRC
-   + This object is of object type ~tesla~ and has a public method
-     ~drive~. It also contains a private method ~enableEnvy~ that is only
-     accessible from within the object.
-
-   + A Reason object can also access ~this~. JavaScript object's this
-     behavior can be quirky; Reason this always points to the object
-     itself correctly.
- - sample 3
+   output
+   #+BEGIN_SRC javascript
+     'use strict';
+     var FooJs = require("./foo.js");
+     function shout(prim) {
+       FooJs.func(prim);
+       return /* () */0;
+     }
+     FooJs.func("hi");
+     exports.shout = shout;
+   #+END_SRC
+** Embed Raw JavaScript
+ - sample
    #+BEGIN_SRC reason
-     type tesla('a) = {
-       ..
-       drive: int => int
-     } as 'a;
+     let add = [%raw {|
+       function(a, b) {
+         console.log("hello from raw JavaScript!");
+         return a + b
+       }
+     |}];
 
-     let obj: tesla({. drive: int => int, doYouWant: unit => bool}) = {
-       val hasEnvy = ref(false);
-       pub drive = (speed) => {
-         this#enableEnvy(true);
-         speed
-       };
-       pub doYouWant = () => hasEnvy^;
-       pri enableEnvy = (envy) => hasEnvy := envy
-     };
+     Js.log(add(1, 2));
    #+END_SRC
 
-** BuckleScript
-*** Pitfall
-  + First, note that we cannot use the ordinary OCaml/Reason object
-    type, like this:
+ - ~[%raw foo]~ allows you to embed an expression. For top-level
+    declarations in OCaml/Reason, use ~[%%raw foo]~ (two ~%~):
+   #+BEGIN_SRC reason
+     [%%raw "var a = 1"];
+
+     let f = [%raw "function() {return 1}"];
+   #+END_SRC
+ - You can also pass a function declaration with a string body in raw:
+   #+BEGIN_SRC reason
+   let f: (int, int) => int = [%raw (a, b) => "{return a + b}"];
+   #+END_SRC
+*** Debugger
     #+BEGIN_SRC reason
-      type person = {
-        .
-        name: string,
-        age: int,
-        job: string
+      let f = (x, y) => {
+        [%debugger];
+        x + y;
       };
     #+END_SRC
-
-    You can still use this feature, but this OCaml/Reason object type
-    does not compile to a clean JavaScript object! Unfortunately, this
-    is because OCaml/Reason objects work a bit too differently from JS
-    objects.
-
-    for e.g.
+*** Detect Global Variables
     #+BEGIN_SRC reason
-      type tesla = {
-        .
-        color: string,
+      switch ([%external __filename]) {
+      | Some(f) => Js.log(f)
+      | None => Js.log("non-node environment")
       };
-
-      let obj: tesla = {
-        val red = "Red";
-        pub color = red;
-      };
-
-      Js.log(obj#color) /* "Red" */
-    #+END_SRC
-    which compiles to
-    #+BEGIN_SRC javascript
-      // Generated by BUCKLESCRIPT VERSION 4.0.6, PLEASE EDIT WITH CARE
-      'use strict';
-      var Caml_oo_curry = require("./stdlib/caml_oo_curry.js");
-      var CamlinternalOO = require("./stdlib/camlinternalOO.js");
-      var shared = ["color"];
-      var $$class = CamlinternalOO.create_table(shared);
-      var ids = CamlinternalOO.new_methods_variables($$class, shared, ["red"]);
-      var color = ids[0];
-      var red = ids[1];
-      CamlinternalOO.set_methods($$class, /* array */[
-            color,
-            1,
-            red
-          ]);
-      function obj_init() {
-        var self = CamlinternalOO.create_object_opt(0, $$class);
-        self[red] = "Red";
-        return self;
-      }
-      CamlinternalOO.init_class($$class);
-      var obj = obj_init(0);
-      console.log(Caml_oo_curry.js1(-899911325, 4, obj));
-      exports.obj = obj;
-      /* class Not a pure module */
-    #+END_SRC
-*** Actual Solution
-  + BuckleScript wraps the regular OCaml/Reason object type with Js.t,
-    in order to control and track a subset of operations and types
-    that we know would compile cleanly to JavaScript. This is how it
-    looks like:
-    #+BEGIN_SRC reason
-      [%%raw "var farhad = {name: 'farhad', age: 27, job: 'web_dev'}"];
-
-      type person = Js.t({
-        .
-        name: string,
-        age: int,
-        job: string
-      });
-
-      [@bs.val] external farhad : person = "farhad";
-
-
-      Js.log(farhad##job);
-    #+END_SRC
-    which compiles to clean js:
-    #+BEGIN_SRC javascript
-      // Generated by BUCKLESCRIPT VERSION 5.0.0, PLEASE EDIT WITH CARE
-      'use strict';
-      var farhad = {name: 'farhad', age: 27, job: 'web_dev'} ;
-
-      console.log(farhad.job);
-      /*  Not a pure module */
-    #+END_SRC
-  + Because object types are used often, Reason gives it a nicer
-    sugar. ~Js.t({. name: string})~ will format to ~{. "name": string}~.
-*** Accessors
-- Read
-  + To access a field, use ~##~:
-  #+BEGIN_SRC reason
-  let farhad_name = farhad##name.
-  #+END_SRC
-- write
-  + To modify a field, you need to first mark a field as ~mutable~. By
-    default, the ~Js.t~ object type is immutable.
-    #+BEGIN_SRC reason
-      %raw
-      "var farhad = {name: 'farhad', age: 27, job: 'web_dev'}";
-
-      type person = {
-        .
-        "name": string,
-        [@bs.set] "age": int,
-        "job": string,
-      };
-
-      [@bs.val] external farhad: person = "farhad";
-
-      Js.log(farhad##age); /* 27 */
-
-      farhad##age #= 28;
-
-      Js.log(farhad##age); /* 28 */
-
-    #+END_SRC
-    Note: you can't use dynamic/computed keys in this paradigm.
-*** Call
-  + To call a method of a field, mark the function signature as
-    ~[@bs.meth]~:
-    #+BEGIN_SRC reason
-      %raw
-      {|
-         var farhad = {
-              name: 'farhad',
-              age: 27,
-              job: 'web_dev',
-              upit: name => name.toUpperCase()
-         };
-      |};
-
-      type person = {. [@bs.meth] "upit": string => string};
-
-      [@bs.val] external farhad: person = "farhad";
-
-      Js.log(farhad##upit("foo")); // FOO
-    #+END_SRC
-*** Creation
-- Literal
-  + You can use ~[%bs.obj putAnOCamlRecordHere]~ DSL to create a ~Js.t~
-    object:
-    #+BEGIN_SRC reason
-      let bucklescript = [%bs.obj {
-        info: {author: "Bob"}
-      }];
-
-      let name = bucklescript##info##author;
-    #+END_SRC
-    which refmt formats to
-    #+BEGIN_SRC reason
-      let bucklescript = {
-        "info": {
-          author: "Bob",
-        },
-      };
-
-      let name = bucklescript##info##author;
-    #+END_SRC
-  + Note: there's no syntax sugar for creating an empty object in
-    OCaml nor Reason (aka this doesn't work: ~[%bs.obj {}]~. use
-    ~Js.Obj.empty()~ for that purpose
-  + The created object will have an inferred type, no type declaration
-    needed! The above example will infer as:
-    #+BEGIN_SRC reason
-      {. "info": {. "author": string}} /* not the quotes */
-    #+END_SRC
-  + Note: since the value has its type inferred, don't accidentally do
-    this:
-    #+BEGIN_SRC reason
-      type person = {. "age": int};
-      let jane = {"age": "hi"};
-    #+END_SRC
-    * We've declared a ~person~ type, but ~jane~ is inferred as its own
-      type, so person is ignored and no error happens! To give ~jane~ an
-      explicit type, simply annotate it: ~let jane: person = ....~ This
-      will then error correctly.
-*** Function
-- You can declare an external function that, when called, will
-  evaluate to a ~Js.t~ object with fields corresponding to the
-  function's parameter labels. This is very handy because you can make
-  some of those labelled parameters optional and if you don't pass
-  them in, the output object won't include the corresponding
-  fields. Thus you can use it to dynamically create objects with the
-  subset of fields you need at runtime.
-- For example, suppose you need a JavaScript object like this:
-  #+BEGIN_SRC javascript
-    var homeRoute = {
-      method: "GET",
-      path: "/",
-      action: () => console.log("Home"),
-      // options: ...
-    };
-
-  #+END_SRC
-  But only the first three fields are required; the ~options~ field is
-  optional. You can declare the binding function like so
-  #+BEGIN_SRC reason
-    [@bs.obj] external route: (
-      ~_method:string,
-      ~path:string,
-      ~action:(list(string) => unit),
-      ~options:Js.t({..})=?,
-      unit
-    ) => _ = "";
-  #+END_SRC
-  This function has four labelled parameters (the fourth one
-  optional), one unlabelled parameter at the end (which we mandate for
-  functions with optional parameters), and one parameter (~_method~)
-  that requires an underscore prefix to avoid confusion with the
-  OCaml/Reason keyword ~method~.
-
-  Also of interest is the return type: ~_~, which tells BuckleScript to
-  automatically infer the full type of the ~Js.t~ object, sparing you
-  the hassle of writing down the type manually!
-
-  The function is called like so:
-  #+BEGIN_SRC reason
-    let homeRoute = route(~_method="GET", ~path="/", ~action=(_ => Js.log("Home")), ());
-  #+END_SRC
-  This generates the desired JavaScript object–but you'll notice that
-  the ~options~ parameter was left out. As expected, the generated
-  object won't include the ~options~ field.
-* Class
-** new
-- sample
-  #+BEGIN_SRC reason
-  type t;
-  [@bs.new] external createDate : unit => t = "Date";
-
-  let date = createDate();
-  #+END_SRC
-  Output:
-  #+BEGIN_SRC javascript
-  var date = new Date();
-  #+END_SRC
-- sample 2
-  + You can chain ~bs.new~ and ~bs.module~ if the JS module you're
-    importing is itself a class:
-
-    #+BEGIN_SRC reason
-    type t;
-    [@bs.new] [@bs.module] external book : unit => t = "Book";
-    let bookInstance = book();
     #+END_SRC
 
     Output:
-    #+BEGIN_SRC reason
-      var Book = require("Book");
-      var bookInstance = new Book();
-    #+END_SRC
-** Bind to JS Classes
-- OCaml having classes really helps with modeling JS classes. Just add
-  a ~[@bs]~ to a class type to turn them into a ~Js.t~ class:
-  #+BEGIN_SRC reason
-    %bs.raw
-    "var foo = {heigh: 18, width: 20, draw: () => console.log(`drawing`)}";
+    #+BEGIN_SRC js
+      var match = typeof (__filename) === "undefined" ? undefined : (__filename);
 
-    class type _rect =
-      [@bs]
-      {
-        [@bs.set]
-        pub height: int;
-        [@bs.set]
-        pub width: int;
-        pub draw: unit => unit;
+      if (match !== undefined) {
+        console.log(match);
+      } else {
+        console.log("non-node environment");
+      }
+    #+END_SRC
+** Common Data Types
+*** Shared Data Types
+ - Unicode Support
+   + OCaml string is an immutable byte sequence. If the user types some unicode:
+     #+BEGIN_SRC reason
+     Js.log("你好")
+     #+END_SRC
+     It'll compile to the following JS:
+     #+BEGIN_SRC javascript
+     console.log("\xe4\xbd\xa0\xe5\xa5\xbd");
+     #+END_SRC
+     To rectify this,
+     #+BEGIN_SRC reason
+       Js.log({js|你好，
+       世界|js})
+     #+END_SRC
+     will compile to
+     #+BEGIN_SRC javascript
+     console.log("你好，\n世界");
+     #+END_SRC
+ - Interpolation
+   #+BEGIN_SRC reason
+     let a = 8;
+     let b = 9;
+     let res = a + b;
+
+     Js.log({j|$a + $b is $res|j});
+   #+END_SRC
+
+ - [[https://bucklescript.github.io/bucklescript/api/Js.Float.html][float]]
+ - [[https://bucklescript.github.io/bucklescript/api/Js.Int.html][Int]]
+   + Ints are 32-bits! Be careful, you can potentially treat them as JS
+     numbers and vice-versa, but if the number's large, then you better
+     treat JS numbers as floats. For example, we bind to ~Js.Date~ using
+     floats.
+ - Array
+   + Idiomatic OCaml arrays are supposed to be fix-sized. This
+     constraint is relaxed on the BuckleScript size. You can change its
+     length using the usual [[https://bucklescript.github.io/bucklescript/api/Js.Array.html#VALdefault][JS Array API]]. BuckleScript's own [[https://reasonml.github.io/api/Array.html][Array API]]
+     is here.
+ - Tuple
+   + OCaml tuples are compiled to JS arrays. Convenient when you're
+     interop-ing with a JS array that contains heterogeneous values,
+     but happens to have a fixed length. Model it as a tuple on the BS
+     side!
+
+ - Bool
+
+*** Non-shared Data Types
+ - Record, variant (including ~option~ and ~list~), object and others can
+   be exported as well, but you should not rely on their internal
+   representation on the JS side. Aka, don't grab a BS list and start
+   manipulating its structure on the JS side.
+ - However:
+   + for record and variant, we provide [[https://bucklescript.github.io/docs/en/generate-converters-accessors][generation of converters and accessors]].
+     Once you convert e.g. a record to a JS object, you can naturally use them on the JS side.
+   + For list, use ~Array.of_list~ and ~Array.to_list~ in the Array module.
+*** Cheat Sheet
+ - [[https://bucklescript.github.io/docs/en/common-data-types#shared][Shared]]
+ - [[https://bucklescript.github.io/docs/en/common-data-types#non-shared][Non-shared]]
+** [[https://bucklescript.github.io/bucklescript/api/Belt.html][Belt]]
+** Intro to External
+ - external is a keyword for declaring a value in
+   BuckleScript/OCaml/Reason:
+   #+BEGIN_SRC reason
+   external myCFunction : int => string = "theCFunctionName";
+   #+END_SRC
+*** Bind to Global Values
+ - First, make sure the value you'd like to model doesn't already exist
+   in our provided API. For a quick search of values, see the [[https://bucklescript.github.io/bucklescript/api/index_values.html][index of values]].
+ - Then, make sure it's not already on https://github.com/reasonml-community or NPM.
+ - Now, here's how you bind to a JS value:
+   #+BEGIN_SRC reason
+     [@bs.val] external setTimeout : (unit => unit, int) => float = "setTimeout";
+     [@bs.val] external clearTimeout : float => unit = "clearTimeout";
+     /* or */
+     [@bs.val] external clearTimeout : float => unit = "";
+   #+END_SRC
+ - Abstract Type
+   + The above still isn't ideal. See how ~setTimeout~ returns a ~float~
+     and ~clearTimeout~ accepts one. There's no guarantee that you're
+     passing the float created by ~setTimeout~ into ~clearTimeout~!
+   + Let's leverage a popular feature to solve this problem: abstract types.
+     #+BEGIN_SRC reason
+       type timerId;
+       [@bs.val] external setTimeout : (unit => unit, int) => timerId = "setTimeout";
+       [@bs.val] external clearTimeout : timerId => unit = "clearTimeout";
+     #+END_SRC
+*** Global Modules
+ - If you want to bind to a value inside a global module,
+   e.g. ~Math.random~, attach a ~bs.scope~ to your ~bs.val~ external:
+   #+BEGIN_SRC reason
+     [@bs.scope "Math"] [@bs.val] external random : unit => float = "random";
+     let someNumber = random();
+
+     [@bs.val] [@bs.scope ("window", "location", "ancestorOrigins")] external length : int = "length";
+     /* window.location.ancestorOrigins.length. */
+   #+END_SRC
+
+** Null, Undefined & Option
+   Here's its definition from the standard library:
+   #+BEGIN_SRC reason
+   type option('a) = None | Some('a)
+   #+END_SRC
+ - The ~Option~ helper module is [[https://bucklescript.github.io/bucklescript/api/Belt.Option.html][here]].
+
+*** Interoperate with JavaScript undefined and null
+ - The option type is common enough that we special-case it when
+   compiling to JavaScript: ~Some(5)~ simply compiles down to 5, and
+   ~None~ compiles to ~undefined~! If you've got e.g. a string in
+   JavaScript that you know might be ~undefined~, type it as
+   ~option(string)~ and you're done! Likewise, you can send a ~Some(5)~ or
+   ~None~ to the JS side and expect it to be interpreted correctly.
+**** Caveat 1
+ - The option-to-undefined translation isn't perfect, because on our
+   side, option values can be composed:
+   ~Some(Some(Some(5)))~ This still compiles to 5, but this gets troublesome:
+   #+BEGIN_SRC
+   Some(None)
+   #+END_SRC
+   This is compiled into the following JS:
+   #+BEGIN_SRC
+   Js_primitive.some(undefined);
+   #+END_SRC
+   What's this ~Js_primitive~ thing? Why can't this compile to ~undefined~?
+   Long story short, when dealing polymorphic ~option~ type (aka
+   ~option('a)~, for any ~'a~), many operations become tricky if we don't
+   mark the value with some special annotation. If this doesn't make
+   sense, don't worry; just remember the following rule:
+   + Never, EVER, pass a nested option value (e.g. ~Some(Some(Some(5)))~)
+     into the JS side.
+   + Never, EVER, annotate a value coming from JS as ~option('a)~. Always
+     give the concrete, non-polymorphic type.
+**** Caveat 2
+ - lots of times, your JavaScript value might be both ~null~ or
+   ~undefined~. In that case, you unfortunately can't type such value as
+   e.g. ~option(int)~, since our option type only checks for ~undefined~
+   and *not null* when dealing with a ~None~.
+
+ - *Solution*: More Sophisticated ~undefined~ & ~null~ Interop To solve
+   this
+   + we provide access to more elaborate ~null~ and ~undefined~ helpers
+     through the ~Js.Nullable~ module. This somewhat works like an ~option~
+     type, but is different from it.
+**** Examples
+ - To create a JS ~null~, use the value ~Js.Nullable.null~.
+ - To create a JS ~undefined~, use ~Js.Nullable.undefined~
+   + you can naturally use ~None~ too, but that's not the point here; the
+     ~Js.Nullable.*~ helpers wouldn't work with it.
+ - If you're receiving, for example, a JS string that can be ~null~ and
+   ~undefined~, type it as:
+   #+BEGIN_SRC reason
+   [@bs.module "MyConstant"] external myId: Js.Nullable.t(string) = "myId"
+   #+END_SRC
+ - To create such a nullable string from our side (presumably to pass
+   it to the JS side, for interop purpose), do:
+   #+BEGIN_SRC reason
+   [@bs.module "MyIdValidator"] external validate: Js.Nullable.t(string) => bool = "validate";
+   let personId: Js.Nullable.t(string) = Js.Nullable.return("abc123");
+
+   let result = validate(personId);
+   #+END_SRC
+   The ~return~ part "wraps" a string into a nullable string, to make the
+   type system understand and track the fact that, as you pass this
+   value around, it's not just a string, but a string that can be ~null~
+   or ~undefined~.
+ - Convert to/from option
+   + ~Js.Nullable.fromOption~ converts from a option to
+     ~Js.Nullable.t~. ~Js.Nullable.to~Option does the opposite.
+** Object
+ - As a hash map (or "dictionary"), where keys can be dynamically
+   added/removed and where values are of the same type.
+
+   for e.g. a use-case would be:
+   #+BEGIN_SRC
+   {"John": 10, "Allison": 20, "Jimmy": 15}
+   #+END_SRC
+ - As a record, where fields are fixed (though still maybe sometimes
+   optional) and where values can be of different types.
+
+   for e.g. a a use-case would be:
+   #+BEGIN_SRC
+   {name: "John", age: 10, job: "CEO"}
+   #+END_SRC
+*** Hash Map Mode
+ - when
+   + might or might not add/remove arbitrary keys (it's mutable)
+   + values might or might not be accessed using a dynamic/computed key
+   + *values are all of the same type*
+ - sample
+   #+BEGIN_SRC reason
+     let myMap = Js.Dict.empty();
+     Js.Dict.set(myMap, "Allison", 25); /* did mutate myMap */
+
+     /* Js.Dict.set(myMap, "job", "Programmer");  error, because value is a string  */
+   #+END_SRC
+ - sample_2
+   #+BEGIN_SRC reason
+     %raw
+     "var student = {Joe: 25}";
+
+     /* Use an existing JS object */
+     [@bs.val] external studentAges: Js.Dict.t(int) = "student"; /* to values are all int */
+     switch (Js.Dict.get(studentAges, "Joe")) {
+     | None => Js.log("Joe can't be found")
+     | Some(age) => Js.log("Joe is " ++ string_of_int(age))
+     };
+   #+END_SRC
+
+*** Record Mode
+ - If your JS object:
+   + has a known, fixed set of fields
+   + might or might not contain values of different types
+ - in BuckleScript is modeled with the ~bs.deriving abstract~ feature:
+   #+BEGIN_SRC reason
+     [@bs.deriving abstract]
+     type person = {
+       name: string,
+       age: int,
+       job: string,
+     };
+
+     [@bs.val] external john : person = "john";
+   #+END_SRC
+
+**** creation
+ - use the creation function of the same name as the record type,
+   implicitly generated by the ~bs.deriving abstract~ annotation:
+   #+BEGIN_SRC reason
+     [@bs.deriving abstract]
+     type person = {
+       name: string,
+       age: int,
+       job: string,
+     };
+
+     let joe = person(~name="Joe", ~age=20, ~job="teacher")
+   #+END_SRC
+
+ - Rename Fields
+   + Sometimes you might be binding to a JS object with field names
+     that are invalid in BuckleScript/Reason. Two examples would be
+     ~{type: "foo"}~ (reserved keyword in BS/Reason) and ~{"aria-checked": true}~.
+     Choose a valid field name then use ~[@bs.as]~ to circumvent this:
+     #+BEGIN_SRC reason
+       [@bs.deriving abstract]
+       type data = {
+         [@bs.as "type"]
+         type_: string,
+         [@bs.as "aria-label"]
+         aria_label: string,
+       };
+
+       let d = data(~type_="htmlElement", ~aria_label="awesome");
+     #+END_SRC
+
+ - Optional Labels
+   #+BEGIN_SRC reason
+     [@bs.deriving abstract]
+     type person = {
+       [@bs.optional] name: string,
+       age: int,
+       job: string,
+     };
+
+     let joe = person(~age=20, ~job="teacher", ());
+   #+END_SRC
+   + Note: now that your creation function contains optional fields, we
+     mandate an unlabeled ~()~ at the end to indicate that you've
+     finished applying the function.
+**** Accessors
+ - Again, since ~bs.deriving abstract~ hides the actual record shape, you
+   can't access a field using e.g. joe.age. We remediate this by
+   generating getter and setters.
+ - read
+   + One getter function is generated per ~bs.deriving abstract~ record
+     type field. In the above example, you'd get 3 functions: ~nameGet~,
+     ~ageGet~, ~jobGet~. They take in a ~person~ value and return ~string~,
+     ~int~, ~string~ respectively:
+     #+BEGIN_SRC reason
+       [@bs.deriving abstract]
+       type person = {
+         name: string,
+         age: int,
+         job: string,
+       };
+
+       let joe = person(~age=28, ~job="no job", ~name="Joe");
+
+       let age = joe->ageGet; // or ageGet(joe)
+     #+END_SRC
+ - write
+   + A ~bs.deriving abstract~ value is immutable by default. To mutate
+     such value, you need to first mark one of the abstract record
+     field as ~mutable~, the same way you'd mark a normal record as
+     mutable:
+     #+BEGIN_SRC reason
+       [@bs.deriving abstract]
+       type person = {
+         name: string,
+         mutable age: int,
+         job: string,
+       };
+
+       let joe = person(~age=28, ~job="no job", ~name="Joe");
+
+       ageSet(joe, 29);                /* or joe->ageSet(29) */
+     #+END_SRC
+ - Mutability
+   + You can mark a field as mutable in the implementation (~ml~ / ~re~)
+     file, while hiding such mutability in the interface file:
+     #+BEGIN_SRC reason
+       /* test.re */
+       [@bs.deriving abstract]
+       type cord = {
+         [@bs.optional] mutable x: int,
+         y: int,
+       };
+     #+END_SRC
+     #+BEGIN_SRC reason
+       /* test.rei */
+       [@bs.deriving abstract]
+       type cord = {
+         [@bs.optional] x: int,
+         y: int,
+       };
+     #+END_SRC
+ - Hide the Creation Function
+   + Mark the record as private to disable the creation function:
+     #+BEGIN_SRC reason
+       [@bs.deriving abstract]
+       type cord = pri {
+         [@bs.optional] x: int,
+         y: int,
+       };
+     #+END_SRC
+     * The accessors are still there, but you can no longer create such
+       data structure. Great for binding to a JS object while
+       preventing others from creating more such object!
+
+** Object 2 (Js.t)
+ - When:
+   + You don't want to declare a type beforehand
+   + You want your object to be "structural", e.g. your function wants
+     to accept "any object with the field ~age~, not just a particular
+     object whose type definition is declared above".
+
+ - read [[https://reasonml.github.io/docs/en/object][here]] and [[https://bucklescript.github.io/docs/en/object-2][here]]
+
+*** ReasonML
+**** Type Declaration
+    + one dot
+      #+BEGIN_SRC reason
+        type tesla = {
+          .
+          color: string
+        };
+      #+END_SRC
+      * The dot at the beginning indicates that this is a "closed"
+        object type, which means that an object based on this type must
+        have exactly this shape.
+
+    + two dot
+      #+BEGIN_SRC reason
+        type car('a) = {
+          ..
+          color: string
+        } as 'a;
+      #+END_SRC
+      * Two dots, also called an elision, indicate that this is an
+        "open" object type, and therefore can also contain other values
+        and methods. An open object is also polymorphic and therefore
+        requires a parameter.
+**** creation
+  - sample 1
+     #+BEGIN_SRC reason
+       type tesla = {
+         .
+         color: string,
+       };
+
+       let obj: tesla = {
+         val red = "Red";
+         pub color = red;
+       };
+
+       Js.log(obj#color) /* "Red" */
+     #+END_SRC
+    + Here we have a simple object with the method color and the
+      property red. This method takes no arguments and returns the
+      private property red. Because the method color is a public method
+      we can access it using object notation. Remember, objects only
+      export methods and all properties are private.
+  - sample 2
+    #+BEGIN_SRC reason
+      type tesla = {.
+        drive: int => int
       };
 
-    type rect = Js.t(_rect);
+      let obj: tesla = {
+        val hasEnvy = ref(false);
+        pub drive = (speed) => {
+          this#enableEnvy(true);
+          speed
+        };
+        pri enableEnvy = (envy) => hasEnvy := envy
+      };
+    #+END_SRC
+    + This object is of object type ~tesla~ and has a public method
+      ~drive~. It also contains a private method ~enableEnvy~ that is only
+      accessible from within the object.
 
-    [@bs.val] external bar: rect = "foo";
+    + A Reason object can also access ~this~. JavaScript object's this
+      behavior can be quirky; Reason this always points to the object
+      itself correctly.
+  - sample 3
+    #+BEGIN_SRC reason
+      type tesla('a) = {
+        ..
+        drive: int => int
+      } as 'a;
 
-    Js.log(bar##width);
-  #+END_SRC
-  + For ~Js.t~ classes, methods with arrow types are treated as real
-    methods (automatically annotated with ~[@bs.meth]~) while methods
-    with non-arrow types are treated as properties. Adding ~bs.set~ to
-    those methods will make them mutable, which enables you to set
-    them using ~#=~ later. Dropping the ~bs.set~ attribute makes the
-    method/property immutable. Basically like the object section's
-    features.
-* Function
-- Modeling a JS function is like modeling a normal value:
-  #+BEGIN_SRC reason
-  [@bs.val] external encodeURI: string => string = "encodeURI";
-  let result = encodeURI("hello");
-  #+END_SRC
+      let obj: tesla({. drive: int => int, doYouWant: unit => bool}) = {
+        val hasEnvy = ref(false);
+        pub drive = (speed) => {
+          this#enableEnvy(true);
+          speed
+        };
+        pub doYouWant = () => hasEnvy^;
+        pri enableEnvy = (envy) => hasEnvy := envy
+      };
+    #+END_SRC
 
-** Labeled Arguments
-- OCaml has labeled arguments (that are potentially optional). These
-  work on an ~external~ too! You'd use them to fix a JS function's
-  unclear usage. Assuming we're using this:
+*** BuckleScript
+**** Pitfall
+   + First, note that we cannot use the ordinary OCaml/Reason object
+     type, like this:
+     #+BEGIN_SRC reason
+       type person = {
+         .
+         name: string,
+         age: int,
+         job: string
+       };
+     #+END_SRC
 
-  foo.js
-  #+BEGIN_SRC javascript
-    module.exports = function draw(x, y, border) {
-      console.log(`x is ${x}`);
-      console.log(`y is ${y}`);
-      console.log(`border is ${border}`);
-    };
-  #+END_SRC
-  we can
-  Play.re
-  #+BEGIN_SRC reason
-    [@bs.module]
-    external draw: (~x: int, ~y: int, ~border: bool=?, unit) => unit = "./foo.js";
+     You can still use this feature, but this OCaml/Reason object type
+     does not compile to a clean JavaScript object! Unfortunately, this
+     is because OCaml/Reason objects work a bit too differently from JS
+     objects.
 
-    draw(~x=10, ~y=20, ~border=true, ());
-    draw(~x=10, ~y=20, ());
-  #+END_SRC
-** Object Method
-- Functions attached to a JS objects require a special way of binding
-  to them, using ~bs.send~:
-  #+BEGIN_SRC reason
-    type document; /* abstract type for a document object */
-    [@bs.send] external getElementById: (document, string) => Dom.element = "getElementById";
-    [@bs.val] external doc : document = "document";
+     for e.g.
+     #+BEGIN_SRC reason
+       type tesla = {
+         .
+         color: string,
+       };
 
-    let el = getElementById(doc, "myId");
-  #+END_SRC
-  output:
-  #+BEGIN_SRC javascript
-    var el = document.getElementById("myId");
-  #+END_SRC
-  In a ~bs.send~, the object is always the first argument.
+       let obj: tesla = {
+         val red = "Red";
+         pub color = red;
+       };
 
-** Chaining
-   # todo
-** Variadic Function Arguments
-- You might have JS functions that take an arbitrary amount of
-  arguments. BuckleScript supports modeling those, under the condition
-  that the arbitrary arguments part is homogenous (aka of the same
-  type). If so, add ~bs.variadic~ (was ~bs.splice~ prior to version 4.08)
-  to your ~external~.
-  #+BEGIN_SRC reason
-    [@bs.module "path"] [@bs.variadic]
-    external join: array(string) => string = "join";
+       Js.log(obj#color) /* "Red" */
+     #+END_SRC
+     which compiles to
+     #+BEGIN_SRC javascript
+       // Generated by BUCKLESCRIPT VERSION 4.0.6, PLEASE EDIT WITH CARE
+       'use strict';
+       var Caml_oo_curry = require("./stdlib/caml_oo_curry.js");
+       var CamlinternalOO = require("./stdlib/camlinternalOO.js");
+       var shared = ["color"];
+       var $$class = CamlinternalOO.create_table(shared);
+       var ids = CamlinternalOO.new_methods_variables($$class, shared, ["red"]);
+       var color = ids[0];
+       var red = ids[1];
+       CamlinternalOO.set_methods($$class, /* array */[
+             color,
+             1,
+             red
+           ]);
+       function obj_init() {
+         var self = CamlinternalOO.create_object_opt(0, $$class);
+         self[red] = "Red";
+         return self;
+       }
+       CamlinternalOO.init_class($$class);
+       var obj = obj_init(0);
+       console.log(Caml_oo_curry.js1(-899911325, 4, obj));
+       exports.obj = obj;
+       /* class Not a pure module */
+     #+END_SRC
+**** Actual Solution
+   + BuckleScript wraps the regular OCaml/Reason object type with Js.t,
+     in order to control and track a subset of operations and types
+     that we know would compile cleanly to JavaScript. This is how it
+     looks like:
+     #+BEGIN_SRC reason
+       [%%raw "var farhad = {name: 'farhad', age: 27, job: 'web_dev'}"];
 
-    let v = join([|"/foo", "bar", "zoo"|]);
+       type person = Js.t({
+         .
+         name: string,
+         age: int,
+         job: string
+       });
 
-    Js.log(v); /* '/foo/bar/zoo' */
-  #+END_SRC
-  output:
-  #+BEGIN_SRC javascript
-    'use strict';
-    var Path = require("path");
-    var v = Path.join("/foo", "bar", "zoo");
-    console.log(v);
-    exports.v = v;
-  #+END_SRC
-** Modeling Polymorphic Function
-- JS function in general are often arbitrary overloaded in terms of
-  argument types and number. How would you bind to those?
-*** Trick 1: Multiple externals
-- If you can exhaustively enumerate the many forms an overloaded JS
-  function can take, simply bind to each differently:
-  #+BEGIN_SRC reason
-    [@bs.module "Drawing"] external drawCat: unit => unit = "draw";
-    [@bs.module "Drawing"] external drawDog: (~giveName: string) => unit = "draw";
-    [@bs.module "Drawing"] external draw: (string, ~useRandomAnimal: bool) => unit = "draw";
-  #+END_SRC
-  Note how all three externals bind to the same JS function, ~draw~.
-*** Trick 2: Polymorphic Variant + ~bs.unwrap~
-- If you have the irresistible urge of saying "if only this JS
-  function argument was a variant instead of informally being either
-  ~string~ or ~int~", then good news: we do provide such ~external~
-  features through annotating a parameter as a polymorphic variant!
-  Assuming you have the following JS function you'd like to bind to:
+       [@bs.val] external farhad : person = "farhad";
 
-  #+BEGIN_SRC reason
-    function padLeft(value, padding) {
-      if (typeof padding === "number") {
-        return Array(padding + 1).join(" ") + value;
-      }
-      if (typeof padding === "string") {
-        return padding + value;
-      }
-      throw new Error(`Expected string or number, got '${padding}'.`);
-    }
 
-    module.exports = padLeft;
-  #+END_SRC
-  Here, ~padding~ is really conceptually a variant. Let's model it as
-  such.
-  #+BEGIN_SRC reason
-    [@bs.module]
-    external pad_left:
-      (string, [@bs.unwrap] [ | `Str(string) | `Int(int)]) => string =
-      "./foo.js";
+       Js.log(farhad##job);
+     #+END_SRC
+     which compiles to clean js:
+     #+BEGIN_SRC javascript
+       // Generated by BUCKLESCRIPT VERSION 5.0.0, PLEASE EDIT WITH CARE
+       'use strict';
+       var farhad = {name: 'farhad', age: 27, job: 'web_dev'} ;
 
-    pad_left("Hello World", `Int(4));
-    pad_left("Hello World", `Str("Message from BS: "));
-  #+END_SRC
-  we're just piggy backing on poly variants' type checking and
-  syntax. The secret is the ~[@bs.unwrap]~ annotation on the type. It
-  strips the variant constructors and compile to just the payload's
-  value. Output:
-
-  #+BEGIN_SRC javascript
-    FooJs("Hello World", 4);
-    FooJs("Hello World", "Message from BS: ");
-  #+END_SRC
-
-** Constrain Arguments Better
-- Consider the Node ~fs.readFileSync~'s second argument. It can take a
-  string, but really only a defined set: ~"ascii"~, ~"utf8"~, etc. You can
-  still bind it as a ~string~, but we can use poly variants + ~bs.string~
-  to ensure that our usage's more correct:
-  #+BEGIN_SRC reason
-    [@bs.module "fs"]
-    external readFileSync:
-      (~name: string, [@bs.string] [ | `utf8 | [@bs.as "ascii"] `useAscii]) =>
-      string =
-      "";
-
-    readFileSync(~name="foo.js", `useAscii);
-    readFileSync(~name"foo.js", `utf8);
-  #+END_SRC
-  output
-  #+BEGIN_SRC reason
-  var Fs = require("fs");
-  Fs.readFileSync("xx.txt", "ascii");
-  #+END_SRC
-  1. Attaching ~[@bs.string]~ to the whole poly variant type makes its
-     constructor compile to a string of the same name.
-  2. Attaching a ~[@bs.as "foo"]~ to a constructor lets you customize
-     the final string.
-
-- Aside from string, you can also compile an argument to an int, using
-  ~bs.int~ instead of ~bs.string~ in a similar way:
-  #+BEGIN_SRC reason
-    [@bs.val]
-    external test_int_type: (
-      [@bs.int] [
-        | `on_closed
-        | [@bs.as 20] `on_open
-        | `in_bin
-      ])
-      => int = "test_int_type";
-
-    test_int_type(`in_bin);
-  #+END_SRC
-  ~on_closed~ will compile to 0, ~on_open~ to 20 and ~in_bin~ to 21.
-
-** Special-case: Event Listeners
+       console.log(farhad.job);
+       /*  Not a pure module */
+     #+END_SRC
+   + Because object types are used often, Reason gives it a nicer
+     sugar. ~Js.t({. name: string})~ will format to ~{. "name": string}~.
+**** Accessors
+ - Read
+   + To access a field, use ~##~:
    #+BEGIN_SRC reason
-     type readline;
+   let farhad_name = farhad##name.
+   #+END_SRC
+ - write
+   + To modify a field, you need to first mark a field as ~mutable~. By
+     default, the ~Js.t~ object type is immutable.
+     #+BEGIN_SRC reason
+       %raw
+       "var farhad = {name: 'farhad', age: 27, job: 'web_dev'}";
 
-     [@bs.send]
-     external on: (
-         readline,
-         [@bs.string] [ | `close(unit => unit) | `line(string => unit)]
-       )
-       => readline = "on";
+       type person = {
+         .
+         "name": string,
+         [@bs.set] "age": int,
+         "job": string,
+       };
 
-     let register = rl =>
-       rl
-       ->on(`close(event => ()))
-       ->on(`line(line => print_endline(line)));
+       [@bs.val] external farhad: person = "farhad";
+
+       Js.log(farhad##age); /* 27 */
+
+       farhad##age #= 28;
+
+       Js.log(farhad##age); /* 28 */
+
+     #+END_SRC
+     Note: you can't use dynamic/computed keys in this paradigm.
+**** Call
+   + To call a method of a field, mark the function signature as
+     ~[@bs.meth]~:
+     #+BEGIN_SRC reason
+       %raw
+       {|
+          var farhad = {
+               name: 'farhad',
+               age: 27,
+               job: 'web_dev',
+               upit: name => name.toUpperCase()
+          };
+       |};
+
+       type person = {. [@bs.meth] "upit": string => string};
+
+       [@bs.val] external farhad: person = "farhad";
+
+       Js.log(farhad##upit("foo")); // FOO
+     #+END_SRC
+**** Creation
+ - Literal
+   + You can use ~[%bs.obj putAnOCamlRecordHere]~ DSL to create a ~Js.t~
+     object:
+     #+BEGIN_SRC reason
+       let bucklescript = [%bs.obj {
+         info: {author: "Bob"}
+       }];
+
+       let name = bucklescript##info##author;
+     #+END_SRC
+     which refmt formats to
+     #+BEGIN_SRC reason
+       let bucklescript = {
+         "info": {
+           author: "Bob",
+         },
+       };
+
+       let name = bucklescript##info##author;
+     #+END_SRC
+   + Note: there's no syntax sugar for creating an empty object in
+     OCaml nor Reason (aka this doesn't work: ~[%bs.obj {}]~. use
+     ~Js.Obj.empty()~ for that purpose
+   + The created object will have an inferred type, no type declaration
+     needed! The above example will infer as:
+     #+BEGIN_SRC reason
+       {. "info": {. "author": string}} /* not the quotes */
+     #+END_SRC
+   + Note: since the value has its type inferred, don't accidentally do
+     this:
+     #+BEGIN_SRC reason
+       type person = {. "age": int};
+       let jane = {"age": "hi"};
+     #+END_SRC
+     * We've declared a ~person~ type, but ~jane~ is inferred as its own
+       type, so person is ignored and no error happens! To give ~jane~ an
+       explicit type, simply annotate it: ~let jane: person = ....~ This
+       will then error correctly.
+**** Function
+ - You can declare an external function that, when called, will
+   evaluate to a ~Js.t~ object with fields corresponding to the
+   function's parameter labels. This is very handy because you can make
+   some of those labelled parameters optional and if you don't pass
+   them in, the output object won't include the corresponding
+   fields. Thus you can use it to dynamically create objects with the
+   subset of fields you need at runtime.
+ - For example, suppose you need a JavaScript object like this:
+   #+BEGIN_SRC javascript
+     var homeRoute = {
+       method: "GET",
+       path: "/",
+       action: () => console.log("Home"),
+       // options: ...
+     };
+
+   #+END_SRC
+   But only the first three fields are required; the ~options~ field is
+   optional. You can declare the binding function like so
+   #+BEGIN_SRC reason
+     [@bs.obj] external route: (
+       ~_method:string,
+       ~path:string,
+       ~action:(list(string) => unit),
+       ~options:Js.t({..})=?,
+       unit
+     ) => _ = "";
+   #+END_SRC
+   This function has four labelled parameters (the fourth one
+   optional), one unlabelled parameter at the end (which we mandate for
+   functions with optional parameters), and one parameter (~_method~)
+   that requires an underscore prefix to avoid confusion with the
+   OCaml/Reason keyword ~method~.
+
+   Also of interest is the return type: ~_~, which tells BuckleScript to
+   automatically infer the full type of the ~Js.t~ object, sparing you
+   the hassle of writing down the type manually!
+
+   The function is called like so:
+   #+BEGIN_SRC reason
+     let homeRoute = route(~_method="GET", ~path="/", ~action=(_ => Js.log("Home")), ());
+   #+END_SRC
+   This generates the desired JavaScript object–but you'll notice that
+   the ~options~ parameter was left out. As expected, the generated
+   object won't include the ~options~ field.
+** Class
+*** new
+ - sample
+   #+BEGIN_SRC reason
+   type t;
+   [@bs.new] external createDate : unit => t = "Date";
+
+   let date = createDate();
+   #+END_SRC
+   Output:
+   #+BEGIN_SRC javascript
+   var date = new Date();
+   #+END_SRC
+ - sample 2
+   + You can chain ~bs.new~ and ~bs.module~ if the JS module you're
+     importing is itself a class:
+
+     #+BEGIN_SRC reason
+     type t;
+     [@bs.new] [@bs.module] external book : unit => t = "Book";
+     let bookInstance = book();
+     #+END_SRC
+
+     Output:
+     #+BEGIN_SRC reason
+       var Book = require("Book");
+       var bookInstance = new Book();
+     #+END_SRC
+*** Bind to JS Classes
+ - OCaml having classes really helps with modeling JS classes. Just add
+   a ~[@bs]~ to a class type to turn them into a ~Js.t~ class:
+   #+BEGIN_SRC reason
+     %bs.raw
+     "var foo = {heigh: 18, width: 20, draw: () => console.log(`drawing`)}";
+
+     class type _rect =
+       [@bs]
+       {
+         [@bs.set]
+         pub height: int;
+         [@bs.set]
+         pub width: int;
+         pub draw: unit => unit;
+       };
+
+     type rect = Js.t(_rect);
+
+     [@bs.val] external bar: rect = "foo";
+
+     Js.log(bar##width);
+   #+END_SRC
+   + For ~Js.t~ classes, methods with arrow types are treated as real
+     methods (automatically annotated with ~[@bs.meth]~) while methods
+     with non-arrow types are treated as properties. Adding ~bs.set~ to
+     those methods will make them mutable, which enables you to set
+     them using ~#=~ later. Dropping the ~bs.set~ attribute makes the
+     method/property immutable. Basically like the object section's
+     features.
+** Function
+ - Modeling a JS function is like modeling a normal value:
+   #+BEGIN_SRC reason
+   [@bs.val] external encodeURI: string => string = "encodeURI";
+   let result = encodeURI("hello");
+   #+END_SRC
+
+*** Labeled Arguments
+ - OCaml has labeled arguments (that are potentially optional). These
+   work on an ~external~ too! You'd use them to fix a JS function's
+   unclear usage. Assuming we're using this:
+
+   foo.js
+   #+BEGIN_SRC javascript
+     module.exports = function draw(x, y, border) {
+       console.log(`x is ${x}`);
+       console.log(`y is ${y}`);
+       console.log(`border is ${border}`);
+     };
+   #+END_SRC
+   we can
+   Play.re
+   #+BEGIN_SRC reason
+     [@bs.module]
+     external draw: (~x: int, ~y: int, ~border: bool=?, unit) => unit = "./foo.js";
+
+     draw(~x=10, ~y=20, ~border=true, ());
+     draw(~x=10, ~y=20, ());
+   #+END_SRC
+*** Object Method
+ - Functions attached to a JS objects require a special way of binding
+   to them, using ~bs.send~:
+   #+BEGIN_SRC reason
+     type document; /* abstract type for a document object */
+     [@bs.send] external getElementById: (document, string) => Dom.element = "getElementById";
+     [@bs.val] external doc : document = "document";
+
+     let el = getElementById(doc, "myId");
    #+END_SRC
    output:
    #+BEGIN_SRC javascript
-     function register(rl) {
-       return rl.on("close", (function () {
-                   return /* () */0;
-                 }))
-                 .on("line", (function (line) {
-                   console.log(line);
-                   return /* () */0;
-                 }));
+     var el = document.getElementById("myId");
+   #+END_SRC
+   In a ~bs.send~, the object is always the first argument.
+
+*** Chaining
+    # todo
+*** Variadic Function Arguments
+ - You might have JS functions that take an arbitrary amount of
+   arguments. BuckleScript supports modeling those, under the condition
+   that the arbitrary arguments part is homogenous (aka of the same
+   type). If so, add ~bs.variadic~ (was ~bs.splice~ prior to version 4.08)
+   to your ~external~.
+   #+BEGIN_SRC reason
+     [@bs.module "path"] [@bs.variadic]
+     external join: array(string) => string = "join";
+
+     let v = join([|"/foo", "bar", "zoo"|]);
+
+     Js.log(v); /* '/foo/bar/zoo' */
+   #+END_SRC
+   output:
+   #+BEGIN_SRC javascript
+     'use strict';
+     var Path = require("path");
+     var v = Path.join("/foo", "bar", "zoo");
+     console.log(v);
+     exports.v = v;
+   #+END_SRC
+*** Modeling Polymorphic Function
+ - JS function in general are often arbitrary overloaded in terms of
+   argument types and number. How would you bind to those?
+**** Trick 1: Multiple externals
+ - If you can exhaustively enumerate the many forms an overloaded JS
+   function can take, simply bind to each differently:
+   #+BEGIN_SRC reason
+     [@bs.module "Drawing"] external drawCat: unit => unit = "draw";
+     [@bs.module "Drawing"] external drawDog: (~giveName: string) => unit = "draw";
+     [@bs.module "Drawing"] external draw: (string, ~useRandomAnimal: bool) => unit = "draw";
+   #+END_SRC
+   Note how all three externals bind to the same JS function, ~draw~.
+**** Trick 2: Polymorphic Variant + ~bs.unwrap~
+ - If you have the irresistible urge of saying "if only this JS
+   function argument was a variant instead of informally being either
+   ~string~ or ~int~", then good news: we do provide such ~external~
+   features through annotating a parameter as a polymorphic variant!
+   Assuming you have the following JS function you'd like to bind to:
+
+   #+BEGIN_SRC reason
+     function padLeft(value, padding) {
+       if (typeof padding === "number") {
+         return Array(padding + 1).join(" ") + value;
+       }
+       if (typeof padding === "string") {
+         return padding + value;
+       }
+       throw new Error(`Expected string or number, got '${padding}'.`);
+     }
+
+     module.exports = padLeft;
+   #+END_SRC
+   Here, ~padding~ is really conceptually a variant. Let's model it as
+   such.
+   #+BEGIN_SRC reason
+     [@bs.module]
+     external pad_left:
+       (string, [@bs.unwrap] [ | `Str(string) | `Int(int)]) => string =
+       "./foo.js";
+
+     pad_left("Hello World", `Int(4));
+     pad_left("Hello World", `Str("Message from BS: "));
+   #+END_SRC
+   we're just piggy backing on poly variants' type checking and
+   syntax. The secret is the ~[@bs.unwrap]~ annotation on the type. It
+   strips the variant constructors and compile to just the payload's
+   value. Output:
+
+   #+BEGIN_SRC javascript
+     FooJs("Hello World", 4);
+     FooJs("Hello World", "Message from BS: ");
+   #+END_SRC
+
+*** Constrain Arguments Better
+ - Consider the Node ~fs.readFileSync~'s second argument. It can take a
+   string, but really only a defined set: ~"ascii"~, ~"utf8"~, etc. You can
+   still bind it as a ~string~, but we can use poly variants + ~bs.string~
+   to ensure that our usage's more correct:
+   #+BEGIN_SRC reason
+     [@bs.module "fs"]
+     external readFileSync:
+       (~name: string, [@bs.string] [ | `utf8 | [@bs.as "ascii"] `useAscii]) =>
+       string =
+       "";
+
+     readFileSync(~name="foo.js", `useAscii);
+     readFileSync(~name"foo.js", `utf8);
+   #+END_SRC
+   output
+   #+BEGIN_SRC reason
+   var Fs = require("fs");
+   Fs.readFileSync("xx.txt", "ascii");
+   #+END_SRC
+   1. Attaching ~[@bs.string]~ to the whole poly variant type makes its
+      constructor compile to a string of the same name.
+   2. Attaching a ~[@bs.as "foo"]~ to a constructor lets you customize
+      the final string.
+
+ - Aside from string, you can also compile an argument to an int, using
+   ~bs.int~ instead of ~bs.string~ in a similar way:
+   #+BEGIN_SRC reason
+     [@bs.val]
+     external test_int_type: (
+       [@bs.int] [
+         | `on_closed
+         | [@bs.as 20] `on_open
+         | `in_bin
+       ])
+       => int = "test_int_type";
+
+     test_int_type(`in_bin);
+   #+END_SRC
+   ~on_closed~ will compile to 0, ~on_open~ to 20 and ~in_bin~ to 21.
+
+*** Special-case: Event Listeners
+    #+BEGIN_SRC reason
+      type readline;
+
+      [@bs.send]
+      external on: (
+          readline,
+          [@bs.string] [ | `close(unit => unit) | `line(string => unit)]
+        )
+        => readline = "on";
+
+      let register = rl =>
+        rl
+        ->on(`close(event => ()))
+        ->on(`line(line => print_endline(line)));
+    #+END_SRC
+    output:
+    #+BEGIN_SRC javascript
+      function register(rl) {
+        return rl.on("close", (function () {
+                    return /* () */0;
+                  }))
+                  .on("line", (function (line) {
+                    console.log(line);
+                    return /* () */0;
+                  }));
+      }
+    #+END_SRC
+*** Fixed Arguments
+ - Sometimes it's convenient to bind to a function using an ~external~,
+   while passing predetermined argument values to the JS function:
+   #+BEGIN_SRC reason
+     [@bs.val]
+     external process_on_exit: (
+       [@bs.as "exit"] _,
+       int => unit
+     ) => unit = "process.on";
+
+     let () = process_on_exit(exit_code =>
+       Js.log("error code: " ++ string_of_int(exit_code))
+     );
+   #+END_SRC
+   Output:
+   #+BEGIN_SRC javascript
+     process.on("exit", function (exit_code) {
+       console.log("error code: " + exit_code);
+       return /* () */0;
+     });
+   #+END_SRC
+   The ~[@bs.as "exit"]~ and the placeholder ~_~ argument together
+   indicates that you want the first argument to compile to the string
+   ~"exit"~. You can also use any JSON literal with bs.as: ~[@bs.as {json|true|json}]~,
+   ~[@bs.as {json|{"name": "John"}|json}]~, etc
+*** Curry & Uncurry
+ - sample
+   #+BEGIN_SRC reason
+     let add = (x, y, z) => x + y + z;
+     let addFive = add(5);
+     let twelve = addFive(3, 4);
+   #+END_SRC
+   Type signatures:
+   #+BEGIN_SRC reason
+     let add: (int, int, int) => int;
+     let addFive: (int, int) => int;
+     let twelve: int;
+   #+END_SRC
+**** Drawback
+ 1. When all the arguments of a function are supplied (aka no
+    currying), BS does its best to to compile e.g. a 3-arguments call
+    into a plain JS call with 3 arguments.
+ 2. If it's too hard to detect whether a function application is
+    complete*, BS will use a runtime mechanism (the ~Curry~ module) to
+    curry as many args as we can and check whether the result is fully
+    applied.
+
+ 3. Some JS APIs like ~throttle~, ~debounce~ and ~promise~ might mess with
+    context, aka use the function ~bind~ mechanism, carry around ~this~,
+    etc. Such implementation clashes with the previous currying logic.
+
+ - BS tries to do #1 as much as it can. Even when it bails and uses
+   #2's currying mechanism, it's usually harmless.
+
+ - *However*, if you encounter #3, heuristics are not good enough: you
+   need a guaranteed way of fully applying a function, without
+   intermediate currying steps. We provide such guarantee through the
+   use of the ~[@bs]~ "uncurrying" annotation on a function declaration &
+   call site.
+**** Solution: Guaranteed Uncurrying
+ - If you annotate a function declaration signature on an ~external~ or
+   ~let~ with a ~[@bs]~ (or, in Reason syntax, annotate the start of the
+   parameters with a dot), you'll turn that function into an
+   similar-looking one that's guaranteed to be uncurried:
+   #+BEGIN_SRC reason
+     type timer_id;
+
+     [@bs.val]
+     external set_timeout: ((. unit) => unit, int) => timer_id = "setTimeout";
+
+     let id = set_timeout((.) => Js.log("hi"), 1000);
+   #+END_SRC
+   Note: both the declaration site and the call site need to have the
+   uncurry annotation. That's part of the guarantee/requirement.
+ - When you try to curry such a function, you'll get a type error:
+   #+BEGIN_SRC reason
+   let add = (. x, y, z) => x + y + z;
+   let addFiveOops = add(5);
+   #+END_SRC
+   Error:
+   #+BEGIN_SRC
+   This is an uncurried BuckleScript function. It must be applied with a dot.
+   #+END_SRC
+***** Extra Solution
+ - The above solution is safe, guaranteed, and performant, but
+   sometimes visually a little burdensome. We provide an alternative
+   solution if:
+     1. you're using ~external~
+     2. the ~external~ function takes in an argument that's another function
+     3. you want the user not to need to annotate the call sites with ~[@bs]~ or the dot in Reason
+   Then try ~[@bs.uncurry]~:
+
+   #+BEGIN_SRC reason
+     [@bs.send] external map: (array('a), [@bs.uncurry] ('a => 'b)) => array('b) = "map";
+     map([|1, 2, 3|], x => x + 1);
+   #+END_SRC
+
+****** pitfall
+  - If you try to do this:
+    #+BEGIN_SRC reason
+    let id: (. 'a) => 'a = (. v) => v;
+    #+END_SRC
+    You’ll get this cryptic error message:
+    #+BEGIN_SRC
+    Error: The type of this expression, ('_a -> '_a [@bs]),
+         contains type variables that cannot be generalized
+    #+END_SRC
+    - The issue here isn’t that the function is polymorphic. You can use
+      polymorphic uncurried functions as inline callbacks, but you can’t
+      export them (and lets are exposed by default unless you hide it
+      with an interface file).
+    - The issue here is a combination of the uncurried call,
+      polymorphism and exporting the function. It’s an unfortunate
+      limitation of how OCaml’s type system incorporates side-effects,
+      and how BS handles uncurrying.
+    - The simplest solution is in most cases to just not export it, by
+      adding an interface to the module.
+    - Alternatively, if you really need to export it, you can do so in
+      its curried form, and then wrap it in an uncurried lambda at the
+      call site. E.g.:
+      #+BEGIN_SRC reason
+      map(v => id(. v));
+      #+END_SRC
+****** Design Decisions
+ - In general, ~bs.uncurry~ is recommended; the compiler will do lots
+   of optimizations to resolve the currying to uncurrying at compile
+   time. However, there are some cases the compiler can't optimize
+   it. In these cases, it will be converted to a runtime check.
+ - This means ~[@bs]~ are completely static behavior (no runtime cost),
+   while ~[@bs.uncurry]~ is more convenient for end users but, in some
+   rare cases, might be slower than ~[@bs]~.
+
+*** Modeling this-based Callbacks
+ - Many JS libraries have callbacks which rely on ~this~ (the source),
+   for example:
+   #+BEGIN_SRC javascript
+     x.onload = function(v) {
+       console.log(this.response + v)
      }
    #+END_SRC
-** Fixed Arguments
-- Sometimes it's convenient to bind to a function using an ~external~,
-  while passing predetermined argument values to the JS function:
-  #+BEGIN_SRC reason
-    [@bs.val]
-    external process_on_exit: (
-      [@bs.as "exit"] _,
-      int => unit
-    ) => unit = "process.on";
-
-    let () = process_on_exit(exit_code =>
-      Js.log("error code: " ++ string_of_int(exit_code))
-    );
-  #+END_SRC
-  Output:
-  #+BEGIN_SRC javascript
-    process.on("exit", function (exit_code) {
-      console.log("error code: " + exit_code);
-      return /* () */0;
-    });
-  #+END_SRC
-  The ~[@bs.as "exit"]~ and the placeholder ~_~ argument together
-  indicates that you want the first argument to compile to the string
-  ~"exit"~. You can also use any JSON literal with bs.as: ~[@bs.as {json|true|json}]~,
-  ~[@bs.as {json|{"name": "John"}|json}]~, etc
-** Curry & Uncurry
-- sample
-  #+BEGIN_SRC reason
-    let add = (x, y, z) => x + y + z;
-    let addFive = add(5);
-    let twelve = addFive(3, 4);
-  #+END_SRC
-  Type signatures:
-  #+BEGIN_SRC reason
-    let add: (int, int, int) => int;
-    let addFive: (int, int) => int;
-    let twelve: int;
-  #+END_SRC
-*** Drawback
-1. When all the arguments of a function are supplied (aka no
-   currying), BS does its best to to compile e.g. a 3-arguments call
-   into a plain JS call with 3 arguments.
-2. If it's too hard to detect whether a function application is
-   complete*, BS will use a runtime mechanism (the ~Curry~ module) to
-   curry as many args as we can and check whether the result is fully
-   applied.
-
-3. Some JS APIs like ~throttle~, ~debounce~ and ~promise~ might mess with
-   context, aka use the function ~bind~ mechanism, carry around ~this~,
-   etc. Such implementation clashes with the previous currying logic.
-
-- BS tries to do #1 as much as it can. Even when it bails and uses
-  #2's currying mechanism, it's usually harmless.
-
-- *However*, if you encounter #3, heuristics are not good enough: you
-  need a guaranteed way of fully applying a function, without
-  intermediate currying steps. We provide such guarantee through the
-  use of the ~[@bs]~ "uncurrying" annotation on a function declaration &
-  call site.
-*** Solution: Guaranteed Uncurrying
-- If you annotate a function declaration signature on an ~external~ or
-  ~let~ with a ~[@bs]~ (or, in Reason syntax, annotate the start of the
-  parameters with a dot), you'll turn that function into an
-  similar-looking one that's guaranteed to be uncurried:
-  #+BEGIN_SRC reason
-    type timer_id;
-
-    [@bs.val]
-    external set_timeout: ((. unit) => unit, int) => timer_id = "setTimeout";
-
-    let id = set_timeout((.) => Js.log("hi"), 1000);
-  #+END_SRC
-  Note: both the declaration site and the call site need to have the
-  uncurry annotation. That's part of the guarantee/requirement.
-- When you try to curry such a function, you'll get a type error:
-  #+BEGIN_SRC reason
-  let add = (. x, y, z) => x + y + z;
-  let addFiveOops = add(5);
-  #+END_SRC
-  Error:
-  #+BEGIN_SRC
-  This is an uncurried BuckleScript function. It must be applied with a dot.
-  #+END_SRC
-**** Extra Solution
-- The above solution is safe, guaranteed, and performant, but
-  sometimes visually a little burdensome. We provide an alternative
-  solution if:
-    1. you're using ~external~
-    2. the ~external~ function takes in an argument that's another function
-    3. you want the user not to need to annotate the call sites with ~[@bs]~ or the dot in Reason
-  Then try ~[@bs.uncurry]~:
-
-  #+BEGIN_SRC reason
-    [@bs.send] external map: (array('a), [@bs.uncurry] ('a => 'b)) => array('b) = "map";
-    map([|1, 2, 3|], x => x + 1);
-  #+END_SRC
-
-***** pitfall
- - If you try to do this:
+   Here, ~this~ would point to ~x~ (actually, it depends on how onload is
+   called, but we digress). It's not correct to declare ~x.onload~ of
+   type ~unit → unit [@bs]~. Instead, we introduced a special attribute,
+   ~bs.this~, which allows us to type ~x~ as so:
    #+BEGIN_SRC reason
-   let id: (. 'a) => 'a = (. v) => v;
+     type x;
+     [@bs.val] external x: x = "x";
+     [@bs.set] external set_onload: (x, [@bs.this] ((x, int) => unit)) => unit = "onload";
+     [@bs.get] external resp: x => int = "response";
+
+     set_onload(x, [@bs.this] ((o, v) => Js.log(resp(o) + v)));
    #+END_SRC
-   You’ll get this cryptic error message:
-   #+BEGIN_SRC
-   Error: The type of this expression, ('_a -> '_a [@bs]),
-        contains type variables that cannot be generalized
+   Output:
+   #+BEGIN_SRC javascript
+     x.onload = (function (v) {
+         var o = this;
+         console.log(o.response + v | 0);
+         return /* () */0;
+       });
    #+END_SRC
-   - The issue here isn’t that the function is polymorphic. You can use
-     polymorphic uncurried functions as inline callbacks, but you can’t
-     export them (and lets are exposed by default unless you hide it
-     with an interface file).
-   - The issue here is a combination of the uncurried call,
-     polymorphism and exporting the function. It’s an unfortunate
-     limitation of how OCaml’s type system incorporates side-effects,
-     and how BS handles uncurrying.
-   - The simplest solution is in most cases to just not export it, by
-     adding an interface to the module.
-   - Alternatively, if you really need to export it, you can do so in
-     its curried form, and then wrap it in an uncurried lambda at the
-     call site. E.g.:
+   ~bs.this~ is the same as ~bs~, except that its first parameter is
+   reserved for ~this~ and for arity of 0, there is no need for a
+   redundant ~unit~ type.
+** Import & Export
+*** Export
+ - BuckleScript allows compiling to:
+   + CommonJS (~require('myFile')~)
+   + ES6 modules (~import * from 'myFile'~)
+   + AMD (~define(['myFile'], ...)~)
+
+ - By default, every ~let~ binding is exported. If their values are safe
+   to use on the JS side, you can directly require the generated JS
+   file and use them.
+ - To only export a few selected ~let~s, simply add an interface file
+   that hides some of the ~let~ bindings.
+*** Export an ES6 default value
+ - If your JS project is using ES6 modules, you're likely exporting & importing some default values:
+   #+BEGIN_SRC javascript
+     // student.js
+     export default name = "Al";
+
+     // teacher.js
+     import studentName from 'student.js';
+   #+END_SRC
+ - Technically, since a BuckleScript file maps to a module, there's no
+   such thing as "default" export, only named ones. However, we've made
+   an exception to support default module when you do the following:
+   #+BEGIN_SRC reason
+   /* FavoriteStudent.re */
+   let default = "Bob"
+   #+END_SRC
+
+   You can then require the default as normal JS side:
+   #+BEGIN_SRC javascript
+   // teacher2.js
+   import studentName from 'FavoriteStudent.js';
+   #+END_SRC
+   Note: the above JS snippet only works if you're using that ES6
+   import/export syntax in JS. If you're still using require, you'd
+   need to do:
+   #+BEGIN_SRC js
+   let studentName = require('FavoriteStudent').default;
+   #+END_SRC
+
+*** import
+ - Use ~bs.module~. It's like a ~bs.val~ that accepts a string that's
+   the module name or path.
+   #+BEGIN_SRC reason
+   [@bs.module "path"] external dirname : string => string = "dirname";
+   let root = dirname("/User/chenglou");
+   #+END_SRC
+   Output:
+   #+BEGIN_SRC javascript
+     var Path = require("path");
+     var root = Path.dirname("/User/chenglou");
+   #+END_SRC
+   Note: the string inside bs.module can be anything: ~"./src/myJsFile"~,
+   "~@myNpmNamespace/myLib~", etc.
+
+*** Import a Default Value
+ - By omitting the payload to ~bs.module~, you bind to the whole JS
+   module:
+   #+BEGIN_SRC reason
+   [@bs.module] external leftPad : string => int => string = "./leftPad";
+   let paddedResult = leftPad("hi", 5);
+   #+END_SRC
+   Output:
+   #+BEGIN_SRC javascript
+     var LeftPad = require("./leftPad");
+     var paddedResult = LeftPad("hi", 5);
+   #+END_SRC
+
+**** Import an ES6 Default Value
+ - If your JS project is using ES6, you're likely using Babel to
+   compile it to regular JavaScript. Babel's ES6 default export
+   actually exports the default value under the name ~default~. You'd
+   bind to it like this:
+   #+BEGIN_SRC reason
+   [@bs.module "./student"] external studentName : string = "default";
+   Js.log(studentName);
+   #+END_SRC
+   output:
+   #+BEGIN_SRC js
+   var Student = require("./student");
+
+   console.log(Student.default);
+   #+END_SRC
+
+** Regular Expression
+ - Creation
+   + We have a shorthand for creating the regex:
+   #+BEGIN_SRC reason
+   let f = [%bs.re "/b/g"]
+   #+END_SRC
+
+   Output:
+   #+BEGIN_SRC javascript
+   var f = /b/g
+   #+END_SRC
+** Exceptions
+ - In the JS world, exception could be any data, while an OCaml
+   exception is a structured data format and supports pattern matching.
+ - Catching an OCaml exception on JS side therefore doesn't work as
+   intended.
+ - JS exceptions can be raised from the BuckleScript side by using the
+   ~JS.Exn.raise*~ functions, and can be caught as a BS exception of the
+   type ~Js.Exn.Error~ with the JS exception as its payload, typed as
+   ~Js.Exn.t~.
+ - The JS Exception can then either be manipulated with the accessor
+   functions in ~Js.Exn~, or casted to a more appropriate type.
+   #+BEGIN_SRC reason
+     try (
+       Js.Exn.raiseError("oops!")
+     ) {
+     | Js.Exn.Error(e) =>
+       switch (Js.Exn.message(e)) {
+       | Some(message) => Js.log({j|Error: $message|j})
+       | None => Js.log("An unknown error occurred")
+       }
+     };
+
+   #+END_SRC
+ - Usage
+   + Take promise for example:
      #+BEGIN_SRC reason
-     map(v => id(. v));
-     #+END_SRC
-***** Design Decisions
-- In general, ~bs.uncurry~ is recommended; the compiler will do lots
-  of optimizations to resolve the currying to uncurrying at compile
-  time. However, there are some cases the compiler can't optimize
-  it. In these cases, it will be converted to a runtime check.
-- This means ~[@bs]~ are completely static behavior (no runtime cost),
-  while ~[@bs.uncurry]~ is more convenient for end users but, in some
-  rare cases, might be slower than ~[@bs]~.
+       exception UnhandledPromise;
 
-** Modeling this-based Callbacks
-- Many JS libraries have callbacks which rely on ~this~ (the source),
-  for example:
-  #+BEGIN_SRC javascript
-    x.onload = function(v) {
-      console.log(this.response + v)
-    }
-  #+END_SRC
-  Here, ~this~ would point to ~x~ (actually, it depends on how onload is
-  called, but we digress). It's not correct to declare ~x.onload~ of
-  type ~unit → unit [@bs]~. Instead, we introduced a special attribute,
-  ~bs.this~, which allows us to type ~x~ as so:
-  #+BEGIN_SRC reason
-    type x;
-    [@bs.val] external x: x = "x";
-    [@bs.set] external set_onload: (x, [@bs.this] ((x, int) => unit)) => unit = "onload";
-    [@bs.get] external resp: x => int = "response";
-
-    set_onload(x, [@bs.this] ((o, v) => Js.log(resp(o) + v)));
-  #+END_SRC
-  Output:
-  #+BEGIN_SRC javascript
-    x.onload = (function (v) {
-        var o = this;
-        console.log(o.response + v | 0);
-        return /* () */0;
-      });
-  #+END_SRC
-  ~bs.this~ is the same as ~bs~, except that its first parameter is
-  reserved for ~this~ and for arity of 0, there is no need for a
-  redundant ~unit~ type.
-* Import & Export
-** Export
-- BuckleScript allows compiling to:
-  + CommonJS (~require('myFile')~)
-  + ES6 modules (~import * from 'myFile'~)
-  + AMD (~define(['myFile'], ...)~)
-
-- By default, every ~let~ binding is exported. If their values are safe
-  to use on the JS side, you can directly require the generated JS
-  file and use them.
-- To only export a few selected ~let~s, simply add an interface file
-  that hides some of the ~let~ bindings.
-** Export an ES6 default value
-- If your JS project is using ES6 modules, you're likely exporting & importing some default values:
-  #+BEGIN_SRC javascript
-    // student.js
-    export default name = "Al";
-
-    // teacher.js
-    import studentName from 'student.js';
-  #+END_SRC
-- Technically, since a BuckleScript file maps to a module, there's no
-  such thing as "default" export, only named ones. However, we've made
-  an exception to support default module when you do the following:
-  #+BEGIN_SRC reason
-  /* FavoriteStudent.re */
-  let default = "Bob"
-  #+END_SRC
-
-  You can then require the default as normal JS side:
-  #+BEGIN_SRC javascript
-  // teacher2.js
-  import studentName from 'FavoriteStudent.js';
-  #+END_SRC
-  Note: the above JS snippet only works if you're using that ES6
-  import/export syntax in JS. If you're still using require, you'd
-  need to do:
-  #+BEGIN_SRC js
-  let studentName = require('FavoriteStudent').default;
-  #+END_SRC
-
-** import
-- Use ~bs.module~. It's like a ~bs.val~ that accepts a string that's
-  the module name or path.
-  #+BEGIN_SRC reason
-  [@bs.module "path"] external dirname : string => string = "dirname";
-  let root = dirname("/User/chenglou");
-  #+END_SRC
-  Output:
-  #+BEGIN_SRC javascript
-    var Path = require("path");
-    var root = Path.dirname("/User/chenglou");
-  #+END_SRC
-  Note: the string inside bs.module can be anything: ~"./src/myJsFile"~,
-  "~@myNpmNamespace/myLib~", etc.
-
-** Import a Default Value
-- By omitting the payload to ~bs.module~, you bind to the whole JS
-  module:
-  #+BEGIN_SRC reason
-  [@bs.module] external leftPad : string => int => string = "./leftPad";
-  let paddedResult = leftPad("hi", 5);
-  #+END_SRC
-  Output:
-  #+BEGIN_SRC javascript
-    var LeftPad = require("./leftPad");
-    var paddedResult = LeftPad("hi", 5);
-  #+END_SRC
-
-*** Import an ES6 Default Value
-- If your JS project is using ES6, you're likely using Babel to
-  compile it to regular JavaScript. Babel's ES6 default export
-  actually exports the default value under the name ~default~. You'd
-  bind to it like this:
-  #+BEGIN_SRC reason
-  [@bs.module "./student"] external studentName : string = "default";
-  Js.log(studentName);
-  #+END_SRC
-  output:
-  #+BEGIN_SRC js
-  var Student = require("./student");
-
-  console.log(Student.default);
-  #+END_SRC
-
-* Regular Expression
-- Creation
-  + We have a shorthand for creating the regex:
-  #+BEGIN_SRC reason
-  let f = [%bs.re "/b/g"]
-  #+END_SRC
-
-  Output:
-  #+BEGIN_SRC javascript
-  var f = /b/g
-  #+END_SRC
-* Exceptions
-- In the JS world, exception could be any data, while an OCaml
-  exception is a structured data format and supports pattern matching.
-- Catching an OCaml exception on JS side therefore doesn't work as
-  intended.
-- JS exceptions can be raised from the BuckleScript side by using the
-  ~JS.Exn.raise*~ functions, and can be caught as a BS exception of the
-  type ~Js.Exn.Error~ with the JS exception as its payload, typed as
-  ~Js.Exn.t~.
-- The JS Exception can then either be manipulated with the accessor
-  functions in ~Js.Exn~, or casted to a more appropriate type.
-  #+BEGIN_SRC reason
-    try (
-      Js.Exn.raiseError("oops!")
-    ) {
-    | Js.Exn.Error(e) =>
-      switch (Js.Exn.message(e)) {
-      | Some(message) => Js.log({j|Error: $message|j})
-      | None => Js.log("An unknown error occurred")
-      }
-    };
-
-  #+END_SRC
-- Usage
-  + Take promise for example:
-    #+BEGIN_SRC reason
-      exception UnhandledPromise;
-
-      let handlePromiseFailure =
-        [@bs.open]
-        (
-          fun
-          | Not_found => {
-              Js.log("Not found");
-              Js.Promise.resolve()
-            }
-        );
-
-      Js.Promise.reject(Not_found)
-        |> Js.Promise.catch(
-           (error) =>
-             switch (handlePromiseFailure(error)) {
-             | Some(x) => x
-             | None => raise(UnhandledPromise)
+       let handlePromiseFailure =
+         [@bs.open]
+         (
+           fun
+           | Not_found => {
+               Js.log("Not found");
+               Js.Promise.resolve()
              }
          );
+
+       Js.Promise.reject(Not_found)
+         |> Js.Promise.catch(
+            (error) =>
+              switch (handlePromiseFailure(error)) {
+              | Some(x) => x
+              | None => raise(UnhandledPromise)
+              }
+          );
+     #+END_SRC
+** JSON
+*** Unsafe Conversion
+ - This emulates JavaScript's JSON conversion.
+**** Parse
+ - Simply use the (last resort) special [[https://bucklescript.github.io/docs/en/intro-to-external#special-identity-external][identity external]]:
+   #+BEGIN_SRC reason
+     [@bs.deriving abstract]
+     type data = {name: string};
+
+     [@bs.scope "JSON"] [@bs.val]
+       external parseIntoMyData : string => data = "parse";
+
+     let result = parseIntoMyData("{\"name\": \"Luke\"}");
+     let n = nameGet(result);
+   #+END_SRC
+
+   Output:
+   #+BEGIN_SRC javascript
+   var result = JSON.parse("{\"name\": \"Luke\"}");
+   var n = result.name;
+   #+END_SRC
+   Where ~data~ can be any type you assume the JSON is. As you can see,
+   this compiles to a straightforward ~JSON.parse~ call. As with regular
+   JS, this is convenient, but has no guarantee that e.g. the data is
+   correctly shaped, or even syntactically valid.
+**** Stringify
+ - Since ~JSON.stringify~ is slightly safer than ~JSON.parse~, we've
+   provided it out of the box in ~Js.Json~. It compiles to
+   ~JSON.stringify~.
+   #+BEGIN_SRC reason
+     let dict = Js.Dict.empty();
+     Js.Dict.set(dict, "name", Js.Json.string("free name"));
+     Js.Dict.set(dict, "age", Js.Json.number(float_of_int(30)));
+     Js.Dict.set(
+       dict,
+       "likes",
+       Js.Json.stringArray([|"bucklescript", "ocaml", "js"|]),
+     );
+
+     Js.Json.stringify(Js.Json.object_(dict));
+   #+END_SRC
+*** Properly Use ~Js.Json~
+ - Technically, the correct way to handle JSON is to recursively parse
+   each field, and handle invalid data accordingly. ~Js.Json~ provides
+   such low-level building blocks. See the examples in the API docs.
+
+*** Higher-level Helpers
+ - pseudo-official JSON helper library called [[https://github.com/reasonml-community/bs-json][bs-json]].
+ - https://github.com/state-machine-systems/JsonCodec
+** Fast Pipe
+ - sample
+   #+BEGIN_SRC reason
+   a
+   ->foo(b)
+   ->bar
+   #+END_SRC
+   is equal to
+   #+BEGIN_SRC reason
+   bar(foo(a, b))
+   #+END_SRC
+ - Method Chaining
+   #+BEGIN_SRC javascript
+     const result = [1, 2, 3].map(a => a + 1).filter(a => a % 2 === 0);
+
+     asyncRequest().setWaitDuration(4000).send();
+   #+END_SRC
+   we can
+   #+BEGIN_SRC reason
+     [@bs.send] external map : (array('a), 'a => 'b) => array('b) = "map";
+     [@bs.send] external filter : (array('a), 'a => 'b) => array('b) = "filter";
+
+     type request;
+     external asyncRequest: unit => request = "asyncRequest";
+     [@bs.send] external setWaitDuration: (request, int) => request = "setWaitDuration";
+     [@bs.send] external send: request => unit = "send";
+
+
+     let result = [|1, 2, 3|]
+       ->map(a => a + 1)
+       ->filter(a => a mod 2 === 0);
+
+     asyncRequest()->setWaitDuration(400)->send;
+   #+END_SRC
+ - all the pipes
+   1. ~->~ is the same as ~|.~ which pipes the value to the first arugument of the function
+   1. ~|>~ pipes the value to the last arugument of the function
+
+ - Pipe Into Variants
+   + This works:
+     #+BEGIN_SRC reason
+     let result = name->preprocess->Some
+     #+END_SRC
+     We turn this into:
+     #+BEGIN_SRC reason
+     let result = Some(preprocess(name))
+     #+END_SRC
+** Generate Converters & Helpers
+ - Sometimes, you might want to generate e.g. function accessors from a
+   variant declaration, or a ~Js.t~ object + converter functions from a
+   record definition. BuckleScript comes with a few annotations that
+   allow you to generate those.
+*** Functions & Plain Values for Variant
+ - Use ~accessors~.
+   #+BEGIN_SRC reason
+     [@bs.deriving accessors]
+     type action =
+       | Click
+       | Submit(string)
+       | Cancel;
+   #+END_SRC
+   + output:
+     #+BEGIN_SRC javascript
+       Output:
+
+       function submit(param_0) {
+         return /* Submit */[param_0];
+       }
+
+       var click = /* Click */0;
+
+       var cancel = /* Cancel */1;
+
+       exports.click  = click;
+       exports.submit = submit;
+       exports.cancel = cancel;
+     #+END_SRC
+   + Variants constructors with payloads generate functions,
+     payload-less constructors generate plain integers.
+   + Note:
+     1. The generated accessors are lower-cased.
+     2. You can now use these helpers on the JavaScript side! But don't
+        rely on their actual values please.
+     3. Doesn't work with polymorphic variants yet.
+ - Usage
+   #+BEGIN_SRC reason
+   let s = submit("hello"); /* gives Submit("hello") */
+   #+END_SRC
+   + This is useful:
+     + When you're passing the accessor function as a higher-order
+       function (which plain variant constructors aren't).
+     + When you'd like the JS side to use these values & functions
+       opaquely and pass you back a variant constructor (since JS has
+       no such thing).
+
+*** Convert Between ~Js.t~ Object and Record
+ - use ~jsConverter~
+    #+BEGIN_SRC reason
+      [@bs.deriving jsConverter]
+      type coordinates = {
+        x: int,
+        y: int
+      };
     #+END_SRC
-* JSON
-** Unsafe Conversion
-- This emulates JavaScript's JSON conversion.
-*** Parse
-- Simply use the (last resort) special [[https://bucklescript.github.io/docs/en/intro-to-external#special-identity-external][identity external]]:
+    Generates 2 functions of the following types:
+    #+BEGIN_SRC reason
+      let coordinatesToJs: coordinates => {. "x": int, "y": int};
+
+      let coordinatesFromJs: {.. "x": int, "y": int} => coordinates;
+    #+END_SRC
+    Note:
+   + coordinatesFromJs uses an open object type that accepts more
+     fields, just to be more permissive.
+   + The converters are shallow. They don't recursively drill into the
+     fields and convert them. This preserves the speed and simplicity
+     of output while satisfying 80% of use-cases.
+ - Usage
+   + This exports a ~jsCoordinates~ JS object (not a record!) for JS
+     files to use:
+     #+BEGIN_SRC reason
+     let jsCoordinates = coordinatesToJs({x: 1, y: 2});
+     #+END_SRC
+
+   + This binds to a ~jsCoordinates~ record (not a JS object!) that
+     exists on the JS side, presumably created by JS calling the
+     function ~coordinatesFromJs~:
+     #+BEGIN_SRC reason
+     [@bs.module "myGame"] external jsCoordinates : coordinates = "jsCoordinates";
+     #+END_SRC
+
+**** More Safety
+  - The above generated functions use ~Js.t~ object types. You can also
+    hide this implementation detail by making the object type abstract
+    by passing the ~newType~ option to the ~jsConverter~ plugin:
+    #+BEGIN_SRC reason
+      [@bs.deriving {jsConverter: newType}]
+      type coordinates = {
+        x: int,
+        y: int
+      };
+    #+END_SRC
+
+    Generates 2 functions of the following types:
+    #+BEGIN_SRC reason
+      let coordinatesToJs: coordinates => abs_coordinates;
+
+      let coordinatesFromJs: abs_coordinates => coordinates;
+    #+END_SRC
+
+  - Usage
+    + Using ~newType~, you've now prevented consumers from inadvertently doing the following:
+      #+BEGIN_SRC reason
+        let myCoordinates = {
+          x: 10,
+          y: 20
+        };
+        let jsCoords = coordinatesToJs(myCoordinates);
+
+        let x = jsCoords##x; /* disallowed! Don't access the object's internal details */
+      #+END_SRC
+*** Convert between JS Integer Enum and BS Variant
+ - Use ~jsConverter~.
+   #+BEGIN_SRC reason
+     [@bs.deriving jsConverter]
+     type fruit =
+       | Apple
+       | Orange
+       | Kiwi
+       | Watermelon;
+   #+END_SRC
+   This option causes ~jsConverter~ to, again, generate functions of
+   the following types:
+   #+BEGIN_SRC reason
+     let fruitToJs: fruit => int;
+
+     let fruitFromJs: int => option(fruit);
+   #+END_SRC
+   + For ~fruitToJs~, each fruit variant constructor would map into an
+     integer, starting at 0, in the order they're declared.
+   + For ~fruitFromJs~, the return value is an ~option~, because not
+     every int maps to a constructor.
+   + You can also attach a ~[@bs.as alternativeIntValue]~ to each
+     constructor to customize their output.
+ - Usage
+   #+BEGIN_SRC reason
+     [@bs.deriving jsConverter]
+     type fruit =
+       | Apple
+       | [@bs.as 10] Orange
+       | [@bs.as 100] Kiwi
+       | Watermelon;
+
+     let zero = fruitToJs(Apple); /* 0 */
+
+     switch (fruitFromJs(100)) {
+     | Some(Kiwi) => Js.log("this is Kiwi")
+     | _ => Js.log("received something wrong from the JS side")
+     };
+   #+END_SRC
+   Note: by using ~bs.as~ here, all subsequent number encoding
+   changes. ~Apple~ is still ~0~, ~Orange~ is ~10~, ~Kiwi~ is ~100~ and ~Watermelon~
+   is ~101~!
+
+**** More Safety
+ - Similar to the JS object <-> record deriving, you can hide the fact
+   that the JS enum are ints by passing the same ~newType~ option to the
+   ~jsConverter~ plugin:
+   #+BEGIN_SRC reason
+     [@bs.deriving {jsConverter: newType}]
+     type fruit =
+       | Apple
+       | [@bs.as 100] Kiwi
+       | Watermelon;
+   #+END_SRC
+   This option causes ~jsConverter~ to generate functions of the following types:
+   #+BEGIN_SRC reason
+     let fruitToJs: fruit => abs_fruit;
+     let fruitFromJs: abs_fruit => fruit;
+   #+END_SRC
+   For ~fruitFromJs~, the return value, unlike the previous non-abstract
+   type case, doesn't contain an ~option~, because there's no way a bad
+   value can be passed into it; the only creator of ~abs_fruit~ values is
+   ~fruitToJs~!
+ - Usage
+   #+BEGIN_SRC reason
+     [@bs.deriving {jsConverter: newType}]
+     type fruit =
+       | Apple
+       | [@bs.as 100] Kiwi
+       | Watermelon;
+
+     let opaqueValue = fruitToJs(Apple);
+
+     [@bs.module "myJSFruits"] external jsKiwi : abs_fruit = "iSwearThisIsAKiwi";
+     let kiwi = fruitFromJs(jsKiwi);
+
+     let error = fruitFromJs(100); /* nope, can't take a random int */
+   #+END_SRC
+*** Convert between JS String Enum and BS Polymorphic Variant
+ - Similar to previous section, except polymorphic variants are
+   converted to ~string~ instead of ~int~.
+ - Usage
+   #+BEGIN_SRC reason
+     [@bs.deriving jsConverter]
+     type fruit = [
+       | `Apple
+       | [@bs.as "miniCoconut"] `Kiwi
+       | `Watermelon
+     ];
+
+     let appleString = fruitToJs(`Apple); /* "Apple" */
+     let kiwiString = fruitToJs(`Kiwi); /* "miniCoconut" */
+   #+END_SRC
+   Deriving converters with abstract type through ~newType~ also still works.
+** Better Data Structures Printing (Debug Mode)
+ - to retain record fields names, variant tags, exception names, module
+   names, etc, add ~-bs-g~ to ~bsb~
+ - Usage
+   1. Add ~"bsc-flags": ["-bs-g"]~ to your ~bsconfig.json~.
+   2. In the BuckleScript/Reason file you'd like to debug, add ~[%%debugger.chrome]~ at the top.
+      * The extension ~[%%debugger.chrome]~ conditionally turns on the
+        debugger support. Feel free to keep it on at all time; it will
+        not generate any extra garbage code unless you have ~-bs-g~ flag
+        turned on above.
+   3. If you're on Node.js, run: ~node --inspect-brk MyCompiledFile.js~ and open this URL in Chrome: ~chrome://inspect~.
+   4. Make sure you've got Chrome custom formatter enabled.
+   5. Click on inspect, then step through code as you would usually:
+
+ - Note: you need to restart node every time your files changes.
+ - Note: don't forget to remove ~-bs-g~ from your ~bsconfig.json~ for production!
+** NodeJS Special Variables
+ - NodeJS has several file local variables: ~__dirname~, ~__filename~,
+   ~_module~, and ~require~. Their semantics are more like macros instead
+   of functions.
+
+   ~bs.node~ exposes support for these.
+   #+BEGIN_SRC reason
+     let dirname: option(string) = [%bs.node __dirname];
+     let filename: option(string) = [%bs.node __filename];
+     let _module: option(Node.node_module) = [%bs.node _module];
+     let require: option(Node.node_require) = [%bs.node require];
+   #+END_SRC
+** Miscellaneous
+*** Composing ~bs~ Attributes
+   + most ~bs.*~ attributes can be used together.
+     #+BEGIN_SRC reason
+       [@bs.val] [@bs.scope "global"] [@bs.variadic]
+         external draw : ([@bs.as "dog"] _, array(int)) => unit = "draw";
+
+       draw([|1, 2|]);
+     #+END_SRC
+     Output:
+     #+BEGIN_SRC javascript
+     global.draw("dog", 1, 2);
+     #+END_SRC
+*** Safe External Data Handling
+ - In some cases, the data could either come from JS or BS; it's very
+   hard to give precise type information because of this. For example,
+   for an external promise whose creation could come from the JS API,
+   its failed value caused by ~Promise.reject~ could be of any shape.
+
+ - BuckleScript provides a solution, ~bs.open~, to filter out OCaml
+   structured exception data from the mixed data source. It preserves
+   type safety while allowing you to deal with mixed source. It makes
+   use of OCaml’s extensible variant, so that users can mix values of
+   type exn with JS data.
+   #+BEGIN_SRC reason
+     let handleData = [@bs.open] (
+       fun
+       | Invalid_argument(_) => 0
+       | Not_found => 1
+       | Sys_error(_) => 2
+     );
+
+     /* handleData is 'a => option(int) */
+   #+END_SRC
+ - For any input source, as long as it matches the exception pattern
+   (nested pattern match supported), the matched value is returned,
+   otherwise return ~None~.
+** Build System
+*** bsconfig.json
+ - The complete configuration schema is [[https://bucklescript.github.io/bucklescript/docson/#build-schema.json][here]].
+ - ~package-specs~
+   + Output to either CommonJS (the default), ES6 modules or
+     AMD. Example:
+     #+BEGIN_SRC json
+       {
+         "package-specs": {
+           "module": "commonjs",
+           "in-source": true
+         }
+       }
+     #+END_SRC
+   + ~"module": "es6-global"~ resolves ~node_modules~ using relative
+     paths. Good for development-time usage of ES6 in conjunction with
+     browsers like Safari and Firefox that support ES6 modules
+     today. No more dev-time bundling!
+   + ~"in-source": true~ generates output alongside source files. If
+     you omit it, it'll generate the artifacts into ~lib/js~. The output
+     directory is not configurable otherwise.
+   + This configuration only applies to you, when you develop the
+     project. When the project is used as a third-party library, the
+     consumer's own ~bsconfig.json~ ~package-specs~ overrides the
+     configuration here, logically.
+*** Automatic Interface Generation
+ - "Interface files" (~.mli~, ~.rei~ files) are the "public description" of
+   their corresponding "implementation files" (~.ml~, ~.re~), exposed as
+   documentation, and containing nothing but type declarations. Since a
+   file is a module, an interface file is essentially a module
+   signature.
+**** Tips & Tricks
+ - You don't have to explicitly write an interface file; by default,
+   one will be inferred from the implementation file and every
+   binding from the file will be exported.
+ - After you finish iterating on your project:
+   + Explicitly add interface files to the files meant to be public
+   + Add docblock comments on top of each binding to serve as documentation
+   + Make some types abstract, and simply don't expose every binding
+     from the interface file
+ - Some types will have to be copy pasted from the implementation file,
+   which gets tedious. This is why we let you automatically generate
+   interface files, after which you can tweak whatever you want.
+   #+BEGIN_SRC reason
+     bsc -bs-re-out lib/bs/src/MyUtils-MyProject.cmi
+     /* e.g: */
+     bsc -bs-re-out lib/bs/src/Go-ReactTemplate.cmi
+   #+END_SRC
+   Where ~MyProject~ is your project's ~namespace~.
+
+ - Note: the generated boilerplate might contain the strings
+   "~BS-EXTERNAL~" or "~BuckleScript External~". This happens when you've
+   used ~@bs~ externals in your implementation file. It's a temporary
+   flaw; you need to manually turn these "~BS-EXTERNAL~" back into the
+   right ~@bs~ externals for now. We'll correct this in the future.
+
+* ReasonML
+** Types
+- You can also wrap any expression in parentheses and annotate it:
   #+BEGIN_SRC reason
-    [@bs.deriving abstract]
-    type data = {name: string};
-
-    [@bs.scope "JSON"] [@bs.val]
-      external parseIntoMyData : string => data = "parse";
-
-    let result = parseIntoMyData("{\"name\": \"Luke\"}");
-    let n = nameGet(result);
+    let myInt = 5;
+    let myInt: int = 5;
+    let myInt = (5: int) + (4: int);
+    let add = (x: int, y: int) : int => x + y;
+    let drawCircle = (~radius as r: int) : unit => ...;
   #+END_SRC
-
-  Output:
-  #+BEGIN_SRC javascript
-  var result = JSON.parse("{\"name\": \"Luke\"}");
-  var n = result.name;
-  #+END_SRC
-  Where ~data~ can be any type you assume the JSON is. As you can see,
-  this compiles to a straightforward ~JSON.parse~ call. As with regular
-  JS, this is convenient, but has no guarantee that e.g. the data is
-  correctly shaped, or even syntactically valid.
-*** Stringify
-- Since ~JSON.stringify~ is slightly safer than ~JSON.parse~, we've
-  provided it out of the box in ~Js.Json~. It compiles to
-  ~JSON.stringify~.
+- Aliases
+  + You can refer to a type by a different name. They'll be
+    equivalent:
+    #+BEGIN_SRC reason
+      type scoreType = int;
+      let x: scoreType = 10;
+    #+END_SRC
+** String & Char
+- Quoted String
+  + multiline string just like before
+  + no special character escaping
+  + hooks for special pre-processors
+    #+BEGIN_SRC reason
+      let greetingAndOneSlash = {|Hello
+      World
+      \
+      Hehe...
+      |};
+    #+END_SRC
+- interpolation
   #+BEGIN_SRC reason
-    let dict = Js.Dict.empty();
-    Js.Dict.set(dict, "name", Js.Json.string("free name"));
-    Js.Dict.set(dict, "age", Js.Json.number(float_of_int(30)));
-    Js.Dict.set(
-      dict,
-      "likes",
-      Js.Json.stringArray([|"bucklescript", "ocaml", "js"|]),
-    );
-
-    Js.Json.stringify(Js.Json.object_(dict));
+    let world = {js|世界|js}; /* Supports Unicode characters */
+    let helloWorld = {j|你好，$world|j}; /* Supports Unicode and interpolation variables */
   #+END_SRC
-** Properly Use ~Js.Json~
-- Technically, the correct way to handle JSON is to recursively parse
-  each field, and handle invalid data accordingly. ~Js.Json~ provides
-  such low-level building blocks. See the examples in the API docs.
 
-** Higher-level Helpers
-- pseudo-official JSON helper library called [[https://github.com/reasonml-community/bs-json][bs-json]].
-- https://github.com/state-machine-systems/JsonCodec
+*** Char
+- Reason has a type for a string with a single letter:
+  #+BEGIN_SRC reason
+  let firstLetterOfAlphabet = 'a';
+  #+END_SRC
+- Note: Char doesn't support Unicode or UTF-8.
+- A character compiles to an integer ranging from 0 to 255, for extra
+  speed. You can also pattern-match on it:
+  #+BEGIN_SRC reason
+    let isVowel = (theChar) =>
+      switch (theChar) {
+      | 'a' | 'e' | 'i' | 'o' | 'u' | 'y' => true
+      | _ => false
+      };
+  #+END_SRC
+- To convert a String to a Char, use ~"a".[0]~. To convert a Char to a
+  String, use ~String.make(1, 'a')~.
+
+** Boolean
+A boolean has the type bool and can be either true or false. Common operations:
+
+- &&: logical and
+
+- ||: logical or
+
+- !: logical not.
+
+- <=, >=, <, >
+
+- ~==~: structural equal, compares data structures deeply:
+  #+BEGIN_SRC reason
+  (1, 2) == (1, 2)
+  #+END_SRC
+  is true. Convenient, but use with caution
+
+- ~===~: referential equal, compares shallowly.
+  #+BEGIN_SRC reason
+  (1, 2) === (1, 2)
+  #+END_SRC
+  is false.
+  #+BEGIN_SRC reason
+  let myTuple = (1, 2);
+  myTuple === myTuple
+  #+END_SRC
+  is true.
+
+- !=: structural unequal
+
+- !==: referential unequal
+** Integer & Float
+- Careful when you bind to JavaScript numbers! Long ones might be
+  truncated. Bind JS number as float instead.
+** Tuple
+- immutable
+- ordered
+- fix-sized at creation time
+- heterogeneous (can contain different types of values)
+- A Reason tuple is typed "structurally". This means that even if you
+  don't annotate your data with an explicit type, the compiler can
+  still deduce it by looking at its content, its usage, etc.
+-
+  #+BEGIN_SRC reason
+    let ageAndName = (24, "Lil' Reason");
+    let my3dCoordinates = (20.0, 30.5, 100.0);
+
+    let ageAndName: (int, string) = (24, "Lil' Reason");
+    /* a tuple type alias */
+    type coord3d = (float, float, float);
+    let my3dCoordinates: coord3d = (20.0, 30.5, 100.0);
+  #+END_SRC
+*** Usage
+- The standard library provides ~fst~ and ~snd~ ([[https://reasonml.github.io/api/Pervasives.html][here]], under "Pair operations"),
+-
+  #+BEGIN_SRC reason
+  let (_, y, _) = my3dCoordinates;
+  #+END_SRC
+- Tuples aren't meant to be updated mutatively; you'd create new ones
+  by destructuring the old ones.
+- A *tuple type* might also be called a "product type", and ~(string, int)~
+  is written as ~string * int~ in some places.
+- The idea is that a tuple is really a "cartesian product"; imagine a
+  2D grid, with ~string~ on the x axis and ~int~ on the y axis!
+** Record
+- Records are like JavaScript objects but are
+  + lighter
+  + immutable by default
+  + fixed in field names and types
+  + very fast
+  + a bit more rigidly typed
