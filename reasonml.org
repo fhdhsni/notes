@@ -529,7 +529,7 @@
      finished applying the function.
 **** Accessors
  - Again, since ~bs.deriving abstract~ hides the actual record shape, you
-   can't access a field using e.g. joe.age. We remediate this by
+   can't access a field using e.g. ~joe.age~. We remediate this by
    generating getter and setters.
  - read
    + One getter function is generated per ~bs.deriving abstract~ record
@@ -588,7 +588,7 @@
    + Mark the record as private to disable the creation function:
      #+BEGIN_SRC reason
        [@bs.deriving abstract]
-       type cord = pri {
+       type cord = pri {               /* <-- pri */
          [@bs.optional] x: int,
          y: int,
        };
@@ -1630,7 +1630,7 @@
       let coordinatesFromJs: {.. "x": int, "y": int} => coordinates;
     #+END_SRC
     Note:
-   + coordinatesFromJs uses an open object type that accepts more
+   + ~coordinatesFromJs~ uses an open object type that accepts more
      fields, just to be more permissive.
    + The converters are shallow. They don't recursively drill into the
      fields and convert them. This preserves the speed and simplicity
@@ -2018,3 +2018,360 @@ A boolean has the type bool and can be either true or false. Common operations:
   + fixed in field names and types
   + very fast
   + a bit more rigidly typed
+- sample
+  #+BEGIN_SRC reason
+    Type (mandatory):
+
+    type person = {
+      age: int,
+      name: string
+    };
+
+  #+END_SRC
+
+  Value (this will be inferred to be of type ~person~):
+  #+BEGIN_SRC reason
+  let me = {
+    age: 5,
+    name: "Big Reason"
+  };
+  #+END_SRC
+
+  Access (the familiar dot notation):
+  #+BEGIN_SRC reason
+  let name = me.name;
+  #+END_SRC
+*** Record Needs an Explicit Definition
+- If you only write ~{age: 5, name: "Baby Reason"}~ without an explicit
+  declaration somewhere above, the type system will give you an
+  error. If the type definition resides in another file, you need to
+  explicitly indicate which file it is:
+  #+BEGIN_SRC reason
+  /* School.re */
+
+  type person = {age: int, name: string};
+  #+END_SRC
+
+  #+BEGIN_SRC reason
+    /* example.re */
+
+    let me: School.person = {age: 20, name: "Big Reason"};
+    /* or */
+    let me = School.{age: 20, name: "Big Reason"};
+    /* or */
+    let me = {School.age: 20, name: "Big Reason"};
+  #+END_SRC
+*** Immutable Update
+- New records can be created from old records with the ~...~ spread
+  operator. The original record isn't mutated.
+  #+BEGIN_SRC reason
+  let meNextYear = {...me, age: me.age + 1};
+  #+END_SRC
+
+- Note: spread cannot add new fields, as a record's shape is fixed by
+  its type.
+
+*** Mutable Update
+- Record fields can optionally be mutable. This allows you to update
+  those fields in-place with the ~=~ operator.
+  #+BEGIN_SRC reason
+    type person = {
+      name: string,
+      mutable age: int
+    };
+
+    let baby = {name: "Baby Reason", age: 5};
+    baby.age = baby.age + 1; /* alter `baby`. Happy birthday! */
+  #+END_SRC
+
+*** Syntax shorthand
+- To reduce redundancy, we provide *punning* for a record's types and
+  values. Punning refers to the syntax shorthand you can use when the
+  name of a field matches the name of its value/type:
+  #+BEGIN_SRC reason
+    type horsePower = {power: int, metric: bool};
+
+    let metric = true;
+    let someHorsePower = {power: 10, metric};
+    /* same as the value {power: 10, metric: metric}; */
+
+    type car = {name: string, horsePower};
+    /* same as the type {name: string, horsePower: horsePower}; */
+  #+END_SRC
+- Note that there's no punning for a single record field! ~{foo}~
+  doesn't do what you expect (it's a block that returns the value
+  foo).
+*** Record Types Are Found By Field Name
+- With records, you cannot say "I'd like this function to take any
+  record type, as long as they have the field ~age~". The following
+  works, but not as expected:
+  #+BEGIN_SRC reason
+    type person = {age: int, name: string};
+    type monster = {age: int, hasTentacles: bool};
+
+    let getAge = (entity) => entity.age;
+  #+END_SRC
+  The last line's function will infer that the parameter ~entity~ must
+  be of type ~monster~. The following code's last line fails:
+  #+BEGIN_SRC reason
+    let kraken = {age: 9999, hasTentacles: true};
+    let me = {age: 5, name: "Baby Reason"};
+
+    getAge(kraken);
+    getAge(me);
+  #+END_SRC
+  + The type system will complain that ~me~ is a ~person~, and that ~getAge~
+    only works on ~monster~. If you need such capability, use Reason
+    [[https://reasonml.github.io/docs/en/object][objects]].
+** Variant!
+
+#+BEGIN_SRC reason
+type myResponseVariant =
+  | Yes
+  | No
+  | PrettyMuch;
+
+let areYouCrushingIt = Yes;
+#+END_SRC
+
+- ~Yes~, ~No~ and ~PrettyMuch~ aren't strings, nor references, nor some
+  special data type. They're called "constructors" (or "tag"). The ~|~
+  bar separates each constructor.
+- Note: a variant's constructors need to be capitalized.
+- ~switch~
+  #+BEGIN_SRC reason
+    let message =
+      switch (areYouCrushingIt) {
+      | No => "No worries. Keep going!"
+      | Yes => "Great!"
+      | PrettyMuch => "Nice!"
+      };
+    /* message is "Great!" */
+  #+END_SRC
+*** Variant Needs an Explicit Definition
+- If the variant you're using is in a different file, bring it into
+  scope like you'd do for a record:
+  #+BEGIN_SRC reason
+  /* Zoo.re */
+  type animal = Dog | Cat | Bird;
+  #+END_SRC
+  #+BEGIN_SRC reason
+  /* example.re */
+
+  let pet: Zoo.animal = Dog; /* preferred */
+  /* or */
+  let pet = Zoo.Dog;
+  #+END_SRC
+
+*** Constructor Arguments
+- A variant's constructors can hold extra data separated by comma.
+  #+BEGIN_SRC reason
+    type account =
+      | None
+      | Instagram(string)
+      | Facebook(string, int);
+  #+END_SRC
+  + Here, Instagram holds a string, and Facebook holds a string and an int. Usage:
+    #+BEGIN_SRC reason
+      let myAccount = Facebook("Josh", 26);
+      let friendAccount = Instagram("Jenny");
+    #+END_SRC
+- Notice how using a constructor is like calling a function? It's as
+  if ~Facebook~ was a function that accepts two arguments. This isn't a
+  coincidence; there's a reason why a constructor's data is called
+  "constructor argument".
+- Using switch, you can pattern-match a constructor's arguments:
+  #+BEGIN_SRC reason
+    let greeting =
+      switch (myAccount) {
+      | None => "Hi!"
+      | Facebook(name, age) => "Hi " ++ name ++ ", you're " ++ string_of_int(age) ++ "-year-old."
+      | Instagram(name) => "Hello " ++ name ++ "!"
+      };
+  #+END_SRC
+*** ~option~
+#+BEGIN_SRC reason
+type option('a) = None | Some('a);
+#+END_SRC
+
+*** ~list~
+#+BEGIN_SRC reason
+type list('a) = Empty | Head('a, list('a)); /* Not the actual type definition. Just an illustration. */
+#+END_SRC
+- Reason gave list a syntax sugar. ~[1, 2, 3]~ is conceptually
+  equivalent to ~Head(1, Head(2, Head(3, Empty)))~. Once again, ~switch~
+  forces you to handle every case of this variant, including Empty
+  (aka []). This eliminates another big category of access bugs.
+
+*** Variants Must Have constructors
+- You might be tempted to try ~type foo = int | string~. This isn't
+  possible in Reason; you'd have to give each branch a constructor:
+  ~type foo = Int(int) | String(string)~. Though usually, needing this
+  might be an anti-pattern
+
+*** Interop with JavaScript
+- suppose there's a ~myLibrary.draw~ JS function that takes in either a
+  ~number~ or a ~string~. You might be tempted to bind it like so:
+  #+BEGIN_SRC reason
+    /* reserved for internal usage */
+    [@bs.module "myLibrary"] external draw : 'a => unit = "draw";
+
+    type animal =
+      | MyFloat(float)
+      | MyString(string);
+
+    let betterDraw = (animal) =>
+      switch (animal) {
+      | MyFloat(f) => draw(f)
+      | MyString(s) => draw(s)
+      };
+  #+END_SRC
+  + You could definitely do that, but there are better ways! For
+    example, simply two externals that both compile to the same JS
+    call:
+    #+BEGIN_SRC reason
+      [@bs.module "myLibrary"] external drawFloat : float => unit = "draw";
+      [@bs.module "myLibrary"] external drawString : string => unit = "draw";
+    #+END_SRC
+  + BuckleScript also provides [[*Modeling Polymorphic Function][a few other ways]] to do this.
+
+** Null, Undefined & Option
+- The ~Option~ helper module is [[https://bucklescript.github.io/bucklescript/api/Belt.Option.html][here]].
+*** Interoperate with JavaScript ~undefined~ and ~null~
+- The ~option~ type is common enough that we special-case it when
+  compiling to JavaScript:
+  #+BEGIN_SRC reason
+  Some(5)
+  #+END_SRC
+  simply compiles down to 5, and
+  #+BEGIN_SRC reason
+  None
+  #+END_SRC
+  compiles to ~undefined~
+
+- If you've got e.g. a ~string~ in JavaScript that you know might be
+  ~undefined~, type it as ~option(string)~ and you're done! Likewise, you
+  can send a ~Some(5)~ or ~None~ to the JS side and expect it to be
+  interpreted correctly.
+
+**** Caveat 1
+- The option-to-undefined translation isn't perfect, because on our
+  side, option values can be composed:
+  #+BEGIN_SRC reason
+  Some(Some(Some(5)))
+  #+END_SRC
+  This still compiles to ~5~, but this gets troublesome:
+  #+BEGIN_SRC reason
+  Some(None)
+  #+END_SRC
+  This is compiled into the following JS:
+  #+BEGIN_SRC reason
+  Js_primitive.some(undefined);
+  #+END_SRC
+  + What's this ~Js_primitive~ thing? Why can't this compile to
+    ~undefined~? Long story short, when dealing polymorphic option type
+    (aka ~option('a)~, for any ~'a~), many operations become tricky if we
+    don't mark the value with some special annotation. If this doesn't
+    make sense, don't worry; just remember the following rule:
+    1. Never, EVER, pass a nested option value (e.g. ~Some(Some(Some(5)))~) into the JS side.
+    1. Never, EVER, annotate a value coming from JS as
+       ~option('a)~. Always give the concrete, non-polymorphic type.
+**** Caveat 2
+- Unfortunately, lots of times, your JavaScript value might be both
+  ~null~ or ~undefined~. In that case, you unfortunately can't type such
+  value as e.g. ~option(int)~, since our option type only checks for
+  ~undefined~ and not ~null~ when dealing with a ~None~.
+***** Solution: More Sophisticated ~undefined~ & null ~Interop~
+- To solve this, we provide access to more elaborate ~null~ and
+  ~undefined~ helpers through the [[https://bucklescript.github.io/bucklescript/api/Js.Nullable.html][Js.Nullable]] module. This somewhat
+  works like an ~option~ type, but is different from it.
+***** Examples
+- To create a JS null, use the value ~Js.Nullable.null~.
+- To create a JS ~undefined~, use ~Js.Nullable.undefined~ (you can
+  naturally use ~None~ too, but that's not the point here; the
+  ~Js.Nullable.*~ helpers wouldn't work with it).
+- If you're receiving, for example, a JS string that can be ~null~ and
+  ~undefined~, type it as:
+  #+BEGIN_SRC reason
+  [@bs.module "MyConstant"] external myId: Js.Nullable.t(string) = "myId"
+  #+END_SRC
+- To create such a ~nullable~ string from our side (presumably to pass
+  it to the JS side, for interop purpose), do:
+  #+BEGIN_SRC reason
+    [@bs.module "MyIdValidator"] external validate: Js.Nullable.t(string) => bool = "validate";
+    let personId: Js.Nullable.t(string) = Js.Nullable.return("abc123");
+
+    let result = validate(personId);
+  #+END_SRC
+  + The ~return~ part "wraps" a string into a nullable string, to make
+    the type system understand and track the fact that, as you pass
+    this value around, it's not just a string, but a string that can
+    be ~null~ or ~undefined~.
+**** Convert to/from option
+- ~Js.Nullable.fromOption~ converts from a ~option~ to
+  ~Js.Nullable.t~. ~Js.Nullable.toOption~ does the opposite.
+** List & Array
+*** List
+- Lists are:
+  + homogeneous
+  + immutable
+  + fast at prepending items
+    #+BEGIN_SRC reason
+    let myList = [1, 2, 3];
+    #+END_SRC
+- Reason lists are simple, singly linked lists.
+**** Usage
+ - You'd use list for its resizability, its fast prepend (adding at the
+   head), and its fast split, all of which are immutable yet efficient!
+
+ - The standard lib provides a [[https://reasonml.github.io/api/List.html][List]] module (and its counterpart with
+   labeled arguments, ~ListLabels~).
+
+**** Immutable Prepend
+ - Use the spread syntax
+   #+BEGIN_SRC reason
+   let myList: list(int) = [1, 2, 3];
+   let anotherList = [0, ...myList];
+   #+END_SRC
+   ~myList~ didn't mutate. ~anotherList~ is now ~[0, 1, 2, 3]~. This is
+   efficient (constant time, not linear). ~anotherList~'s last 3 elements
+   are shared with ~myList~!
+**** Access
+ - ~switch~ is usually used to access list items:
+   #+BEGIN_SRC reason
+     let message =
+       switch (myList) {
+       | [] => "This list is empty"
+       | [a, ...rest] => "The head of the list is the string " ++ string_of_int(a)
+       };
+   #+END_SRC
+
+ - To access an arbitrary list item, use ~List.nth~.
+*** Array
+- Arrays are like lists, except they are:
+  + mutable
+  + fast at random access & updates
+  + fix-sized on native (flexibly sized on JavaScript)
+- You'd surround them with ~[|~ and ~|]~.
+  #+BEGIN_SRC reason
+  let myArray = [|"hello", "world", "how are you"|];
+  #+END_SRC
+
+- Standard library ~Array~ and ~ArrayLabel~ module. For JS compilation,
+  you also have the familiar ~Js.Array~ API.
+
+- Access & update an array item like so:
+  #+BEGIN_SRC reason
+    let myArray: array(string) = [|"hello", "world", "how are you"|];
+
+    let firstItem = myArray[0]; /* "hello" */
+
+    myArray[0] = "hey";
+    /* now [|"hey", "world", "how are you"|] */
+  #+END_SRC
+  The above array access/update is just syntax sugar for ~Array.get~ and ~Array.set~.
+
+- If you're compiling to JavaScript, know that Reason arrays map
+  straightforwardly to JavaScript arrays, and vice-versa. Thus, even
+  though arrays are fix-sized on native, you can still use the
+  ~Js.Array~ API to resize them. This is fine.
