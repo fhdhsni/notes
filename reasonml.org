@@ -1911,6 +1911,63 @@
       type scoreType = int;
       let x: scoreType = 10;
     #+END_SRC
+
+*** Type Argument!
+- Types can accept parameters, akin to generics in other
+  languages. It's as if a type is a function that takes in arguments
+  and returns a new type! The parameters need to start with ~'~.
+
+- The use-case of a parameterized type is to kill
+  duplications. Before:
+  + without
+    #+BEGIN_SRC reason
+      /* this is a tuple of 3 items, explained next */
+      type intCoordinates = (int, int, int);
+      type floatCoordinates = (float, float, float);
+
+      let buddy: intCoordinates = (10, 20, 20);
+    #+END_SRC
+  + with
+    #+BEGIN_SRC reason
+      type coordinates('a) = ('a, 'a, 'a);
+
+      /* apply the coordinates "type function" and return the type (int, int, int) */
+      type intCoordinatesAlias = coordinates(int);
+
+      let buddy: intCoordinatesAlias = (10, 20, 20);
+
+      /* or, more commonly, write it inline */
+      let buddy: coordinates(float) = (10.5, 20.5, 20.5);
+    #+END_SRC
+    In practice, types are inferred for you. So the more concise
+    version of the above example would be nothing but:
+    #+BEGIN_SRC reason
+    let buddy = (10, 20, 20);
+    #+END_SRC
+- Types can receive more arguments, and be composable.
+  #+BEGIN_SRC reason
+    type result('a, 'b) =
+      | Ok('a)
+      | Error('b);
+
+    type myPayload = {data: string};
+
+    type myPayloadResults('errorType) = list(result(myPayload, 'errorType));
+
+    let payloadResults: myPayloadResults(string) = [
+      Ok({data: "hi"}),
+      Ok({data: "bye"}),
+      Error("Something wrong happened!")
+    ];
+  #+END_SRC
+*** Mutually Recursive Types
+- Just like functions, types can be mutually recursive through and:
+  #+BEGIN_SRC reason
+  type student = {taughtBy: teacher}
+  and teacher = {students: list(student)};
+  #+END_SRC
+- Note that there's no semicolon ending the first line and no type on the second line.
+
 ** String & Char
 - Quoted String
   + multiline string just like before
@@ -2375,3 +2432,452 @@ type list('a) = Empty | Head('a, list('a)); /* Not the actual type definition. J
   straightforwardly to JavaScript arrays, and vice-versa. Thus, even
   though arrays are fix-sized on native, you can still use the
   ~Js.Array~ API to resize them. This is fine.
+** Function
+*** Labeled Arguments
+- In OCaml/Reason, you can attach labels to an argument by prefixing
+  the name with the ~ symbol:
+  #+BEGIN_SRC reason
+    let addCoordinates = (~x, ~y) => {
+      /* use x and y here */
+    };
+    /* ... */
+    addCoordinates(~x=5, ~y=6);
+  #+END_SRC
+
+- You can also refer to the arguments inside the function body by a
+  different name for conciseness:
+  #+BEGIN_SRC reason
+    let drawCircle = (~radius as r, ~color as c) => {
+      setColor(c);
+      startAt(r, r);
+      /* ... */
+    };
+
+    drawCircle(~radius=10, ~color="red");
+  #+END_SRC
+  As a matter of fact, ~(~radius)~ is just a shorthand (called punning)
+  for ~(~radius as radius)~.
+
+- Here's the syntax for typing the arguments:
+  #+BEGIN_SRC reason
+  let drawCircle = (~radius as r: int, ~color as c: string) => ...;
+  #+END_SRC
+*** Optional Labeled Arguments
+- Labeled function arguments can be made optional during
+  declaration. You can then omit them when calling the function.
+  #+BEGIN_SRC reason
+    /* radius can be omitted */
+    let drawCircle = (~color, ~radius=?, ()) => {
+      setColor(color);
+      switch (radius) {
+      | None => startAt(1, 1)
+      | Some(r_) => startAt(r_, r_)
+      }
+    };
+  #+END_SRC
+  - When given in this syntax, ~radius~ is wrapped in the standard
+    library's ~option~ type, defaulting to ~None~. If provided, it'll be
+    wrapped with a ~Some~. So ~radius~'s type value is either ~None~ or
+    ~Some(int)~ here.
+- Note the unit ~()~ at the end of ~drawCircle~. Writing this particular
+  function without the unit ~()~ would lead to the following
+  problem:
+  + Because ~radius~ and ~color~ are both labeled, the function can be
+    curried, and it can be applied out-of-order, it's unclear what the
+    following means:
+    #+BEGIN_SRC reason
+    let whatIsThis = drawCircle(~color);
+    #+END_SRC
+    Is ~whatIsThis~ a curried ~drawCircle~ function, waiting for the
+    optional ~radius~ to be applied? Or did it finish applying because
+    the ~radius~ is optional? To address this confusion, append a
+    positional (aka non-labeled) argument to ~drawCircle~
+    (conventionally ~()~), and OCaml will, as a rule of thumb, presume
+    the optional labeled argument is omitted when the positional
+    argument is provided.
+    * Because we don't supply the unit OCaml knows we want to curry the function.
+      #+BEGIN_SRC reason
+      let curriedFunction = drawCircle(~color);
+      #+END_SRC
+    * Because we do supply the unit OCaml knows we deliberately omit
+      the ~radius~ parameter, and the function is executed.
+      #+BEGIN_SRC reason
+      let circle = drawCircle(~color, ());
+      #+END_SRC
+*** Explicitly Passed Optional
+- Sometimes, you might want to forward a value to a function without
+  knowing whether the value is ~None~ or ~Some(a)~. Naively, you'd do:
+  #+BEGIN_SRC reason
+    let result =
+      switch (payloadRadius) {
+      | None => drawCircle(~color, ())
+      | Some(r) => drawCircle(~color, ~radius=r, ())
+      };
+  #+END_SRC
+  + instead you can do
+    #+BEGIN_SRC reason
+      let result = drawCircle(~color, ~radius=?payloadRadius, ()); /* note the question mark ? */
+    #+END_SRC
+    This means "I understand ~radius~ is optional, and that when I pass
+    it a value it needs to be an ~int~, but I don't know whether the
+    value I'm passing is ~None~ or ~Some(val)~, so I'll pass you the whole
+    ~option~ wrapper".
+
+*** Optional with Default Value
+- Optional labeled arguments can also be provided a default value. In
+  this case, they aren't wrapped in an ~option~ type.
+  #+BEGIN_SRC reason
+    let drawCircle = (~radius=1, ~color, ()) => {
+      setColor(color);
+      startAt(radius, radius)
+    };
+  #+END_SRC
+*** Recursive Functions
+- By default, a value can't see a binding that points to it, but
+  including the rec keyword in a let binding makes this possible. This
+  allows functions to see and call themselves, giving us the power of
+  recursion.
+  #+BEGIN_SRC reason
+  let rec neverTerminate = () => neverTerminate();
+  #+END_SRC
+
+*** Mutually Recursive Functions
+- Mutually recursive functions start like a single recursive function
+  using the rec keyword, and then are chained together with and:
+  #+BEGIN_SRC reason
+  let rec callSecond = () => callFirst()
+  and callFirst = () => callSecond();
+  #+END_SRC
+- Note that there's no semicolon ending the first line and no ~let~ on
+  the second line.
+
+*** Cheat sheet for the function syntaxes
+**** Declaration
+     #+BEGIN_SRC reason
+       /* anonymous function. Listed for completeness only */
+       (x) => (y) => 1;
+       /* sugar for the above */
+       (x, y) => 1;
+       /* assign to a name */
+       let add = (x, y) => 1;
+
+       /* labeled */
+       let add = (~first as x, ~second as y) => x + y;
+       /* with punning sugar */
+       let add = (~first, ~second) => first + second;
+
+       /* labeled with default value */
+       let add = (~first as x=1, ~second as y=2) => x + y;
+       /* with punning */
+       let add = (~first=1, ~second=2) => first + second;
+
+       /* optional */
+       let add = (~first as x=?, ~second as y=?) => switch (x) {...};
+       /* with punning */
+       let add = (~first=?, ~second=?) => switch (first) {...};
+     #+END_SRC
+- With Type Annotation
+     #+BEGIN_SRC reason
+       /* anonymous function */
+       (x: int) => (y: int): int => 1;
+       /* sugar for the above */
+       (x: int, y: int): int => 1;
+       /* assign to a name */
+       let add = (x: int, y: int): int => 1;
+
+       /* labeled */
+       let add = (~first as x: int, ~second as y: int) : int => x + y;
+       /* with punning sugar */
+       let add = (~first: int, ~second: int) : int => first + second;
+
+       /* labeled with default value */
+       let add = (~first as x: int=1, ~second as y: int=2) : int => x + y;
+       /* with punning sugar */
+       let add = (~first: int=1, ~second: int=2) : int => first + second;
+
+       /* optional */
+       let add = (~first as x: option(int)=?, ~second as y: option(int)=?) : int => switch (x) {...};
+       /* with punning sugar */
+       /* note that the caller would pass an `int`, not `option int` */
+       /* Inside the function, `first` and `second` are `option int`. */
+       let add = (~first: option(int)=?, ~second: option(int)=?) : int => switch (first) {...};
+     #+END_SRC
+**** Application
+     #+BEGIN_SRC reason
+       /* anonymous application. Listed for completeness only */
+       add(x)(y);
+       /* sugar for the above */
+       add(x, y);
+
+       /* labeled */
+       add(~first=1, ~second=2);
+       /* with punning sugar */
+       add(~first, ~second);
+
+       /* application with default value. Same as normal application */
+       add(~first=1, ~second=2);
+
+       /* explicit optional application */
+       add(~first=?Some(1), ~second=?Some(2));
+       /* with punning */
+       add(~first?, ~second?);
+     #+END_SRC
+- With Type Annotation
+  #+BEGIN_SRC reason
+    /* anonymous application */
+    add(x: int)(y: int);
+
+    /* labeled */
+    add(~first=1: int, ~second=2: int);
+    /* with punning sugar */
+    add(~first: int, ~second: int);
+
+    /* application with default value. Same as normal application */
+    add(~first=1: int, ~second=2: int);
+
+    /* explicit optional application */
+    add(~first=?Some(1): option(int), ~second=?Some(2): option(int));
+    /* with punning sugar */
+    add(~first: option(int)?, ~second: option(int)?);
+  #+END_SRC
+**** Standalone Type Signature
+     #+BEGIN_SRC reason
+       /* first arg type, second arg type, return type */
+       type foo = int => int => int;
+       /* sugar for the above */
+       type foo = (int, int) => int;
+
+       /* labeled */
+       type foo = (~first: int, ~second: int) => int;
+
+       /* labeled */
+       type foo = (~first: int=?, ~second: int=?, unit) => int;
+     #+END_SRC
+**** In Interface Files
+- To annotate a function from the implementation file (~.re~):
+  #+BEGIN_SRC reason
+
+  let add: int => int => int;
+  /* sugar for the above */
+  let add: (int, int) => int;
+  #+END_SRC
+- Same rules as the previous section, except replacing ~type foo = bar~
+  with ~let add: bar~.
+
+- Don't confuse this with actually exporting a type in the interface
+  file. ~let add: bar~ annotates an existing value ~bar~ from the
+  implementation file. ~type foo = bar~ exports a type of the same shape
+  from the implementation file.
+** Pipe First
+- Example
+  #+BEGIN_SRC reason
+  [@bs.send] external map : (array('a), 'a => 'b) => array('b) = "map";
+  [@bs.send] external filter : (array('a), 'a => 'b) => array('b) = "filter";
+
+  type request;
+  external asyncRequest: unit => request = "asyncRequest";
+  [@bs.send] external setWaitDuration: (request, int) => request = "setWaitDuration";
+  [@bs.send] external send: request => unit = "send";
+  #+END_SRC
+
+  You'd use them like this:
+  #+BEGIN_SRC reason
+  let result = filter(map([|1, 2, 3|], a => a + 1), a => a mod 2 == 0);
+
+  send(setWaitDuration(asyncRequest(), 4000));
+  #+END_SRC
+
+  but this is more more readable
+  #+BEGIN_SRC reason
+  let result = [|1, 2, 3|]
+    ->map(a => a + 1)
+    ->filter(a => a mod 2 === 0);
+
+  asyncRequest()->setWaitDuration(400)->send;
+  #+END_SRC
+*** Pipe Into Variants
+- A variant's constructors, like ~Some~ or ~Student~, look like functions,
+  but unfortunately aren't, due to historical reasons. Sometime, it'd
+  still be nice to be able to use them as functions. Pipe First takes
+  the occasion to enable that for you!
+  #+BEGIN_SRC reason
+  let result = name->preprocess->Some
+  #+END_SRC
+
+  which will be turned this into:
+  #+BEGIN_SRC reason
+  let result = Some(preprocess(name))
+  #+END_SRC
+
+*** Pipe Placeholders
+- A placeholder is written as an underscore and it tells Reason that
+  you want to fill in an argument of a function later. These two have
+  equivalent meaning:
+  #+BEGIN_SRC reason
+    let addTo7 = (x) => add3(3, x, 4);
+    /* same as */
+    let addTo7 = add3(3, _, 4);
+  #+END_SRC
+- Sometimes you don't want to pipe the value you have into the first
+  position. In these cases you can mark a placeholder value to show
+  which argument you would like to pipe into.
+  + Let's say you have a function ~namePerson~, which takes a ~person~
+    then a ~name~ argument. If you are transforming a ~person~ then pipe
+    will work as-is:
+    #+BEGIN_SRC reason
+      makePerson(~age=47, ())
+        ->namePerson("Jane");
+    #+END_SRC
+  + If you have a ~name~ that you want to apply to a ~person~ object, you
+    can use a placeholder:
+    #+BEGIN_SRC reason
+      getName(input)
+        ->namePerson(personDetails, _);
+    #+END_SRC
+  + This allows you to pipe into any positional argument. It also
+    works for named arguments:
+    #+BEGIN_SRC reason
+      getName(input)
+        ->namePerson(~person=personDetails, ~name=_);
+    #+END_SRC
+** Destructuring
+- The following binds variables: ~ten = 10~, ~twenty = 20~
+  #+BEGIN_SRC reason
+  let someInts = (10, 20);
+  let (ten, twenty) = someInts;
+  #+END_SRC
+
+  The following binds variables: ~name = "Guy"~, ~age = 30~
+  #+BEGIN_SRC reason
+  type person = {name: string, age: int};
+  let somePerson = {name: "Guy", age: 30};
+  let {name, age} = somePerson;
+  #+END_SRC
+- When you pull out fields, you can optionally rename the fields. The
+  following binds these instead: ~n = "Guy"~, ~a = 30~.
+  #+BEGIN_SRC reason
+  let {name: n, age: a} = somePerson;
+  #+END_SRC
+- Destructuring also allows type annotations.
+  #+BEGIN_SRC reason
+    let (ten: int, twenty: int) = someInts;
+    let {name: (n: string), age: (a: int)} = somePerson;
+  #+END_SRC
+- Destructuring a function's labeled arguments is also possible.
+  #+BEGIN_SRC reason
+    type person = {
+      name: string,
+      age: int
+    };
+
+    let someFunction = (~person as {name}) => {
+      /* you can use `name` here */
+    };
+
+    let otherFunction = (~person as {name} as thePerson) => {
+      /* you can use both `name` and the whole record as `thePerson` here */
+    };
+  #+END_SRC
+** Pattern Matching!
+- Sample
+  #+BEGIN_SRC reason
+    type payload =
+      | BadResult(int)
+      | GoodResult(string)
+      | NoResult;
+
+    let data = GoodResult("Product shipped!");
+
+    let message =
+      switch (data) {
+      | GoodResult(theMessage) => "Success! " ++ theMessage
+      | BadResult(errorCode) => "Something's wrong. The error code is: " ++ string_of_int(errorCode)
+      | NoResult => "fuck"
+      };
+  #+END_SRC
+- Sample 2
+  #+BEGIN_SRC reason
+    switch (myList) {
+    | [] => print_endline("Empty list")
+    | [a, ...theRest] => print_endline("list with the head value " ++ a)
+    };
+
+    switch (myArray) {
+    | [|1, 2|] => print_endline("This is an array with item 1 and 2")
+    | [||] => print_endline("This array has no element")
+    | _ => print_endline("This is an array")
+    };
+
+    let reply =
+      switch (message) {
+      | "Reason's pretty cool" => "Yep"
+      | "good night" => "See ya!"
+      | "hello" | "hi" | "heya" | "hey" => "hello to you too!"
+      | _ => "Nice to meet you!"
+      };
+
+    let message =
+      switch (data) {
+      | GoodResult(theMessage) => "Success! " ++ theMessage
+      | BadResult(0 | 1 | 5) => "Something's wrong. It's a server side problem."
+      | BadResult(errorCode) => "Unknown error occurred. Code: " ++ string_of_int(errorCode)
+      | NoResult => "Things look fine"
+      };
+  #+END_SRC
+- Note: you can only pass literals (i.e. concrete values) as a
+  pattern, not let-binding names or other things. The following
+  doesn't work as expected:
+  #+BEGIN_SRC reason
+    let myMessage = "Hello";
+    switch (greeting) {
+    | myMessage => print_endline("Hi to you")
+    };
+  #+END_SRC
+  Instead, it'd assume you're matching on any string, and binding that
+  to the name ~myMessage~ in that ~switch~ case, which is not what you
+  wanted.
+
+*** When clauses
+- When you really need to use arbitrary logic with an otherwise clean
+  pattern match, you can slip in some when clauses, which are
+  basically if sugar:
+    #+BEGIN_SRC reason
+      let message =
+        switch (data) {
+        | GoodResult(theMessage) => ...
+        | BadResult(errorCode) when isServerError(errorCode) => ...
+        | BadResult(errorCode) => ... /* otherwise */
+        | NoResult => ...
+        };
+    #+END_SRC
+*** Match on Exceptions
+- If the function throws an exception (covered later), you can also
+  match on that, in addition to the function's normally returned
+  values.
+  #+BEGIN_SRC reason
+    switch (List.find((i) => i === theItem, myItems)) {
+    | item => print_endline(item)
+    | exception Not_found => print_endline("No such item found!")
+    };
+  #+END_SRC
+*** Nested Patterns
+- Nested ~|~ work as intended:
+  #+BEGIN_SRC reason
+    switch (student) {
+    | {name: "Jane" | "Joe"} => ...
+    | {name: "Bob", Job: Programmer({fullTime: Yes | Maybe})} => ...
+    };
+  #+END_SRC
+*** Patterns Everywhere
+- You can put a pattern anywhere you'd put a normal "variable
+  declaration":
+  #+BEGIN_SRC reason
+    type leftOrRight =
+      | Left(int)
+      | Right(int);
+
+    let i = Left(1);
+
+    /* magic! */
+    let Left(v) | Right(v) = i;
+  #+END_SRC
