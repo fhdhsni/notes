@@ -608,28 +608,30 @@
 
 *** ReasonML
 **** Type Declaration
-    + one dot
-      #+BEGIN_SRC reason
-        type tesla = {
-          .
-          color: string
-        };
-      #+END_SRC
-      * The dot at the beginning indicates that this is a "closed"
-        object type, which means that an object based on this type must
-        have exactly this shape.
+- An object doesn't need a type declaration, though it can have
+  one. It looks like a record, except with a ~.~:
+  + one dot
+    #+BEGIN_SRC reason
+      type tesla = {
+        .
+        color: string
+      };
+    #+END_SRC
+    * The dot at the beginning indicates that this is a "closed"
+      object type, which means that an object based on this type must
+      have exactly this shape.
 
-    + two dot
-      #+BEGIN_SRC reason
-        type car('a) = {
-          ..
-          color: string
-        } as 'a;
-      #+END_SRC
-      * Two dots, also called an elision, indicate that this is an
-        "open" object type, and therefore can also contain other values
-        and methods. An open object is also polymorphic and therefore
-        requires a parameter.
+  + two dot
+    #+BEGIN_SRC reason
+      type car('a) = {
+        ..
+        color: string
+      } as 'a;
+    #+END_SRC
+    * Two dots, also called an elision, indicate that this is an
+      "open" object type, and therefore can also contain other values
+      and methods. An open object is also polymorphic and therefore
+      requires a parameter.
 **** creation
   - sample 1
      #+BEGIN_SRC reason
@@ -645,11 +647,11 @@
 
        Js.log(obj#color) /* "Red" */
      #+END_SRC
-    + Here we have a simple object with the method color and the
-      property red. This method takes no arguments and returns the
-      private property red. Because the method color is a public method
-      we can access it using object notation. Remember, objects only
-      export methods and all properties are private.
+    + Here we have a simple object with the method ~color~ and the
+      property ~red~. This method takes no arguments and returns the
+      private property ~red~. Because the method color is a public method
+      we can access it using object notation.
+      *Remember, objects only export methods and all properties are private.*
   - sample 2
     #+BEGIN_SRC reason
       type tesla = {.
@@ -669,8 +671,8 @@
       ~drive~. It also contains a private method ~enableEnvy~ that is only
       accessible from within the object.
 
-    + A Reason object can also access ~this~. JavaScript object's this
-      behavior can be quirky; Reason this always points to the object
+    + A Reason object can also access ~this~. JavaScript object's ~this~
+      behavior can be quirky; Reason ~this~ always points to the object
       itself correctly.
   - sample 3
     #+BEGIN_SRC reason
@@ -688,6 +690,13 @@
         pub doYouWant = () => hasEnvy^;
         pri enableEnvy = (envy) => hasEnvy := envy
       };
+    #+END_SRC
+    The above example shows an open object type which uses a type
+    as parameter. The object type parameter is required to implement
+    all the methods of the open object type.
+    You can use the above object like so:
+    #+BEGIN_SRC reason
+    obj#doYouWant();
     #+END_SRC
 
 *** BuckleScript
@@ -1827,6 +1836,7 @@
    type exn with JS data.
    #+BEGIN_SRC reason
      let handleData = [@bs.open] (
+       /* fun | leaving this here for seaching */
        fun
        | Invalid_argument(_) => 0
        | Not_found => 1
@@ -2778,7 +2788,7 @@ type list('a) = Empty | Head('a, list('a)); /* Not the actual type definition. J
       /* you can use both `name` and the whole record as `thePerson` here */
     };
   #+END_SRC
-** Pattern Matching!
+** Pattern Matching
 - Sample
   #+BEGIN_SRC reason
     type payload =
@@ -2881,3 +2891,659 @@ type list('a) = Empty | Head('a, list('a)); /* Not the actual type definition. J
     /* magic! */
     let Left(v) | Right(v) = i;
   #+END_SRC
+** Mutation
+*** Mutate Let-binding
+- Let-bindings are immutable, but you can wrap it with a ~ref~, which is
+  like a box whose content can change:
+  #+BEGIN_SRC reason
+  let foo = ref(5);
+  #+END_SRC
+  You can get the actual value of a ~ref~ through the postfix ~^~
+  operator:
+  #+BEGIN_SRC reason
+  let five = foo^; /* 5 */
+  #+END_SRC
+  Assign a new value to foo like so:
+  #+BEGIN_SRC reason
+  foo := 6;
+  #+END_SRC
+  Note that the previous binding ~five~ stays ~5~, since it got the
+  underlying item on the ~ref~ box, not the ~ref~ itself.
+
+- ~ref~ isn't actually a special feature! It's just an ordinary syntax
+  sugar for a [[https://reasonml.github.io/api/Pervasives.html][predefined mutable record type called ~ref~ in the
+  standard library]] (search "References" in that page). Here's the
+  desugared version:
+  #+BEGIN_SRC reason
+    let foo = {contents: 5};
+    let five = foo.contents;
+    foo.contents = 6;
+  #+END_SRC
+  Before reaching for ~ref~, know that you can achieve lightweight,
+  local "mutations" through overriding let bindings:
+  #+BEGIN_SRC reason
+    let foo = 10;
+    let foo = someCondition ? foo + 5 : foo;
+    print_int(foo); /* either 15 or 10 */
+  #+END_SRC
+** Imperative Loops
+*** For Loops
+- For loops iterate from a starting value up to (and including) the
+  ending value.
+  #+BEGIN_SRC reason
+    for (myBinding in startValue to endValue) {
+      {/* use myBinding here */};
+    };
+
+    let xStart = 1;
+    let xEnd = 3;
+
+    /* prints: 1 2 3 */
+    for (x in xStart to xEnd) {
+      print_int(x);
+      print_string(" ");
+    };
+  #+END_SRC
+- You can make the for loop count in the opposite direction by using downto.
+  #+BEGIN_SRC reason
+    for (myBinding in startValue downto endValue) {
+      statements
+    };
+
+    let xStart = 3;
+    let xEnd = 1;
+
+    /* prints: 3 2 1 */
+    for (x in xStart downto xEnd) {
+      print_int(x);
+      print_string(" ")
+    };
+  #+END_SRC
+
+*** While Loops
+- While loops execute a code block while some condition is true. The
+  form of a while loop includes a single expression, the condition to
+  test.
+  #+BEGIN_SRC reason
+    while (testCondition) {
+      statements
+    };
+  #+END_SRC
+**** break
+- There's no loop-breaking ~break~ keyword (nor early ~return~ from
+  functions, for that matter) in Reason. However, we can break out of
+  a while loop easily through using a mutable binding.
+  #+BEGIN_SRC reason
+    Random.self_init();
+
+    let break = ref(false);
+
+    while (! break^) {
+      if (Random.int(10) === 3) {
+        break := true
+      } else {
+        print_endline("hello")
+      }
+    };
+  #+END_SRC
+
+** JSX
+- Reason JSX isn't tied to ReactJS; they translate to normal function calls:
+*** Capitalized Tag
+#+BEGIN_SRC reason
+<MyComponent foo={bar} />
+#+END_SRC
+
+becomes
+
+#+BEGIN_SRC reason
+([@JSX] MyComponent.createElement(~foo=bar, ~children=[], ()));
+#+END_SRC
+
+*** Uncapitalized Tag
+#+BEGIN_SRC reason
+<div foo={bar}> child1 child2 </div>;
+#+END_SRC
+becomes
+#+BEGIN_SRC reason
+([@JSX] div(~foo=bar, ~children=[child1, child2], ()));
+#+END_SRC
+
+*** Fragment
+#+BEGIN_SRC reason
+<> child1 child2 </>;
+#+END_SRC
+becomes
+#+BEGIN_SRC reason
+([@JSX] [child1, child2]);
+#+END_SRC
+
+*** Children
+#+BEGIN_SRC reason
+<MyComponent> foo bar </MyComponent>
+#+END_SRC
+- This is the syntax for passing a list of two items, foo and bar, to
+  the children position. It desugars to a list containing foo and bar:
+  #+BEGIN_SRC reason
+  ([@JSX] MyComponent.createElement(~children=[foo, bar], ()));
+  #+END_SRC
+  + Note again that this isn't the transform for ReasonReact;
+    ReasonReact turns the final list into an array. But the idea still
+    applies.
+- So naturally,
+  #+BEGIN_SRC reason
+  <MyComponent> foo </MyComponent>
+  #+END_SRC
+  desugars to:
+  #+BEGIN_SRC reason
+  ([@JSX] MyComponent.createElement(~children=[foo], ()))
+  #+END_SRC
+  I.e. whatever you do, the arguments passed to the children position
+  will be wrapped in a list. What if you don't want that? What if you
+  want to directly pass foo without an extra wrapping?
+**** Children Spread
+- To solve the above problem, we've introduced
+  #+BEGIN_SRC reason
+  <MyComponent> ...foo </MyComponent>
+  #+END_SRC
+  This passes the value ~foo~ without wrapping it in a list (or array,
+  in the case of ReasonReact). Aka, this desugars to:
+  #+BEGIN_SRC reason
+  ([@JSX] MyComponent.createElement(~children=foo, ()));
+  #+END_SRC
+  This is extra useful in the cases where you are handled ~foo~ that is
+  already a list of things, and want to forward that without wrapping
+  it an extra time (which would be a type error) *. It also allows you
+  to pass arbitrary data structures at children position (remember,
+  JSX ~children~ is really just a totally normal prop):
+  #+BEGIN_SRC reason
+  <MyComponent> ...((theClassName) => <div className=theClassName />) </MyComponent>;
+  <MyForm> ...("Hello", "Submit") </MyForm>;
+  #+END_SRC
+*** Usage
+#+BEGIN_SRC reason
+<MyComponent
+  booleanAttribute={true}
+  stringAttribute="string"
+  intAttribute=1
+  forcedOptional=?{Some("hello")}
+  onClick={send(handleClick)}>
+  <div> {ReasonReact.stringToElement("hello")} </div>
+</MyComponent>
+#+END_SRC
+*** Departures From JS JSX
+- Attributes and children don't mandate ~{}~, but we show them anyway
+  for ease of learning. Once you ~refmt~ your file, some of them go away
+  and some turn into parentheses.
+- There is no support for JSX prop spread:~ <Foo {...bar} />~. Though
+  we do have children spread, described above: ~<Foo> ...baz </Foo>~.
+- Punning!
+*** Punning
+- "Punning" refers to the syntax shorthand for when a label and a
+  value are the same. For example, in JavaScript, instead of doing
+  ~return {name: name}~, you can do ~return {name}~.
+- Reason JSX supports punning. ~<input checked />~ is just a shorthand
+  for ~<input checked=checked />~. The formatter will help you format to
+  the latter whenever possible. This is convenient in the cases where
+  there are lots of props to pass down:
+  #+BEGIN_SRC reason
+  <MyComponent isLoading text onClick />
+  #+END_SRC
+  Consequently, a Reason JSX component can cram in a few more props
+  before reaching for extra libraries solutions that avoids props
+  passing.
+** External
+- Exceptions are just a special kind of variant, "thrown" in
+  exceptional cases (don't abuse them!).
+- Sample
+  #+BEGIN_SRC reason
+    let getItem = (theList) =>
+      if (callSomeFunctionThatThrows()) {
+        /* return the found item here */
+      } else {
+        raise(Not_found)
+      };
+
+    let result =
+      try (getItem([1, 2, 3])) {
+      | Not_found => 0 /* Default value if getItem throws */
+      };
+  #+END_SRC
+  Note that the above is just for demonstration purposes; in reality,
+  you'd return an ~option(int)~ directly from ~getItem~ and avoid the ~try~
+  altogether.
+- You can directly match on exceptions while getting another return
+  value from a function:
+  #+BEGIN_SRC reason
+    switch (List.find((i) => i === theItem, myItems)) {
+    | item => print_endline(item)
+    | exception Not_found => print_endline("No such item found!")
+    };
+  #+END_SRC
+
+- You can also make your own exceptions like you'd make a variant
+  (exceptions need to be capitalized too).
+  #+BEGIN_SRC reason
+    exception InputClosed(string);
+    ...
+    raise(InputClosed("the stream has closed!"));
+  #+END_SRC
+
+- When you have ordinary variants, you often don't need
+  exceptions. For example, instead of throwing when item can't be
+  found in a collection, try to return an ~option(item)~ (~None~ in this
+  case) instead.
+
+- Newer standard library alternatives usually come with
+  option-returning functions rather than exception-throwing ones. For
+  example, ~List.find~ has the ~option~-returning counterpart
+  ~List.find_opt~, which doesn't throw.
+
+- Exceptions are actually just variants too. In fact, they all belong
+  to a single variant type, called ~exn~. It's an extensible variant,
+  meaning you can add new constructors to it, such as ~InputClosed~
+  above. ~exception Foo~ is just a sugar for adding a constructor to
+  ~exn~.
+** [[*ReasonML][object]]
+** Module
+- Modules are like mini files! They can contain type definitions, ~let~
+  bindings, nested modules, etc.
+*** Creation
+- To create a module, use the ~module~ keyword. The module name must
+  start with a capital letter. Whatever you could place in a ~.re~ file,
+  you may place inside a module definition's {} block.
+  #+BEGIN_SRC reason
+    module School = {
+      type profession = Teacher | Director;
+
+      let person1 = Teacher;
+      let getProfession = (person) =>
+        switch (person) {
+        | Teacher => "A teacher"
+        | Director => "A director"
+        };
+    };
+  #+END_SRC
+- A module's contents (including types!) can be accessed much like a
+  record's, using the . notation. This demonstrates modules' utility
+  for namespacing.
+  #+BEGIN_SRC reason
+    let anotherPerson: School.profession = School.Teacher;
+    print_endline(School.getProfession(anotherPerson)); /* "A teacher" */
+  #+END_SRC
+- Nested modules work too.
+  #+BEGIN_SRC reason
+    module MyModule = {
+      module NestedModule = {
+        let message = "hello";
+      };
+    };
+
+    let message = MyModule.NestedModule.message;
+  #+END_SRC
+*** ~open~ a module
+- Constantly referring to a value/type in a module can be
+  tedious. Instead, we can "open" a module and refer to its contents
+  without always prepending them with the module's name. Instead of
+  writing:
+  #+BEGIN_SRC reason
+  let p: School.profession = School.getProfession(School.person1);
+  #+END_SRC
+  We can write:
+  #+BEGIN_SRC reason
+  open School;
+  let p: profession = getProfession(person1);
+  #+END_SRC
+  The content of ~School~ module are made visible (not copied into the
+  file, but simply made visible!) in scope. ~profession~, ~getProfession~
+  and ~person1~ will thus correctly be found.
+
+- Use ~open~ this sparingly, it's convenient, but makes it hard to know
+  where some values come from. You should usually use ~open~ in a local
+  scope:
+  #+BEGIN_SRC reason
+    let p = {
+      open School;
+      getProfession(person1);
+    };
+    /* School's content isn't visible here anymore */
+  #+END_SRC
+- For an ~open~ followed by a single expression, we have a dedicated
+  syntax sugar:
+  #+BEGIN_SRC reason
+  let p = School.(getProfession(person1));
+  #+END_SRC
+*** Extending modules
+- Using ~include~ in a module statically "spreads" a module's content
+  into a new one, thus often fulfill the role of "inheritance" or
+  "mixin".
+  #+BEGIN_SRC reason
+    module BaseComponent = {
+      let defaultGreeting = "Hello";
+      let getAudience = (~excited) => excited ? "world!" : "world";
+    };
+
+    module ActualComponent = {
+      /* the content is copied over */
+      include BaseComponent;
+      /* overrides BaseComponent.defaultGreeting */
+      let defaultGreeting = "Hey";
+      let render = () => defaultGreeting ++ " " ++ getAudience(~excited=true);
+    };
+  #+END_SRC
+  + Note: ~open~ and ~include~ are very different! ~open~ brings a
+    module's content into your current scope, so that you don't have
+    to refer to a value by prefixing it with the module's name every
+    time. ~include~ copies over the definition of a module
+    statically, then also do an ~open~.
+*** Every ~.re~ file is a module
+- An OCaml/Reason file maps to a module; The file ~React.re~
+  implicitly forms a module ~React~, which can be seen by other source
+  files.
+  #+BEGIN_SRC reason
+    /* FileA.re. This typically compiles to module FileA below */
+    let a = 1;
+    let b = 2;
+
+    /* FileB.re */
+    /* Maps FileA's implementation to a new API */
+    let alpha = FileA.a;
+    let beta = FileA.b;
+  #+END_SRC
+  This contrived snippet expresses "copying" a file:
+  #+BEGIN_SRC reason
+    /* FileA.re. This typically compiles to module FileA below */
+    let a = 1;
+    let b = 2;
+
+    /* FileB.re */
+    /* compiles to exactly fileA.re's content with no runtime overhead! */
+    include FileA;
+  #+END_SRC
+  Note: Because files are modules, file names should, by convention,
+  be capitalized so they match their module names. Uncapitalized file
+  names are not invalid, but will be transformed into a capitalized
+  module name. I.e. ~file.re~ will be compiled into the module ~File~. To
+  simplify and minimize the disconnect here, the convention is
+  therefore to capitalize file names too.
+*** Signatures
+- A module's type is called a "signature", and can be written
+  explicitly. If a module is like a ~.re~ (implementation) file, then a
+  module's signature is like a ~.rei~ (interface) file.
+**** Creation
+- To create a signature, use the ~module type~ keyword. The signature
+  name must start with a capital letter. Whatever you could place in a
+  ~.rei~ file, you may place inside a signature definition's ~{}~ block.
+  #+BEGIN_SRC reason
+    /* Picking up previous section's example */
+    module type EstablishmentType = {
+      type profession;
+      let getProfession: profession => string;
+    };
+  #+END_SRC
+  This signature requires that a module:
+  * Declare a type named ~profession~.
+  * Must include a function that takes in a value of the type
+    ~profession~ and returns a ~string~.
+
+- A signature defines the list of requirements that a module must
+  satisfy in order for that module to match the signature. Those
+  requirements are of the form:
+  + ~let x: int;~ requires a ~let~ binding named ~x~, of type ~int~.
+  + ~type t = someType;~ requires a type field ~t~ to be equal to
+    ~someType~.
+  + ~type t;~ requires a type field ~t~, but without imposing any
+    requirements on the actual, concrete type of ~t~. We'd use ~t~ in
+    other entries in the signature to describe relationships,
+    e.g. ~let makePair: t => (t, t)~ but we cannot, for example,
+    assume that ~t~ is an ~int~. This gives us great, enforced abstraction
+    abilities.
+- Modules of the type ~EstablishmentType~ *can* contain more fields than
+  the signature declares, just like the module ~School~ in the previous
+  section (if we choose to assign it the type
+  ~EstablishmentType~. Otherwise, ~School~ exposes every field). This
+  effectively makes the ~person1~ field an enforced implementation
+  detail! Outsiders can't access it, since it's not present in the
+  signature; the signature constrained what others can access.
+
+- The type ~EstablishmentType.profession~ is abstract: it doesn't have a
+  concrete type; it's saying "I don't care what the actual type is,
+  but it's used as input to ~getProfession~". This is useful to fit many
+  modules under the same interface:
+  #+BEGIN_SRC reason
+    module Company: EstablishmentType = {
+      type profession = CEO | Designer | Engineer | ...;
+
+      let getProfession = (person) => ...;
+      let person1 = ...;
+      let person2 = ...;
+    };
+  #+END_SRC
+  It's also useful to hide the underlying type as an implementation
+  detail others can't rely on. If you ask what the type of
+  ~Company.profession~ is, instead of exposing the variant, it'll only
+  tell you "it's ~Company.profession~".
+*** Extending module signatures
+- Like modules themselves, module signatures can also be extended by
+  other module signatures using ~include~:
+  #+BEGIN_SRC reason
+    module type BaseComponent = {
+      let defaultGreeting: string;
+      let getAudience: (~excited: bool) => string;
+    };
+
+    module type ActualComponent = {
+      /* the BaseComponent signature is copied over */
+      include BaseComponent;
+      let render: unit => string;
+    };
+  #+END_SRC
+  Note: ~BaseComponent~ is a module type, not an actual module itself!
+
+- If you do not have a defined module type, you can extract it from an
+  actual module using ~include (module type of ActualModuleName)~. For
+  example, we can extend the ~List~ module from the OCaml standard
+  library, which does not define a module type.
+  #+BEGIN_SRC reason
+    module type MyList = {
+      include (module type of List);
+      let myListFun: list('a) => list('a);
+    };
+  #+END_SRC
+*** Every ~.rei~ file is a signature
+- Similar to how a ~React.re~ file implicitly defines a module ~React~, a
+  file ~React.rei~ implicitly defines a signature for ~React~.
+- if ~React.rei~ isn't provided, the signature of ~React.re~ defaults to
+  exposing all the fields of the module.
+- Because they don't contain implementation files, ~.rei~ files are used
+  in the ecosystem to also document the public API of their
+  corresponding modules.
+  #+BEGIN_SRC reason
+    /* file React.re (implementation. Compiles to module React) */
+    type state = int;
+    let render = (str) => str;
+  #+END_SRC
+  #+BEGIN_SRC reason
+  /* file React.rei (interface. Compiles to signature of module React) */
+  type state = int;
+  let render: str => str;
+  #+END_SRC
+*** Module Functions (functors)
+- Modules can be passed to functions! It would be the equivalent of
+  passing a file as a first-class item. However, modules are at a
+  different "layer" of the language than other common concepts, so we
+  can't pass them to regular functions. Instead, we pass them to
+  special functions called "functors".
+- The syntax for defining and using functors is very much like the
+  syntax for defining and using regular functions. The primary
+  differences are:
+  + Functors use the ~module~ keyword instead of ~let~.
+  + Functors take modules as arguments and return a module.
+  + Functors require annotating arguments.
+  + Functors must start with a capital letter (just like
+    modules/signatures).
+- Here's an example ~MakeSet~ functor, that takes in a module of the
+  type ~Comparable~ and returns a new set that can contain such
+  comparable items.
+  #+BEGIN_SRC reason
+    module type Comparable = {
+      type t;
+      let equal: (t, t) => bool;
+    };
+
+    module MakeSet = (Item: Comparable) => {
+      /* let's use a list as our naive backing data structure */
+      type backingType = list(Item.t);
+
+      let empty = [];
+
+      let add = (currentSet: backingType, newItem: Item.t) : backingType =>
+        /* if item exists */
+        if (List.exists((x) => Item.equal(x, newItem), currentSet)) {
+          currentSet /* return the same (immutable) set (a list really) */
+        } else {
+          [
+            newItem,
+            ...currentSet /* prepend to the set and return it */
+          ]
+        };
+    };
+  #+END_SRC
+  Functors can be applied using function application syntax. In this
+  case, we're creating a set, whose items are pairs of integers.
+  #+BEGIN_SRC reason
+    module IntPair = {
+      type t = (int, int);
+      let equal = ((x1, y1), (x2, y2)) => x1 == x2 && y1 == y2;
+      let create = (x, y) => (x, y);
+    };
+
+    /* IntPair abides by the Comparable signature required by MakeSet */
+    module SetOfIntPairs = MakeSet(IntPair);
+  #+END_SRC
+
+*** Module functions types
+- Like with module types, functor types also act to constrain and hide
+  what we may assume about functors. The syntax for functor types are
+  consistent with those for function types, but with types capitalized
+  to represent the signatures of modules the functor accepts as
+  arguments and return values. In the previous example, we're exposing
+  the backing type of a set; by giving ~MakeSet~ a functor signature, we
+  can hide the underlying data structure!
+  #+BEGIN_SRC reason
+    module type Comparable = ...
+
+    module type MakeSetType = (Item: Comparable) => {
+      type backingType;
+      let empty: backingType;
+      let add: (backingType, Item.t) => backingType;
+    };
+
+    module MakeSet: MakeSetType = (Item: Comparable) => {
+      ...
+    };
+  #+END_SRC
+
+** Promise
+- Reason has built-in support for [[https://bucklescript.github.io/bucklescript/api/Js.Promise.html][JavaScript promises]] through
+  BuckleScript. The 3 functions you generally need are:
+
+  + ~Js.Promise.resolve: 'a => Js.Promise.t('a)~
+
+  + ~Js.Promise.then_: ('a => Js.Promise.t('b), Js.Promise.t('a)) => Js.Promise.t('b)~
+
+  + ~Js.Promise.catch: (Js.Promise.error => Js.Promise.t('a), Js.Promise.t('a)) => Js.Promise.t('a)~
+- Additionally, here's how to create a JS promise on the Reason side:
+  #+BEGIN_SRC reason
+  Js.Promise.make: ( ( ~resolve: (. 'a) => unit, ~reject: (. exn) => unit ) => unit ) => Js.Promise.t('a)
+  #+END_SRC
+  This type signature means that ~make~ takes a callback that takes 2
+  named arguments, ~resolve~ and ~reject~. Both arguments are themselves
+  uncurried callbacks (they have a dot). ~make~ returns the created
+  promise.
+
+*** Usage
+#+BEGIN_SRC reason
+  let myPromise = Js.Promise.make((~resolve, ~reject) => resolve(. 2));
+
+  myPromise
+  |> Js.Promise.then_(value => {
+       Js.log(value);
+       Js.Promise.resolve(value + 2);
+     })
+  |> Js.Promise.then_(value => {
+       Js.log(value);
+       Js.Promise.resolve(value + 3);
+     })
+  |> Js.Promise.catch(err => {
+       Js.log2("Failure!!", err);
+       Js.Promise.resolve(-2);
+     });
+#+END_SRC
+** Interop
+- sample
+  #+BEGIN_SRC reason
+    Js.log("this is reason");
+
+    [%bs.raw {| console.log('here is some javascript for you') |}];
+  #+END_SRC
+- sample 2
+  #+BEGIN_SRC reason
+    Js.log("this is reason");
+    let x = [%bs.raw {| 'here is a string from javascript' |}];
+    Js.log(x ++ " back in reason land"); /* ++ is the operator for string concat */
+  #+END_SRC
+- sample 3
+  #+BEGIN_SRC reason
+    let x: string = [%bs.raw {| 'well-typed' |}];
+    Js.log(x ++ " back in reason land");
+    /* ocaml will error out if you try to use x as anything other than a string */
+  #+END_SRC
+- sample 4
+  #+BEGIN_SRC reason
+    let jsCalculate: (array(int), int) => int = [%bs.raw
+      {|
+     function (numbers, scaleFactor) {
+       var result = 0;
+       numbers.forEach(number => {
+         result += number;
+       });
+       return result * scaleFactor;
+     }
+    |}
+    ];
+
+    let calculate = (numbers, scaleFactor) => jsCalculate(Array.of_list(numbers), scaleFactor);
+
+    Js.log(calculate([1, 2, 3], 10)); /* -> 60 */
+  #+END_SRC
+- sample 5
+  #+BEGIN_SRC reason
+    [@bs.val] external pi : float = "Math.PI";
+    let tau = pi *. 2.0;
+    [@bs.val] external alert : string => unit = "alert";
+    alert("hello");
+  #+END_SRC
+- sample 6
+  #+BEGIN_SRC reason
+    type canvas;
+
+    type context;
+
+    /* we're leaving these types abstract, because we won't
+     ,* be using them directly anywhere */
+    [@bs.send] external getContext : (canvas, string) => context = "getContext";
+    [@bs.send] external fillRect : (context, float, float, float, float) => unit = "fillRect";
+
+    let myCanvas: canvas = [%bs.raw {| document.getElementById("mycanvas") |}];
+
+    let ctx = getContext(myCanvas, "2d");
+    fillRect(ctx, 0.0, 0.0, 100.0, 100.0);
+  #+END_SRC
+
+*** Using existing JavaScript libraries
+- [[https://reasonml.github.io/docs/en/libraries][libraries]]
+- [[https://redex.github.io/][Reason Package Index (Redex)]]
+- [[bs-*][https://www.npmjs.com/search?q=keywords:bucklescript]]
+
+* ReasonReact
