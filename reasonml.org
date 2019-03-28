@@ -3547,3 +3547,715 @@ becomes
 - [[bs-*][https://www.npmjs.com/search?q=keywords:bucklescript]]
 
 * ReasonReact
+** Creation, Props & Self
+- ReasonReact doesn't use/need classes. The component creation API
+  gives you a plain record, whose fields (like ~render~) you can
+  override.
+- The component template is created through
+  ~ReasonReact.statelessComponent("TheComponentName")~. The string being
+  passed is for debugging purposes (the equivalent of ReactJS'
+  ~displayName~).
+- As an example, here's the file ~Greeting.re~:
+  #+BEGIN_SRC reason
+    /* in Greeting.re */
+    let component = ReasonReact.statelessComponent("Greeting");
+
+    let make = (~name, _children) => {
+      ...component, /* spread the template's other defaults into here  */
+      render: _self => <div> {ReasonReact.string(name)} </div>
+    };
+  #+END_SRC
+- The ~make~ function is what's called by ReasonReact's JSX.
+  The JSX-less way of calling & rendering a component is:
+  #+BEGIN_SRC reason
+    ReasonReact.element(Greeting.make(~name="John", [||])) /* the `make` function in the module `Greeting` */
+    /* equivalent to <Greeting name="John" /> */
+  #+END_SRC
+- ~make~ asks you to return the component record created above. You'd
+  override a few fields, such as the familiar ~render~, ~initialState~,
+  ~didMount~, etc.
+*** Props
+- Props are just the labeled arguments of the ~make~ function.
+- They can also be optional and/or have defaults, e.g.
+  #+BEGIN_SRC reason
+    let make =
+      (~name, ~age=?, ~className="box", _children) => /* ... */.
+  #+END_SRC
+  + You'd call that component in another file through ~<Foo name="Reason" />~.
+   ~className~, if omitted, defaults to ~"box"~. ~age~ defaults to
+    ~None~. If you'd like to explicitly pass ~age~, simply do so:
+    ~<Foo name="Reason" age=20 />~.
+
+- The last prop must be ~children~. If you don't use it, simply ignore
+  it by naming it ~_~ or ~_children~.
+- The prop name cannot be ~ref~ nor ~key~. Those are reserved, just
+  like in ReactJS.
+**** Neat Trick with Props Forwarding
+- Sometimes in ReactJS, you're being given a prop from the owner that
+  you'd like to forward directly to the child:
+  #+BEGIN_SRC js
+  <Foo name="Reason" age={this.props.age} />
+  #+END_SRC
+  + This is a source of bugs, because ~this.props.age~ might be
+    accidentally changed to a nullable number while ~Foo~ doesn't expect
+    it to be so, or vice-versa; it might be nullable before, and now
+    it's not and ~Foo~ is left with a useless ~null~ check somewhere in
+    the render.
+  + In Reason, if you want to explicitly pass an optional ~myAge~
+    (whose type is ~option(int)~, aka ~None | Some(int)~), the
+    following wouldn't work:
+    #+BEGIN_SRC reason
+    <Foo name="Reason" age=myAge />
+    #+END_SRC
+  + Because the ~age~ label expects a normal ~int~ when you do call ~Foo~
+    with it, not an ~option(int)~! Naively, you'd be forced to solve
+    this like so:
+    #+BEGIN_SRC reason
+      switch (myAge) {
+      | None => <Foo name="Reason" />
+      | Some(nonOptionalAge) => <Foo name="Reason" age=nonOptionalAge />
+      }
+    #+END_SRC
+    here's a better way to explicitly pass an optional value:
+    #+BEGIN_SRC reason
+    <Foo name="Reason" age=?myAge />
+    #+END_SRC
+    It says "I understand that ~myAge~ is optional and that I should
+    either use the label ~age~ and pass an ~int~, or not use the label at
+    all. But I'd like to forward an ~option~ al value explicitly to avoid
+    the verbose ~switch~".
+
+*** self
+- It's a record that contains ~state~, ~handle~ and ~send~, which we pass
+  around to the lifecycle events, ~render~ and a few others, when they
+  need the bag of information.
+** JSX
+- Reason comes with the JSX syntax! ReasonReact transforms it from an
+  agnostic function call into a ReasonReact-specific call through a
+  macro.
+*** Uncapitalized
+-
+  #+BEGIN_SRC reason
+  <div foo={bar}> {child1} {child2} </div>
+  #+END_SRC
+  transforms into
+  #+BEGIN_SRC reason
+    ReactDOMRe.createElement("div", ~props=ReactDOMRe.props(~foo=bar, ()), [|child1, child2|]);
+  #+END_SRC
+  which compiles to the JS code:
+  #+BEGIN_SRC js
+    React.createElement('div', {foo: bar}, child1, child2)
+  #+END_SRC
+-
+  Prop-less ~<div />~ transforms into
+  #+BEGIN_SRC reason
+    ReactDOMRe.createElement("div", [||]);
+  #+END_SRC
+  Which compiles to
+  #+BEGIN_SRC reason
+    React.createElement('div', undefined)
+  #+END_SRC
+- Note that ~ReactDOMRe.createElement~ is intended for internal use by
+  the JSX transform. For escape-hatch scenarios, use
+  ~ReasonReact.createDomElement~ instead
+*** Capitalized
+-
+  #+BEGIN_SRC reason
+   <MyReasonComponent key={a} ref={b} foo={bar} baz={qux}> {child1} {child2} </MyReasonComponent>
+  #+END_SRC
+  transforms into
+  #+BEGIN_SRC reason
+    ReasonReact.element(
+         ~key=a,
+         ~ref=b,
+         MyReasonComponent.make(~foo=bar, ~baz=qux, [|child1, child2|])
+       );
+  #+END_SRC
+  Prop-less ~<MyReasonComponent />~ transforms into
+  #+BEGIN_SRC reason
+    ReasonReact.element(MyReasonComponent.make([||]));
+  #+END_SRC
+- Note how ~ref~ and ~key~ have been lifted out of the JSX call into the
+  ~ReasonReact.element~ call. ~ref~ and ~key~ are reserved in ReasonReact,
+  just like in ReactJS. Don't use them as props in your component!
+
+*** Fragment
+-
+  #+BEGIN_SRC reason
+    <> child1 child2 </>;
+  #+END_SRC
+  transforms into
+  #+BEGIN_SRC reason
+    ReactDOMRe.createElement(ReasonReact.fragment, [|child1, child2|]);
+  #+END_SRC
+  Which compiles to
+  #+BEGIN_SRC reason
+    React.createElement(React.Fragment, undefined, child1, child2);
+  #+END_SRC
+*** Children
+- ReasonReact children are fully typed, and you can pass any data
+  structure to it (as long as the receiver component permits it). When
+  you write:
+  #+BEGIN_SRC reason
+    <MyReasonComponent> <div /> <div /> </MyReasonComponent>
+  #+END_SRC
+ You're effectively passing the array ~[| <div />, <div /> |]~ to
+ ~MyReasonComponent~'s children. But this also means that the following
+ wouldn't work:
+ #+BEGIN_SRC reason
+ let theChildren = [| <div />, <div /> |];
+
+ <MyReasonComponent> theChildren </MyReasonComponent>
+ #+END_SRC
+ Because this actually translates to:
+ #+BEGIN_SRC reason
+   let theChildren = [| <div />, <div /> |];
+   ReasonReact.element(
+     MyReasonComponent.make([|theChildren|])
+   );
+ #+END_SRC
+  Which wraps the already wrapped ~theChildren~ in another layer of
+  array. To solve this issue, Reason has a special children spread
+  syntax:
+  #+BEGIN_SRC reason
+    let theChildren = [| <div />, <div /> |];
+    <MyReasonComponent> ...theChildren </MyReasonComponent>
+  #+END_SRC
+  This simply passes ~theChildren~ without array wrapping. It becomes:
+  #+BEGIN_SRC reason
+    let theChildren = [| <div />, <div /> |];
+    ReasonReact.element(
+      MyReasonComponent.make(theChildren)
+    );
+
+  #+END_SRC
+** Render
+- render needs to return a ~ReasonReact.reactElement~: ~<div />~,
+  ~<MyComponent />~, etc. Render takes the argument ~self~:
+  #+BEGIN_SRC reason
+    /* ... */
+        render: (self) => <div />
+    /* ... */
+  #+END_SRC
+
+- What if you want to return ~null~ from a ~render~? Or pass a string to a
+  DOM component like div which only allows ~ReasonReact.reactElements~?
+  + In ReactJS, you can easily do: ~<div> hello </div>~, ~<div> {1} </div>~,
+    ~<div> {null} </div>~, etc. In Reason, the type system
+    restricts you from passing arbitrary data like so; you can only
+    return ~ReasonReact.reactElement~ from render.
+- Fortunately, we special-case a few special elements of the type
+  ~ReasonReact.reactElement~:
+  + ~ReasonReact.null~: This is your ~null~ equivalent for ~render~'s
+    return value. Akin to ~return null~ in ReactJS render.
+  + ~ReasonReact.string~: Takes a string and converts it to a
+    ~reactElement~. You'd use ~<div> {ReasonReact.string(string_of_int(10))} </div>~
+     to display an int.
+  + ~ReasonReact.array~: Takes an array and converts it to a ~reactElement~.
+
+** Callback Handlers
+- This section describes how ReactJS' ~<div onClick={this.handleClick} />~
+   pattern translates into ReasonReact.
+*** Callback Without State Update
+**** Without Reading From ~self~
+- ~self~ is ReasonReact's ~this~. It's a record that contains things
+  like ~state~, ~send~ and others.
+- If you're just forwarding a callback prop onto your child, you'd do
+  exactly the same thing you'd have done in ReactJS:
+  #+BEGIN_SRC reason
+    let component = /* ... */;
+
+    let make = (~name, ~onClick, _children) => {
+      ...component,
+      render: (self) => <button onClick=onClick />
+    };
+  #+END_SRC
+- to pre-process a value before sending it back to the component's owner:
+  #+BEGIN_SRC reason
+    let component = /* ... */;
+
+    let make = (~name, ~onClick, _children) => {
+      let click = (event) => onClick(name); /* pass the name string up to the owner */
+      {
+        ...component,
+        render: (self) => <button onClick=click />
+      }
+    };
+  #+END_SRC
+**** Reading From ~self~
+- To access ~state~, ~send~ and the other items in ~self~ from a callback,
+  you need to wrap the callback in an extra layer called ~self.handle~:
+  #+BEGIN_SRC reason
+    let component = /* ... */;
+
+    let make = (~name, ~onClick, _children) => {
+      let click = (event, self) => {
+        onClick(event);
+        Js.log(self.state);
+      };
+      {
+        ...component,
+        initialState: /* ... */,
+        render: (self) => <button onClick={self.handle(click)} />
+      }
+    };
+  #+END_SRC
+  + Note how your ~click~ callback now takes the extra argument
+    ~self~. Formally, ~self.handle~ expects a callback that
+    * accepts the single payload you'd normally directly pass to e.g. ~handleClick~,
+    * plus the argument ~self~,
+    * returns "nothing" (aka, ~()~, aka, ~unit~).
+  + Note 2: sometimes you might be forwarding ~handle~ to some helper
+    functions. Pass the whole ~self~ instead and annotate it. This
+    avoids a complex ~self~ record type behavior. [[https://reasonml.github.io/reason-react/docs/en/record-field-send-handle-not-found][See Record Field send/handle Not Found]].
+    Also check [[https://reasonml.chat/t/unbound-record-field-send-in-event-handlers/204/6][this thread]]
+  + Explanation
+    * In reality, ~self.handle~ is just a regular function accepting two
+      arguments, the first being the callback in question, and the
+      second one being the payload that's intended to be passed to the
+      callback.
+
+    * Get it? Through Reason's natural language-level currying, we
+      usually only ask you to pass the first argument. This returns a
+      new function that takes in the second argument and executes the
+      function body. The second argument being passed by the caller,
+      aka the component you're rendering!
+**** Callback Receiving Multiple Arguments
+- Sometimes, the component you're calling is from JavaScript (using
+  the ReasonReact<->ReactJS interop), and its callback prop asks you
+  to pass a callback that receives more than one argument. In ReactJS,
+  it'd look like:
+  #+BEGIN_SRC js
+    handleSubmit: function(username, password, event) {
+      this.setState(...)
+    }
+    ...
+    <MyForm onUserClickedSubmit={this.handleSubmit} />
+  #+END_SRC
+  + You cannot write such ~handleSubmit~ in ReasonReact, as handle
+    expects to wrap around a function that only takes one
+    argument. Here's the workaround:
+    #+BEGIN_SRC reason
+      let handleSubmitEscapeHatch = (username, password, event) =>
+        self.handle(
+          (tupleOfThreeItems, self) => doSomething(tupleOfThreeItems, self),
+          (username, password, event),
+        );
+      ...
+      <MyForm onUserClickedSubmit=(handleSubmitEscapeHatch) />
+    #+END_SRC
+    * Basically, you write a normal callback that:
+      + takes those many arguments from the JS component callback prop,
+      + packs them into a tuple and call ~self.handle~,
+      + pass to ~handle~ the usual function that expects a single argument,
+      + finish calling ~self.handle~ by passing the tuple directly yourself.
+** State, Actions & Reducer
+- Use ~ReasonReact.reducerComponent("MyComponentName")~.
+- sample
+  #+BEGIN_SRC reason
+    type state = {
+      count: int,
+      show: bool,
+    };
+
+    type action =
+      | Click
+      | Toggle;
+
+    let component = ReasonReact.reducerComponent("Example");
+
+    let make = (~greeting, _children) => {
+      ...component,
+
+      initialState: () => {count: 0, show: true},
+
+      reducer: (action, state) =>
+        switch (action) {
+        | Click => ReasonReact.Update({...state, count: state.count + 1})
+        | Toggle => ReasonReact.Update({...state, show: !state.show})
+        },
+
+      render: self => {
+        let message =
+          "You've clicked this " ++ string_of_int(self.state.count) ++ " times(s)";
+        <div>
+          <button onClick=(_event => self.send(Click))>
+            (ReasonReact.string(message))
+          </button>
+          <button onClick=(_event => self.send(Toggle))>
+            (ReasonReact.string("Toggle greeting"))
+          </button>
+          (
+            self.state.show
+              ? ReasonReact.string(greeting)
+              : ReasonReact.null
+          )
+        </div>;
+      },
+    };
+  #+END_SRC
+*** ~initialState~
+*** Actions & Reducer
+- A few things:
+  + There's a user-defined type called ~action~, named so by
+    convention. It's a variant of all the possible state transitions
+    in your component. In state machine terminology, this'd be a
+    "token".
+  + A user-defined state type, and an ~initialState~. Nothing special.
+  + The current ~state~ value is accessible through ~self.state~,
+    whenever ~self~ is passed to you as an argument of some function.
+  + A "reducer"! This pattern-matches on the possible actions and
+    specifies what state update each action corresponds to. In state
+    machine terminology, this'd be a "state transition".
+  + In ~render~, instead of ~self.handle~ (which doesn't allow state
+    updates), you'd use ~self.send~. ~send~ takes an action.
+*** State Update Through Reducer
+- Notice the return value of ~reducer~? The ~ReasonReact.Update~
+  part. Instead of returning a bare new state, we ask you to return
+  the state wrapped in this "update" variant. Here are its possible
+  values:
+  + ~ReasonReact.NoUpdate~: don't do a state update.
+  + ~ReasonReact.Update(state)~: update the state.
+  + ~ReasonReact.SideEffects(self => unit)~: no state update, but trigger a side-effect,
+     e.g. ReasonReact.SideEffects(_self => Js.log("hello!")).
+  + ~ReasonReact.UpdateWithSideEffects(state, self => unit)~: update the state, *then* trigger a side-effect.
+*** Important Notes
+- The action type's variants can carry a payload: ~onClick=(data => self.send(Click(data.foo)))~.
+- Don't pass the whole event into the action variant's
+  payload. ReactJS events are pooled; by the time you intercept the
+  action in the ~reducer~, the event's already recycled.
+- ~reducer~ must be pure! Aka don't do side-effects in them
+  directly. You'll thank us when we enable the upcoming concurrent
+  React (Fiber). Use ~SideEffects~ or ~UpdateWithSideEffects~ to enqueue a
+  side-effect. The side-effect (the callback) will be executed after
+  the state setting, but before the next render.
+- If you need to do e.g. ~ReactEvent.BlablaEvent.preventDefault(event)~,
+  do it in ~self.send~, before returning the action type. Again, ~reducer~
+  must be pure.
+- Feel free to trigger another action in ~SideEffects~ and
+  ~UpdateWithSideEffects~, e.g. ~UpdateWithSideEffects(newState, (self) => self.send(Click))~.
+- If your state only holds instance variables, it also means (by the
+  convention in the instance variables section) that your component
+  only contains ~self.handle~, no ~self.send~. You still need to specify a
+  ~reducer~ like so: ~reducer: ((), _state) => ReasonReact.NoUpdate~.
+  Otherwise you'll get a variable cannot be generalized type error.
+*** Tip
+- Cram as much as possible into ~reducer~. Keep your actual callback
+  handlers (the ~self.send(Foo)~ part) dumb and small. This makes all
+  your state updates & side-effects (which itself should mostly only
+  be inside ~ReasonReact.SideEffects~ and
+  ~ReasonReact.UpdateWithSideEffects~) much easier to scan through. Also
+  more ReactJS fiber async-mode resilient.
+*** Async State Setting
+- In ReactJS, you could use setState inside a callback, like so:
+  #+BEGIN_SRC javascript
+  setInterval(() => this.setState(...), 1000);
+  #+END_SRC
+  In ReasonReact, you'd do something similar:
+  #+BEGIN_SRC reason
+  Js.Global.setInterval(() => self.send(Tick), 1000)
+  #+END_SRC
+** Lifecycles
+- ReasonReact supports the familiar ReactJS lifecycle events.
+  + ~didMount: self => unit~
+
+  + ~willReceiveProps: self => state~
+
+  + ~shouldUpdate: oldAndNewSelf => bool~
+
+  + ~willUpdate: oldAndNewSelf => unit~
+
+  + ~didUpdate: oldAndNewSelf => unit~
+
+  + ~willUnmount: self => unit~
+- Note:
+  1. ~willReceiveProps~ asks for the return type to be ~state~, not update
+     state (i.e. not NoUpdate/Update/SideEffects/UpdateWithSideEffects). We presume
+     you'd always want to update the state in this lifecycle. If not,
+     simply return the previous state exposed in the lifecycle
+     argument.
+
+  2. ~didUpdate~, ~willUnmount~ and ~willUpdate~ don't allow you to
+     return a new state to be updated, to prevent infinite loops.
+
+  3. ~willMount~ is unsupported. Use ~didMount~ instead.
+
+  4. ~didUpdate~, ~willUpdate~ and ~shouldUpdate~ take in a
+     ~oldAndNewSelf~ record, of type ~{oldSelf: self, newSelf: self}~.
+     These two fields are the equivalent of ReactJS'
+     ~componentDidUpdate~'s prevProps/prevState/ in conjunction with
+     props/state. Likewise for ~willUpdate~ and ~shouldUpdate~.
+
+- If you need to update state in a lifecycle event, simply send an
+  action to reducer and handle it correspondingly:
+  ~self.send(DidMountUpdate)~.
+*** Access next or previous props: ~retainedProps~
+- One pattern that's sometimes used in ReactJS is accessing a
+  lifecycle event's ~prevProps~ (~componentDidUpdate~), ~nextProps~
+  (~componentWillUpdate~), and so on. ReasonReact doesn't automatically
+  keep copies of previous props for you. We provide the ~retainedProps~
+  API for this purpose:
+  #+BEGIN_SRC reason
+    type retainedProps = {message: string};
+
+    let component = ReasonReact.statelessComponentWithRetainedProps("RetainedPropsExample");
+
+    let make = (~message, _children) => {
+      ...component,
+      retainedProps: {message: message},
+      didUpdate: ({oldSelf, newSelf}) =>
+        if (oldSelf.retainedProps.message !== newSelf.retainedProps.message) {
+          /* do whatever sneaky imperative things here */
+          Js.log("props `message` changed!")
+        },
+      render: (_self) => /* ... */
+    };
+  #+END_SRC
+- We expose ~ReasonReact.statelessComponentWithRetainedProps~ and
+  ~ReasonReact.reducerComponentWithRetainedProps~. Both work like their
+  ordinary non-retained-props counterpart, and require you to specify
+  a new field, ~retainedProps~ (of whatever type you'd like) in your
+  component's spec in ~make~.
+
+*** ~willReceiveProps~
+- Traditional ReactJS ~componentWillReceiveProps~ takes in a
+  ~nextProps~. We don't have ~nextProps~, since those are simply the
+  labeled arguments in ~make~, available to you in the scope. To access
+  the current props, however, you'd use the above ~retainedProps~ API:
+  #+BEGIN_SRC reason
+    type state = {someToggle: bool};
+
+    let component = ReasonReact.reducerComponentWithRetainedProps("MyComponent");
+
+    let make = (~name, _children) => {
+      ...component,
+      initialState: () => {someToggle: false},
+      /* just like state, the retainedProps field can return anything! Here it retained the `name` prop's value */
+      retainedProps: name,
+      willReceiveProps: (self) => {
+        if (self.retainedProps === name) {
+          /* ... */
+          /* previous ReactJS logic would be: if (props.name === nextProps.name) */
+        };
+        /* ... */
+      }
+    };
+  #+END_SRC
+
+*** ~willUpdate~
+- ReactJS' ~componentWillUpdate's~ ~nextProps~ is just the labeled
+  arguments in ~make~, and "current props" (aka ~this.props~) is the props
+  you've copied into ~retainedProps~, accessible via ~{oldSelf}~:
+  #+BEGIN_SRC reason
+    {
+      ...component,
+      willUpdate: ({oldSelf, newSelf}) => /* ... */
+    }
+  #+END_SRC
+
+*** ~didUpdate~
+- ReactJS' ~prevProps~ is what you've synced in ~retainedProps~, under
+  ~oldSelf~.
+
+*** ~shouldUpdate~
+- ReactJS' ~shouldComponentUpdate~ counterpart.
+** Instance Variables
+- A common pattern in ReactJS is to attach extra variables onto a
+  component's spec:
+  #+BEGIN_SRC reason
+    const Greeting = React.createClass({
+      intervalId: null,
+      componentDidMount: () => this.intervalId = setInterval(...),
+      render: ...
+    });
+  #+END_SRC
+- In reality, this is nothing but a thinly veiled way to mutate a
+  component's "state", without triggering a re-render. ReasonReact
+  asks you to correctly put these instance variables into your
+  component's ~state~, into Reason [[https://reasonml.github.io/docs/en/mutation.html][refs]].
+  #+BEGIN_SRC reason
+    type state = {
+      someRandomState: option(string),
+      intervalId: ref(option(int))
+    };
+
+    let component = /* ... */; /* remember, `component` needs to be close to `make`, and after `state` type declaration! */
+
+    let make = (_children) => {
+      ...component,
+      initialState: () => {
+        someRandomState: Some("hello"),
+        intervalId: ref(None),
+      },
+      didMount: ({state}) => {
+        /* mutate the value here */
+        state.intervalId := Some(Js.Global.setInterval(/* ... */));
+        /* no extra state update needed */
+        ReasonReact.NoUpdate
+      },
+      render: /* ... */
+    };
+  #+END_SRC
+
+- All your instance variables (subscriptions, refs, etc.) must be in
+  state fields marked as a ~ref~. Don't directly use a mutable field on
+  the state record, use an immutable field pointing to a Reason
+  ~ref~. Why such constraint? To prepare for concurrent React which
+  needs to manage side-effects & mutations more formally.
+** React Ref
+- A ReasonReact ~ref~ would be just another instance variable. You'd
+  type it as ~ReasonReact.reactRef~ if it's attached to a custom
+  component, and ~Dom.element~ if it's attached to a React DOM element.
+  #+BEGIN_SRC reason
+    type state = {
+      isOpen: bool,
+      mySectionRef: ref(option(ReasonReact.reactRef))
+    };
+
+    let setSectionRef = (theRef, {ReasonReact.state}) => {
+      state.mySectionRef := Js.Nullable.toOption(theRef);
+      /* wondering about Js.Nullable.toOption? See the note below */
+    };
+
+    let component = ReasonReact.reducerComponent("MyPanel");
+
+    let make = (~className="", _children) => {
+      ...component,
+      initialState: () => {
+        isOpen: false,
+        mySectionRef: ref(None),
+      },
+      reducer: /* ... */,
+      render: (self) => <Section1 ref={self.handle(setSectionRef)} />
+    };
+  #+END_SRC
+  + Attaching to a React DOM element looks the same:
+    ~state.mySectionRef = {myDivRef: Js.Nullable.toOption(theRef)}~.
+  + Note how ReactJS refs can be null. Which is why ~theRef~ and
+    ~myDivRef~ are converted from a JS nullable to an OCaml ~option~
+    (Some/None). When you use the ~ref~, you'll be forced to handle the
+    ~null~ case through a ~switch~, which prevents subtle errors!
+
+- ReasonReact ~ref~ only accept callbacks. The string ref from ReactJS
+  is deprecated.
+
+- We also expose an escape hatch ~ReasonReact.refToJsObj~ of type
+  ~ReasonReact.reactRef => Js.t {..}~, which turns your ref into a JS
+  object you can freely use; this is only used to access ReactJS
+  component class methods.
+  #+BEGIN_SRC reason
+    let handleClick = (event, self) =>
+      switch (self.state.mySectionRef^) {
+      | None => ()
+      | Some(r) => ReasonReact.refToJsObj(r)##someMethod(1, 2, 3) /* I solemnly swear that I am up to no good */
+      };
+  #+END_SRC
+** Talk to Existing ReactJS Code
+- A ReasonReact component is not a ReactJS component. We provide hooks
+  to communicate between the two.
+- Whether you're using an existing ReactJS component or providing a
+  ReasonReact component for consumption on the JS side, you need to
+  establish the type of the JS props you'd convert from/to, by using
+  [[https://bucklescript.github.io/docs/en/object.html][BuckleScript's bs.deriving abstract]]:
+  #+BEGIN_SRC reason
+    [@bs.deriving abstract]
+    type jsProps = {
+      /* some example fields */
+      className: string,
+      /* `type` is reserved in Reason. use `type_` and make it still compile to the
+        JS key `type` */
+      [@bs.as "type"] type_: string,
+      value: Js.nullable(int),
+    };
+
+  #+END_SRC
+  + This will generate the getters and the JS object creation function
+    (of the same name, ~jsProps~) you'll need.
+  + Note: you do not declare ~ref~ and ~key~ (the two special ReactJS
+    "props"). We handle that for you, just like ReactJS does. They're
+    not really props.
+- ReasonReact using ReactJS
+  Easy! Since other Reason components only need you to expose a ~make~ function, fake one up:
+  #+BEGIN_SRC reason
+     /*[@bs.module "./foo"] external my_js_react: ReasonReact.reactClass = "default"; */
+
+    [@bs.module] external myJSReactClass: ReasonReact.reactClass = "./myJSReactClass";
+
+    let make = (~className, ~type_, ~value=?, children) =>
+      ReasonReact.wrapJsForReason(
+        ~reactClass=myJSReactClass,
+        ~props=jsProps(
+          ~className,
+          ~type_,
+          ~value=Js.Nullable.fromOption(value),
+        ),
+        children,
+      );
+  #+END_SRC
+  ~ReasonReact.wrapJsForReason~ is the helper we expose for this
+  purpose. It takes in:
+  + The reactClass you want to wrap
+  + The ~props~ js object you'd create through the generated ~jsProps~
+    function from the ~jsProps~ type you've declared above (with
+    values properly converted from Reason data structures to JS)
+  + The mandatory ~children~ you'd forward to the JS side.
+  + ~props~ is mandatory. If you don't have any to pass, pass
+    ~~props=Js.Obj.empty()~ instead.
+
+- ReactJS Using ReasonReact
+  + Eeeeasy. We expose a helper for the other direction,
+    ~ReasonReact.wrapReasonForJs~:
+    #+BEGIN_SRC reason
+      let component = ...;
+      let make ...;
+
+      [@bs.deriving abstract]
+      type jsProps = {
+        name: string,
+        age: Js.nullable(int),
+      };
+
+      let jsComponent =
+        ReasonReact.wrapReasonForJs(~component, jsProps =>
+          make(
+            ~name=jsProps->nameGet,
+            ~age=?Js.Nullable.toOption(jsProps->ageGet),
+            [||],
+          )
+        );
+    #+END_SRC
+- The function takes in:
+  + The labeled reason ~component~ you've created
+  + A function that, given the JS props, asks you to call ~make~ while
+    passing in the correctly converted parameters (~bs.deriving abstract~
+    above generates a field accessor for every record field you've declared).
+- You'd assign the whole thing to the name ~jsComponent~. The JS side
+  can then import it:
+  #+BEGIN_SRC javascript
+    var MyReasonComponent = require('./myReasonComponent.bs').jsComponent;
+    // make sure you're passing the correct data types!
+    <MyReasonComponent name="John" />
+  #+END_SRC
+- Note: if you'd rather use a ~default~ import on the JS side, you can
+  export such default from BuckleScript/ReasonReact:
+  #+BEGIN_SRC reason
+  let default = ReasonReact.wrapReasonForJs(...)
+  #+END_SRC
+  and then import it on the JS side with:
+  #+BEGIN_SRC
+  import MyReasonComponent from './myReasonComponent.bs';
+  #+END_SRC
+  BuckleScript default exports *only* works when the JS side uses ES6
+  import/exports.
+** Event
+- ReasonReact events map cleanly to ReactJS [[https://reactjs.org/docs/events.html][synthetic events]]. More info in the [[https://github.com/reasonml/reason-react/blob/master/src/ReactEvent.rei#L1][inline docs]].
+- If you're accessing fields on your event object, like
+  ~event.target.value~, you'd use a combination of a ~ReactDOMRe~ helper
+  and BuckleScript's ~##~ object access FFI:
+  #+BEGIN_SRC reason
+    ReactEvent.Form.target(event)##value;
+  #+END_SRC
+  Or, equivalently, using fast pipe:
+  #+BEGIN_SRC reason
+    event->ReactEvent.Form.target##value;
+  #+END_SRC
