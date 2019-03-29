@@ -4256,6 +4256,377 @@ becomes
     ReactEvent.Form.target(event)##value;
   #+END_SRC
   Or, equivalently, using fast pipe:
+
   #+BEGIN_SRC reason
     event->ReactEvent.Form.target##value;
   #+END_SRC
+** Style
+- inline style
+  #+BEGIN_SRC reason
+    <div style=(
+      ReactDOMRe.Style.make(~color="#444444", ~fontSize="68px", ())
+    )/>
+  #+END_SRC
+  + It's a labeled (typed!) function call that maps to the familiar
+    style object ~{color: '#444444', fontSize: '68px'}~. Note that make
+    returns an opaque ~ReactDOMRe.style~ type that you can't read
+    into. We also expose a ~ReactDOMRe.Style.combine~ that takes in two
+    styles and combine them.
+*** Escape Hatch: ~unsafeAddProp~
+- The above ~Style.make~ API will safely type check every style field!
+  However, we might have missed some more esoteric fields. If that's
+  the case, the type system will tell you that the field you're trying
+  to add doesn't exist. To remediate this, we're exposing a
+  ~ReactDOMRe.Style.unsafeAddProp~ to dangerously add a field to a
+  style:
+  #+BEGIN_SRC reason
+  let myStyle = ReactDOMRe.Style.make(~color="#444444", ~fontSize="68px", ());
+  let newStyle = ReactDOMRe.Style.unsafeAddProp(myStyle, "width", "10px");
+  #+END_SRC
+** cloneElement
+- Signature:
+  #+BEGIN_SRC reason
+  let cloneElement: (reactElement, ~props: Js.t({..})=?, 'anyChildrenType) => reactElement
+  #+END_SRC
+- Same as ReactJS' ~[[https://reactjs.org/docs/react-api.html#cloneelement][cloneElement]]~. However, adding extra props to a
+  ReasonReact component doesn't make sense; you'd use a [[https://reactjs.org/docs/render-props.html][render prop]].
+  Therefore, ~ReasonReact.cloneElement~ is only used in edge-cases
+  to convert over existing code.
+  #+BEGIN_SRC reason
+    let clonedElement =
+      ReasonReact.cloneElement(
+        <div className="foo" />,
+        ~props={"payload": 1},
+        [||]
+      );
+  #+END_SRC
+  + The ~props~ value is unsafe, be careful!
+  + You can also use ~cloneElement~ to simulate [[https://reasonml.github.io/reason-react/docs/en/props-spread][prop spreading]], but this
+    is discouraged in ReasonReact.
+
+** children
+- ~children~ props is basically like any other prop
+- You can pass tuple, variant, record and others to children, However,
+  due to syntactical and interoperability reasons, there are some
+  small restrictions on ~children~:
+  1. DOM elements such as ~div~, ~span~ and others mandate the children
+     you pass to be ~array(reactElement)~. For example, ~<div> [1, 2, 3] </div>~ or
+     ~<span> Some(10) </span>~ don't work, since the ~list~ and
+     the ~option~ are forwarded to the underlying ReactJS ~div~ / ~span~ and
+     such data types don't make sense in JS.
+  2. User-defined elements, by default, also accept an array (of
+     anything). This is due to a rather silly constraint of the JSX
+     syntax.
+*** Syntax Constraint
+- Technically, if you've written a component that accepts a tuple as
+  ~children~:
+  #+BEGIN_SRC reason
+    /* MyForm.re */
+    type tuple2Children = (ReasonReact.reactElement, ReasonReact.reactElement);
+
+    let make = (children: tuple2Children) => {
+      ...component,
+      render: _self => {
+        <div>
+          {fst(children)}
+          <Separator />
+          {snd(children)}
+        </div>
+      }
+    };
+  #+END_SRC
+  Then you can expect the user to pass you a tuple:
+  #+BEGIN_SRC reason
+    <MyForm> (<div />, <div />) </MyForm>
+  #+END_SRC
+  This, however, will give you a type error:
+  #+BEGIN_SRC reason
+    This has type:
+      array('a)
+    But somewhere wanted:
+      tuple2Children (defined as (ReasonReact.reactElement, ReasonReact.reactElement))
+  #+END_SRC
+  + It means that ~MyForm~ is expecting the tuple, but you're giving
+    ~array~ instead! What's happening? Well, look at what JSX is
+    transformed into:
+    #+BEGIN_SRC reason
+      <MyLayout> a b </MyLayout>
+      <MyLayout> a </MyLayout>
+    #+END_SRC
+    These actually become:
+    #+BEGIN_SRC reason
+      ReasonReact.element(
+        MyLayout.make([|a, b|])
+      );
+      ReasonReact.element(
+        MyLayout.make([|a|])
+      );
+    #+END_SRC
+    See how the second ~MyLayout~'s children is also wrapped in an
+    array? We can't special-case ~<MyLayout> a </MyLayout>~ to pass a
+    without the array wrapping (it'd give even more confusing
+    errors). Since children is usually an array, we've decided to
+    always wrap it with an array, no matter how many items we visually
+    see in the JSX. But what if you really want to pass unwrapped
+    data?
+
+*** Children Spread
+- Just use ~<MyLayout> ...a </MyLayout>~. This will simply transform
+  into ~ReasonReact.element(MyLayout.make(a))~, aka without the array
+  wrapping.
+
+*** Tips & Tricks
+- A layout component that mandates a tuple of 2 react element and
+  shows them side-by-side:
+  #+BEGIN_SRC reason
+  <MyForm> ...(<div />, <div />) </MyForm>
+  #+END_SRC
+- A component that mandates a callback, no need for ReactJS' React.Children.only runtime check:
+  #+BEGIN_SRC reason
+    <Motion> ...((name) => <div className=name />) </Motion>
+  #+END_SRC
+- A layout helper that accepts a variant of ~TwoRows | ThreeRows | FourColumns~
+  #+BEGIN_SRC reason
+    <Layout> ...(ThreeRows(<div />, child2, child3)) </Layout>
+  #+END_SRC
+
+** Working with DOM
+*** ReactDOM
+- ReasonReact's ReactDOM module is called ~ReactDOMRe~. The module
+  exposes helpers that work with familiar ReactJS idioms. For example,
+  to access ~event.target.value~, you can do
+  ~ReactEvent.Form.target(event)##value~
+  + ~render~:
+    #+BEGIN_SRC reason
+      (ReasonReact.reactElement, Dom.element) => unit
+    #+END_SRC
+
+  + ~unmountComponentAtNode~:
+    #+BEGIN_SRC reason
+      Dom.element => unit
+    #+END_SRC
+
+  + ~findDOMNode~:
+    #+BEGIN_SRC reason
+      ReasonReact.reactRef => Dom.element
+    #+END_SRC
+
+  + hydrate:
+    #+BEGIN_SRC reason
+      (ReasonReact.reactElement, Dom.element) => unit
+    #+END_SRC
+
+  + objToDOMProps:
+    #+BEGIN_SRC reason
+      Js.t({..}) => ReactDOMRe.props (see use-case in Invalid Prop Name)
+    #+END_SRC
+
+  + createElement: the call that lower-case JSX turns into.
+    #+BEGIN_SRC reason
+      (string, ~props: ReactDOMRe.props=?, array(ReasonReact.reactElement)) => ReasonReact.reactElement
+    #+END_SRC
+
+  + createElementVariadic: same as above, but a less performant
+    version, used when there's a children spread and not a static
+    array at the call site: ~<div>...myChildren</div>~.
+
+  + ~domElementToObj~: turns a DOM element into a Js object whose fields you can dangerously access. Usually not needed
+    #+BEGIN_SRC reason
+      Dom.element => Js.t({..})
+    #+END_SRC
+
+- And 4 convenience utilities:
+  + ~renderToElementWithClassName~: finds the (first) element with the provided class name and render to it.
+    #+BEGIN_SRC reason
+      (ReasonReact.reactElement, string) => unit
+    #+END_SRC
+
+ + renderToElementWithId: finds the element with the provided id and render to it.
+   #+BEGIN_SRC reason
+     (ReasonReact.reactElement, string) => unit
+   #+END_SRC
+
+ + ~hydrateToElementWithClassName~, ~hydrateToElementWithId~: same.
+
+*** ReactDOMServer
+- ReasonReact's equivalent ~ReactDOMServerRe~ exposes:
+  + ~renderToString~: ~ReactRe.reactElement => string~
+  + ~renderToStaticMarkup~: ~ReactRe.reactElement => string~
+** Subscriptions Helper
+- In a large, heterogeneous app, you might often have legacy or
+  interop data sources that come from outside of the React/ReasonReact
+  tree, or a timer, or some browser event handling. You'd listen and
+  react to these changes by, say, updating the state.
+  #+BEGIN_SRC reason
+    type state = {
+      timerId: ref(option(Js.Global.intervalId))
+    };
+
+    let component = ReasonReact.reducerComponent("Todo");
+
+    let make = _children => {
+      ...component,
+      initialState: () => {timerId: ref(None)},
+      didMount: self => {
+        self.state.timerId := Some(Js.Global.setInterval(() => Js.log("hello!"), 1000));
+      },
+      willUnmount: self => {
+        switch (self.state.timerId^) {
+        | Some(id) => Js.Global.clearInterval(id);
+        | None => ()
+        }
+      },
+      render: /* ... */
+    };
+  #+END_SRC
+  + Notice a few things:
+    * This is rather boilerplate-y.
+    * Did you use a ~ref(option(foo))~ type correctly instead of a
+      mutable field, as indicated by the [[https://reasonml.github.io/reason-react/docs/en/instance-variables][Instance Variables section]]?
+    * Did you remember to free your timer subscription in ~willUnmount~?
+
+- To solve the above problems and to codify a good practice,
+  ~ReasonReact~ provides a helper field in ~self~, called ~onUnmount~. It
+  asks for a callback of type ~unit => unit~ in which you free your
+  subscriptions. It'll be called before the component unmounts.
+  + Here's the previous example rewritten:
+    #+BEGIN_SRC reason
+      let component = ReasonReact.statelessComponent("Todo");
+
+      let make = _children => {
+        ...component,
+        didMount: self => {
+          let intervalId = Js.Global.setInterval(() => Js.log("hello!"), 1000);
+          self.onUnmount(() => Js.Global.clearInterval(intervalId));
+        },
+        render: /* ... */
+      };
+    #+END_SRC
+*** Design Decisions
+- Why not just put some logic in the ~willUnmount~ lifecycle? Definitely
+  do, whenever you could. But sometimes, folks forget to release their
+  subscriptions inside callbacks:
+  #+BEGIN_SRC reason
+    let make = _children => {
+      ...component,
+      reducer: (action, state) => {
+        switch (action) {
+        | Click => ReasonReact.SideEffects(self => {
+            fetchAsyncData(result => {
+              self.send(Data(result))
+            });
+          })
+        }
+      },
+      render: /* ... */
+    };
+  #+END_SRC
+  If the component unmounts and then the ~fetchAsyncData~ calls the
+  callback, it'll accidentally call ~self.send~.
+  Using ~let cancel = fetchAsyncData(...); self.onUnmount(() => cancel())~ is much easier.
+
+- Note: this is an interop helper. This isn't meant to be used as a
+  shiny first-class feature for e.g. adding more flux stores into your
+  app (for that purpose, please use local reducer). Every time you
+  use ~self.onUnmount~, consider it as a simple, pragmatic and
+  performant way to talk to the existing world.
+** Router
+- [[Https://github.com/reasonml/reason-react/blob/9e9e40ea4c7e8d55e56cba47a4d0188c26d0791e/src/ReasonReact.rei#L248-L276][Documented public interface]]
+
+- ~ReasonReact.Router.push(string)~: takes a new path and update the
+  URL.
+
+- ~ReasonReact.Router.replace(string)~: like push, but replaces the
+  current URL.
+
+- ~ReasonReact.Router.watchUrl(f)~: start watching for URL
+  changes. Returns a subscription token. Upon url change, calls the
+  callback and passes it the ReasonReact.Router.url record.
+
+- ~ReasonReact.Router.unwatchUrl(watcherID)~: stop watching for url
+  changes.
+
+- ~ReasonReact.Router.dangerouslyGetInitialUrl()~: get url record
+  outside of watchUrl.
+
+*** Match a Route
+- There's no API! watchUrl gives you back a ~url~ record of the following shape:
+  #+BEGIN_SRC reason
+    type url = {
+      /* path takes window.location.pathname, like "/book/title/edit" and turns it into `["book", "title", "edit"]` */
+      path: list(string),
+
+      /* the url's hash, if any. The # symbol is stripped out for you */
+      hash: string,
+
+      /* the url's query params, if any. The ? symbol is stripped out for you */
+      search: string
+    };
+  #+END_SRC
+- So the url ~www.hello.com/book/10/edit?name=Jane#author~ is given
+  back as:
+  #+BEGIN_SRC js
+    {
+      path: ["book", "10", "edit"],
+      hash: "author",
+      search: "name=Jane"
+    }
+  #+END_SRC
+- At this point, you can simply pattern match your way to glory!
+  #+BEGIN_SRC reason
+    let watcherID = ReasonReact.Router.watchUrl(url => {
+      switch (url.path) {
+      | ["book", id, "edit"] => handleBookEdit(id)
+      | ["book", id] => getBook(id)
+      | ["book", id, _] => noSuchBookOperation()
+      | [] => showMainPage()
+      | ["shop"] | ["shop", "index"] => showShoppingPage()
+      | ["shop", ...rest] =>
+         /* e.g. "shop/cart/10", but let "cart/10" be handled by another function */
+        nestedMatch(rest)
+      | _ => showNotFoundPage()
+      }
+    });
+
+    /* some time later */
+    ReasonReact.Router.unwatchUrl(watcherID);
+  #+END_SRC
+  So you can match a path, match a subset of a path, defer part of a
+  matching to a nested logic, etc.
+
+
+*** Tips & Tricks
+- Notice that this is just normal pattern matching. You can combine it
+  with other features, such as tuple + ReasonReact features like
+  subscriptions and reducer:
+  #+BEGIN_SRC reason
+    let component = ReasonReact.reducerComponent("TodoApp");
+
+    let make = _children => {
+      ...component,
+      reducer: (action, state) =>
+        switch (action) {
+        /* router actions */
+        | ShowAll => ReasonReact.Update({...state, nowShowing: AllTodos})
+        | ShowActive => /* ... */
+        /* todo actions */
+        | ChangeTodo(text) => /* ... */
+        },
+      didMount: self => {
+        let watcherID = ReasonReact.Router.watchUrl(url => {
+          switch (url.hash, MyAppStatus.isUserLoggedIn) {
+          | ("active", _) => self.send(ShowActive)
+          | ("completed", _) => self.send(ShowCompleted)
+          | ("shared", true) => self.send(ShowShared)
+          | ("shared", false) when isSpecialUser => /* handle this state please */
+          | ("shared", false) => /* handle this state please */
+          | _ => self.send(ShowAll)
+          }
+        });
+        self.onUnmount(() => ReasonReact.Router.unwatchUrl(watcherID));
+      },
+      render: ...
+    }
+  #+END_SRC
+
+*** Directly Get a Route
