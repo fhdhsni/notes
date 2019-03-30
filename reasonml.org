@@ -4264,7 +4264,7 @@ becomes
 - inline style
   #+BEGIN_SRC reason
     <div style=(
-      ReactDOMRe.Style.make(~color="#444444", ~fontSize="68px", ())
+    ReactDOMRe.Style.make(~color="#444444", ~fontSize="68px", ())
     )/>
   #+END_SRC
   + It's a labeled (typed!) function call that maps to the familiar
@@ -4629,4 +4629,64 @@ becomes
     }
   #+END_SRC
 
-*** Directly Get a Route
+
+
+
+** ReactJS Idioms Equivalents
+*** Invalid Prop Name
+- Prop names like ~type~ (as in ~<input type="text" />~) aren't
+  syntactically valid; ~type~ is a reserved keyword in Reason/OCaml. Use
+  ~<input type_="text" />~ instead. This follows BuckleScript's [[https://bucklescript.github.io/docs/en/object.html#rename-fields][name constraint]].
+- For ~aria-*~: use the camelCased ~ariaFoo~. E.g. ~ariaLabel~. For DOM
+  components, we'll translate it to ~aria-label~ under the hood.
+- For ~data-*~, this is a bit trickier; words with ~-~ in them aren't
+  valid in Reason/OCaml. When you do want to write them, e.g. ~<div data-name="click me" />~, use the following:
+  #+BEGIN_SRC reason
+    ReactDOMRe.createElementVariadic(
+      "div",
+      ~props=(ReactDOMRe.objToDOMProps({"data-name": "click me"})),
+      [||]
+    )
+  #+END_SRC
+  For non-DOM components, you need to pick valid prop names.
+*** Props Spread
+- You can't. Props spreading is a big source of unpredictability and
+  performance regression (think shouldComponentUpdate). Our API
+  prevents this. If you reaaaaally need it for binding to existing
+  ReactJS components, see [[https://reasonml.github.io/reason-react/docs/en/clone-element][this section]].
+*** Component as Prop
+- In ReactJS, ~<Menu banner=MyBanner />~ is easy; in ReasonReact, we
+  can't trivially pass the whole component module (it wouldn't even be
+  syntactically valid because a module resides in [[https://reasonml.github.io/docs/en/module.html][another layer]] of the
+  language). Solution:
+  #+BEGIN_SRC reason
+      let bannerCallback = (prop1, prop2) => <MyBanner message=prop1 count=prop2 />;
+
+      <Menu bannerFunc=bannerCallback />;
+  #+END_SRC
+*** Custom Class/Component Property
+- Your ReactJS component might have extra properties attached onto it:
+  #+BEGIN_SRC reason
+    class HelloMessage extends React.Component {
+      static getRandomNumber() {
+        return 4;
+      };
+
+      getAnswerToLife() {
+        return 42;
+      };
+
+      render() {
+        ...
+      }
+    }
+  #+END_SRC
+- Since ReasonReact components are created from a record (which has
+  fixed fields), you can't attach arbitrary fields onto it. Here are
+  the solutions.
+  #+BEGIN_SRC reason
+    let component = /* ... */;
+    let make = /* ... */;
+
+    let getRandomNumber = () => 4;
+  #+END_SRC
