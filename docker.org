@@ -1,0 +1,170 @@
+** defs
+*** Docker Registry
+- A *Docker Registry* is the remote location where Docker Images are
+  stored. You push images to a registry and pull images from a
+  registry. You can host your own registry or use a provider’s
+  registry. For example, AWS and Google Cloud have registries.
+
+*** Docker Hub
+- Docker Hubis the largest registry of Docker images. It’s also the
+  default registry. You can find images and store your own images on
+  Docker Hub for free.
+*** Docker Repository
+- A Docker Repository is a collection of Docker images with the same
+  name and different tags. The tag is the identifier for the image.
+- Usually a repository has different versions of the same image. For
+  example, Python is the name of the most popular official Docker
+  image repository on Docker Hub. Python:3.7-slim refers to the
+  version of the image with the 3.7-slim tag in the Python
+  repository. You can push a repository or a single image to a
+  registry.
+
+** Commands
+*** RUN
+ - RUN creates a layer at build-time. Docker commits the state of the
+   image after each RUN.
+ - RUN is often used to install packages into an image. For example,
+  ~RUN apk update && apk upgrade && apk add bash~
+ - ~RUN~, ~CMD~ and ~ENTRYPOINT~ can be used in exec form
+   or shell form. Exec form uses JSON array syntax like so:
+   ~RUN ["my_executable", "my_first_param1", "my_second_param2"]~.
+
+*** COPY
+- The ~COPY . ./app~ instruction tells Docker to take the files and
+  folders in your local build context and add them to the Docker
+  image’s current working directory. Copy will create the target
+  directory if it doesn’t exist.
+
+*** ADD
+- ADD does the same thing as COPY, but has two more use cases. ADD can
+  be used to move files from a remote URL to a container and ADD can
+  extract local TAR files.
+
+*** CMD
+- CMD provides Docker a command to run when a container is started. It
+  does not commit the result of the command to the image at build
+  time.
+- Only one CMD instruction per Dockerfile. Otherwise all but the final
+  one are ignored.
+- CMD can include an executable. If CMD is present without an
+  executable, then an ENTRYPOINT instruction must exist. In that case,
+  both CMD and ENTRYPOINT instructions should be in JSON format.
+- Command line arguments to ~docker run~ override arguments provided to
+  CMD in the Dockerfile.
+
+*** WORKDIR
+- WORKDIR changes the working directory in the container for the COPY,
+  ADD, RUN, CMD, and ENTRYPOINT instructions that follow it. A few
+  notes:
+- It’s preferable to set an absolute path with WORKDIR rather than
+  navigate through the file system with cd commands in the Dockerfile.
+- WORKDIR creates the directory automatically if it doesn’t exist.
+- You can use multiple WORKDIR instructions. If relative paths are
+  provided, then each WORKDIR instruction changes the current working
+  directory.
+
+*** ENTRYPOINT
+- The ENTRYPOINT instruction also allows you provide a default command
+  and arguments when a container starts. It looks similar to CMD, but
+  ENTRYPOINT parameters are not overwritten if a container is run with
+  command line parameters.
+- Instead, command line arguments passed to ~docker run my_image_name~
+  are appended to the ENTRYPOINT instruction’s arguments. For example,
+  ~docker run my_image~ bash adds the argument bash to the end of the
+  ENTRYPOINT instruction’s existing arguments.
+- A Dockerfile should have at least one CMD or ENTRYPOINT instruction.
+
+- A Dockerfile should have at least one CMD or ENTRYPOINT instruction.
+
+- The [[https://docs.docker.com/v17.09/engine/reference/builder/#understand-how-cmd-and-entrypoint-interact][Docker docs]] have a few suggestions for choosing between CMD and
+  ENTRYPOINT for your initial container command:
+  + Favor ENTRYPOINT when you need to run the same command every time.
+  + Favor ENTRYPOINT when a container will be used as an executable
+    program.
+  + Favor CMD when you need to provide extra default arguments that
+    could be overwritten from the command line.
+*** VOLUME
+- VOLUME specifies where your container will store and/or access
+  persistent data.
+
+** List Docker CLI commands
+- docker
+- docker container --help
+
+** Display Docker version and info
+- docker --version
+- docker version
+- docker info
+
+** Execute Docker image
+- docker run hello-world
+
+** List Docker images
+- docker image ls
+
+** List Docker containers (running, all, all in quiet mode)
+- docker container ls
+- docker container ls --all
+- docker container ls -aq
+
+** A Dozen Dockerfile Instructions
+- ~FROM~
+  + specifies the base (parent) image.
+- ~LABEL~
+  + provides metadata. Good place to include maintainer info.
+- ~ENV~
+  + sets a persistent environment variable.
+- ~RUN~
+  + runs a command and creates an image layer. Used to install packages into containers.
+- ~COPY~
+  + copies files and directories to the container.
+- ~ADD~
+  + copies files and directories to the container. Can upack local .tar files.
+- ~CMD~
+  + provides a command and arguments for an executing container. Parameters can be overridden. There can be only one CMD.
+- ~WORKDIR~
+  + sets the working directory for the instructions that follow.
+- ~ARG~
+  + defines a variable to pass to Docker at build-time.
+- ~ENTRYPOINT~
+  + provides command and arguments for an executing container. Arguments persist.
+- ~EXPOSE~
+  + exposes a port.
+- ~VOLUME~
+  + creates a directory mount point to access and store persistent data.
+
+** Misc
+#+BEGIN_SRC sh
+  docker build -t friendlyhello .  # Create image using this directory's Dockerfile
+
+  docker run -p 4000:80 friendlyhello  # Run "friendlyhello" mapping port 4000 to 80
+
+  docker run -d -p 4000:80 friendlyhello         # Same thing, but in detached mode
+
+  docker container ls                                # List all running containers
+
+  docker container ls -a             # List all containers, even those not running
+
+  docker container stop <hash>           # Gracefully stop the specified container
+
+  docker container kill <hash>         # Force shutdown of the specified container
+
+  docker container rm <hash>        # Remove specified container from this machine
+
+  docker container rm $(docker container ls -a -q)         # Remove all containers
+
+  docker image ls -a                             # List all images on this machine
+
+  docker image rm <image id>            # Remove specified image from this machine
+
+  docker image rm $(docker image ls -a -q)   # Remove all images from this machine
+
+  docker login             # Log in this CLI session using your Docker credentials
+
+  docker tag <image> username/repository:tag  # Tag <image> for upload to registry
+
+  docker push username/repository:tag            # Upload tagged image to registry
+
+  docker run username/repository:tag                   # Run image from a registry
+#+END_SRC
+** [[https://kapeli.com/cheat_sheets/Dockerfile.docset/Contents/Resources/Documents/index][CheatSheet]]
