@@ -6,7 +6,7 @@
   registry. For example, AWS and Google Cloud have registries.
 
 *** Docker Hub
-- Docker Hubis the largest registry of Docker images. It’s also the
+- Docker Hub is the largest registry of Docker images. It’s also the
   default registry. You can find images and store your own images on
   Docker Hub for free.
 *** Docker Repository
@@ -19,7 +19,106 @@
   repository. You can push a repository or a single image to a
   registry.
 
-** Commands
+** CLI
+- Recall that a Docker image is made of a Dockerfile + any necessary
+  dependencies. Also recall that a Docker container is a Docker image
+  brought to life. To work with Docker commands, you first need to
+  know whether you’re dealing with an image or a container.
+  + A Docker image either exists or it doesn’t.
+  + A Docker container either exists or it doesn’t.
+  + A Docker container that exists is either running or it isn’t.
+
+- A command referring to a specific container or image requires the
+  name or id of that container or image.
+*** container
+- Create a container from an image.
+  #+BEGIN_SRC
+  docker container create my_repo/my_image:my_tag
+  #+END_SRC
+- Start an existing container
+  #+BEGIN_SRC
+  docker container start my_container
+  #+END_SRC
+- Create a new container and start it
+  #+BEGIN_SRC
+  docker container run my_image
+  #+END_SRC
+*** Images
+- Build a Docker image named my_image from the Dockerfile located at the specified path or URL
+  #+BEGIN_SRC
+  docker image build -t my_repo/my_image:my_tag .
+  #+END_SRC
+  + The ~.~ (period) at the end of the command tells Docker to build the
+    image according to the Dockerfile in the current working
+    directory.
+- Push an image to a registry.
+  #+BEGIN_SRC
+  docker image push my_repo/my_image:my_tag
+  #+END_SRC
+- List your images. Shows you the size of each image, too.
+  #+BEGIN_SRC
+  docker image ls
+  #+END_SRC
+- Display an image’s intermediate images with sizes and how they were created.
+  #+BEGIN_SRC
+  docker image history my_image
+  #+END_SRC
+-
+
+
+
+
+**** Summary
+- Use ~docker container my_command~
+  + create — Create a container from an image.
+  + start — Start an existing container.
+  + run — Create a new container and start it.
+  + ls — List running containers.
+  + inspect — See lots of info about a container.
+  + logs — Print logs.
+  + stop — Gracefully stop running container.
+  + kill —Stop main process in container abruptly.
+  + rm — Delete a stopped container.
+- Use ~docker image my_command~
+  + build — Build an image.
+  + push — Push an image to a remote registry.
+  + ls — List images.
+  + history — See intermediate image info.
+  + inspect — See lots of info about an image, including the layers.
+  + rm — Delete an image.
+- Misc
+- docker version — List info about your Docker Client and Server versions.
+- docker login — Log in to a Docker registry.
+- docker system prune — Delete all unused containers, unused networks, and dangling images.
+
+** Volumes
+- Two Types
+  + Persistent: will be available on the host, when the container goes
+    away, the data still will be there
+  + Ephemeral: will exist as long as a container is using them
++ They are not part of images
+*** Sharing data with the host
+- share a directory
+  #+BEGIN_SRC
+  docker run -it -v /home/farhad/play/docker/foobar:/shared_stuff ubuntu bash
+  #+END_SRC
+  the data will be preserved
+- share a file
+  #+BEGIN_SRC
+  docker run -it -v /home/farhad/play/dock/foobar/blah:/the_foo ubuntu bash
+  #+END_SRC
+*** sharing between containers
+-
+  #+BEGIN_SRC sh
+  # a
+  docker run -it --name foobar -v /shared_data ubuntu bash
+
+
+  # b
+  docker run -it --volumes-from foobar ubuntu bash
+  #+END_SRC
+** Dockefile command
+
 *** RUN
  - RUN creates a layer at build-time. Docker commits the state of the
    image after each RUN.
@@ -87,6 +186,13 @@
 - VOLUME specifies where your container will store and/or access
   persistent data.
 
+** Caching
+- When building an image, Docker steps through the instructions in
+  your Dockerfile, executing each in order. As each instruction is
+  examined, Docker looks for an existing intermediate image in its
+  cache that it can reuse instead of creating a new (duplicate)
+  intermediate image.
+
 ** List Docker CLI commands
 - docker
 - docker container --help
@@ -153,11 +259,14 @@
 
   docker container rm $(docker container ls -a -q)         # Remove all containers
 
+  docker container prune                                   # To remove all stopped containers
+
   docker image ls -a                             # List all images on this machine
 
   docker image rm <image id>            # Remove specified image from this machine
 
   docker image rm $(docker image ls -a -q)   # Remove all images from this machine
+
 
   docker login             # Log in this CLI session using your Docker credentials
 
@@ -167,4 +276,19 @@
 
   docker run username/repository:tag                   # Run image from a registry
 #+END_SRC
-** [[https://kapeli.com/cheat_sheets/Dockerfile.docset/Contents/Resources/Documents/index][CheatSheet]]
+** CheatSheet
+- [[https://kapeli.com/cheat_sheets/Dockerfile.docset/Contents/Resources/Documents/index][here]]
+- [[https://towardsdatascience.com/15-docker-commands-you-should-know-970ea5203421][here]]
+** sample
+-
+  #+BEGIN_SRC
+  docker build -t react-example .
+  #+END_SRC
+-
+  #+BEGIN_SRC
+  docker run -d -it -v ${PWD}:/usr/src/app -v /usr/src/app/node_modules -p 3000:3000 --rm react-example
+  #+END_SRC
+-
+  #+BEGIN_SRC
+  docker exec -it 04869dd4177c bash
+  #+END_SRC
