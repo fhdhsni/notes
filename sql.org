@@ -609,6 +609,16 @@ order by
 - It's totally fine to use both in the same query. =WHERE= to
   disregard irrelevant rows =HAVING= to disregard irrelevant groups
 
+*** HAVING vs. WHERE
+- The ~WHERE~ clause applies the condition to individual rows before the
+  rows are summarized into groups by the ~GROUP BY~ clause. However, the
+  ~HAVING~ clause applies the condition to the groups after the rows are
+  grouped into groups.
+
+- Therefore, it is important to note that the ~HAVING~ clause is applied
+  after whereas the ~WHERE~ clause is applied before the ~GROUP BY~
+  clause.
+
 #+BEGIN_SRC sql
 select
     m,
@@ -1089,8 +1099,8 @@ through another column that depends on the PK.
 - ~psql -d myDatabaseName~
 - ~psql -U username -d myDatabaseName~
 - List all users and their permission levels: ~\du~
-- Show summary information about all tables in the current database: ~\dt~
 - List all databases in the PostgreSQL database server: ~\l~
+- Show summary information about all tables in the current database: ~\dt~
 - show table info: ~\d+ tablename~
 - take a look at ~pgcli~
 - postgres help (putting it here since the pager doesn't work as

@@ -118,7 +118,6 @@
   docker run -it --volumes-from foobar ubuntu bash
   #+END_SRC
 ** Dockefile command
-
 *** RUN
  - RUN creates a layer at build-time. Docker commits the state of the
    image after each RUN.
@@ -185,6 +184,16 @@
 *** VOLUME
 - VOLUME specifies where your container will store and/or access
   persistent data.
+*** ENV
+-
+  #+BEGIN_SRC
+  ENV <key> <value>
+  ENV <key>=<value> ...
+  #+END_SRC
+- The ENV instruction sets the environment variable <key> to the value
+  <value>. This value will be in the environment for all subsequent
+  instructions in the build stage and can be replaced inline in many
+  as well.
 
 ** Caching
 - When building an image, Docker steps through the instructions in
@@ -270,7 +279,7 @@
 
   docker login             # Log in this CLI session using your Docker credentials
 
-  docker tag <image> username/repository:tag  # Tag <image> for upload to registry
+  docker image tag <image> username/repository:tag  # Tag <image> for upload to registry, if you don't want to publish to registry you can use foo:bar as a tag
 
   docker push username/repository:tag            # Upload tagged image to registry
 
@@ -291,4 +300,8 @@
 -
   #+BEGIN_SRC
   docker exec -it 04869dd4177c bash
+  #+END_SRC
+- get the id of the last started container
+  #+BEGIN_SRC
+  docker ps -n 1 --format "{{.ID}}"
   #+END_SRC

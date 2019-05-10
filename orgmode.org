@@ -22,7 +22,7 @@
 | update checklist tracker (to add the tracker type [/] in front of their parents) | C-c #       |                                             |
 | Cycle through TODO states                                                        | C-c C-t     |                                             |
 | Add Tag                                                                          | C-c C-q     |                                             |
-| Modify time stap of done TODO lists                                              | S-arrowKeys |                                             |
+| Modify time stamp of done TODO lists                                             | S-arrowKeys |                                             |
 | org-agenda                                                                       | C-c a       |                                             |
 | follow mode                                                                      | S-f         |                                             |
 | Atach a deadline to a TODO list                                                  | C-c C-d     |                                             |

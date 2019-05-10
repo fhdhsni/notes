@@ -1,0 +1,99 @@
+- Hooks are a way to reuse stateful logic, not state itself.
+- [[https://reactjs.org/docs/hooks-reference.html][Hooks API reference]]
+- [[https://reactjs.org/docs/hooks-faq.html][Hooks FAQ]]
+- unlike ~this.setState~ in a class, updating a state variable always
+  replaces it instead of merging it.
+
+* useEffect
+- The Effect Hook, ~useEffect~, adds the ability to perform side effects
+  from a function component. It serves the same purpose as
+  ~componentDidMount~, ~componentDidUpdate~, and ~compnentWillUnmount~ in
+  React classes, but unified into a single API.
+- By default, React runs the effects after every render — including the first render.
+- Effects may also optionally specify how to “clean up” after them by returning a function.
+
+** Effects Without Cleanup
+- Sometimes, we want to run some additional code after React has
+  updated the DOM. Network requests, manual DOM mutations, and logging
+  are common examples of effects that don’t require a cleanup.
+
+
+- Experienced JavaScript developers might notice that the function
+  passed to useEffect is going to be different on every render. This
+  is intentional. In fact, this is what lets us read the count value
+  from inside the effect without worrying about it getting
+  stale. Every time we re-render, we schedule a different effect,
+  replacing the previous one. In a way, this makes the effects behave
+  more like a part of the render result — each effect “belongs” to a
+  particular render.
+
+- Unlike ~componentDidMount~ or ~componentDidUpdate~, effects scheduled
+  with ~useEffect~ don’t block the browser from updating the
+  screen. This makes your app feel more responsive. The majority of
+  effects don’t need to happen synchronously. In the uncommon cases
+  where they do (such as measuring the layout), there is a separate
+  ~useLayoutEffect~ Hook with an API identical to useEffect.
+** Effects with Cleanup
+- When exactly does React clean up an effect? React performs the
+  cleanup when the component unmounts. However, as we learned earlier,
+  effects run for every render and not just once. This is why React
+  also cleans up effects from the previous render before running the
+  effects next time.
+  + [[https://reactjs.org/docs/hooks-effect.html#explanation-why-effects-run-on-each-update][why this helps avoid bugs]]
+  + [[https://reactjs.org/docs/hooks-effect.html#tip-optimizing-performance-by-skipping-effects][how to opt out of this behavior in case it creates performance issues]]
+
+** Tips
+- You can tell React to skip applying an effect if certain values
+  haven’t changed between re-renders. To do so, pass an array as an
+  optional second argument to useEffect:
+  #+BEGIN_SRC js
+    useEffect(() => {
+      document.title = `You clicked ${count} times`;
+    }, [count]); // Only re-run the effect if count changes
+  #+END_SRC
+  + In the example above, we pass ~[count]~ as the second
+    argument. What does this mean? If the ~count~ is ~5~, and then our
+    component re-renders with ~count~ still equal to ~5~, React will
+    compare ~[5]~ from the previous render and ~[5]~ from the next
+    render. Because all items in the array are the same ~(5 === 5)~,
+    React would skip the effect. That’s our optimization.
+  + If there are multiple items in the array, React will re-run the
+    effect even if just one of them is different.
+  + If you want to run an effect and clean it up only once (on mount
+    and unmount), you can pass an empty array (~[]~) as a second
+    argument. This tells React that your effect doesn’t depend on any
+    values from props or state, so it never needs to re-run. This
+    isn’t handled as a special case — it follows directly from how the
+    inputs array always works.
+
+* Custom Hooks
+
+- Custom Hooks are more of a convention than a feature. If a
+  function’s n()ame starts with ”use” and it calls other Hooks, we say
+  it is a custom Hook. The
+* useReducer
+#+BEGIN_SRC javascript
+const initialState = {count: 0};
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'increment':
+      return {count: state.count + 1};
+    case 'decrement':
+      return {count: state.count - 1};
+    default:
+      throw new Error();
+  }
+}
+
+function Counter({initialState}) {
+  const [state, dispatch] = useReducer(reducer, initialState);
+  return (
+    <>
+      Count: {state.count}
+      <button onClick={() => dispatch({type: 'increment'})}>+</button>
+      <button onClick={() => dispatch({type: 'decrement'})}>-</button>
+    </>
+  );
+}
+#+END_SRC
