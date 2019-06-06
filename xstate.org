@@ -1,0 +1,1065 @@
+- interpreting a machine creates a service
+  #+BEGIN_SRC javascript
+    import { Machine, interpret } from 'xstate';
+
+    const promiseMachine = Machine({/* ... */});
+
+    const promiseService = interpret(promiseMachine).onTransition(state =>
+      console.log(state.value)
+    );
+
+    // Start the service
+    promiseService.start();
+    // => 'pending'
+
+    promiseService.send('RESOLVE');
+    // => 'resolved'
+  #+END_SRC
+
+* Machines
+- A state machine is a finite set of states that can transition to
+  each other deterministically due to events. A statechart is an
+  extension of state machines; mainly, they can have:
+  + Hierarchical (or nested) states
+  + Orthogonal (or parallel) states
+  + History states
+- config
+  + State machines and statecharts alike are defined using the ~Machine()~ factory function.
+  + The machine config is the same as the state node config, with the
+    addition of the following properties:
+    * context
+    * strict
+- Options
+  + Implementations for actions, activities, guards, and services can
+    be referenced in the machine config as a string, and then
+    specified as an object in the 2nd argument to ~Machine()~:
+  + This object has 4 optional properties:
+    * ~actions~ - the mapping of action names to their implementation
+    * ~activities~ - the mapping of activity names to their implementation
+    * ~guards~ - the mapping of transition guard (~cond~) names to their implementation
+    * ~services~ - the mapping of invoked service (~src~) names to their implementation
+** Extending Machines
+- Existing machines can be extended using ~.withConfig()~, which takes
+  the same object structure as above:
+  #+BEGIN_SRC javascript
+    const noAlertLightMachine = lightMachine.withConfig({
+      actions: {
+        alertGreen: (context, event) => {
+          console.log('green');
+        }
+      }
+    });
+  #+END_SRC
+- Initial Context
+  + the ~context~ is defined directly in the configuration itself. If
+    you want to extend an existing machine with a different initial
+    context, you can use ~.withContext()~ and pass in the custom
+    ~context~:
+
+    :WARNING:
+    This will not do a shallow merge of the original context, and will
+    instead replace the original context with the context provided to
+    ~.withContext(...)~. You can still "merge" contexts manually, by
+    referencing machine.context:
+    #+BEGIN_SRC javascript
+      const testLightMachine = lightMachine.withContext({
+        // merge with original context
+        ...lightMachine.context,
+        elapsed: 1000
+      });
+    #+END_SRC
+    :END:
+-
+* States
+- A State object instance is JSON-serializable and has the following
+  properties:
+  + ~value~
+     - the current state value (e.g., ~{red: 'walk'}~)
+  + ~context~
+     - the current context of this state
+  + ~event~
+     - the event object that triggered the transition to this state
+  + ~actions~
+     - an array of actions to be executed
+  + ~activities~
+     - a mapping of activities to ~true~ if the activity started, or
+       ~false~ if stopped.
+  + ~history~
+     - the previous State instance
+  + ~meta~
+     - any static meta data defined on the meta property of the state node
+
+  + It contains other properties such as ~historyValue~, ~events~, ~tree~,
+    and others that are generally not relevant and are used
+    internally.
+
+- ~state.matches(parentStateValue)~
+  #+BEGIN_SRC javascript
+    console.log(state.value);
+    // => { red: 'stop' }
+
+    console.log(state.matches('red'));
+    // => true
+
+    console.log(state.matches('red.stop'));
+    // => true
+
+    console.log(state.matches({ red: 'stop' }));
+    // => true
+
+    console.log(state.matches('green'));
+    // => false
+  #+END_SRC
+- ~state.nextEvents~
+  + This getter specifies the next events that will cause a transition from the current state:
+    #+BEGIN_SRC javascript
+      const { initialState } = lightMachine;
+
+      console.log(initialState.nextEvents);
+      // => ['TIMER', 'EMERGENCY']
+    #+END_SRC
+* State node
+- State node types
+  + There are five different kinds of state nodes:
+    * An *atomic* state node has no child states. (I.e., it is a leaf
+      node.)
+
+    * A *compound* state node contains one or more child states, and has
+      an initial state, which is the key of one of those child states.
+
+    * A *parallel* state node contains two or more child states, and has
+      no initial state, since it represents being in all of its child
+      states at the same time.
+
+    * A *final* state node is a leaf node that represents an abstract
+      "terminal" state.
+
+    * A *history* state node is an abstract node that represents
+      resolving to its parent node's most recent shallow or deep
+      history state.
+- Transient state nodes
+  + A transient state node is a "pass-through" state node that
+    immediately transitions to another state node; that is, a machine
+    does not stay in a transient state.
+  + For example, this machine's initial transient state resolves
+    to ~'morning'~, ~'afternoon'~, or ~'evening'~, depending on what time it
+    is (implementation details hidden):
+    #+BEGIN_SRC javascript
+      const timeOfDayMachine = Machine({
+        id: 'timeOfDay',
+        initial: 'unknown',
+        context: {
+          time: undefined
+        },
+        states: {
+          // Transient state
+          unknown: {
+            on: {
+              '': [
+                { target: 'morning', cond: 'isBeforeNoon' },
+                { target: 'afternoon', cond: 'isBeforeSix' },
+                { target: 'evening' }
+              ]
+            }
+          },
+          morning: {},
+          afternoon: {},
+          evening: {}
+        }
+      }, {
+        guards: {
+          isBeforeNoon: // ...
+          isBeforeSix: // ...
+        }
+      });
+
+      const timeOfDayService = interpret(timeOfDayMachine
+        .withContext({ time: Date.now() }))
+        .onTransition(state => console.log(state.value))
+        .start();
+
+      // => 'morning' (assuming the time is before noon)
+    #+END_SRC
+* Events
+** Sending Events
+- a transition defines what the next state will be given the current
+  state and the event, defined on its on: { ... } property. This can
+  be observed by passing an event into the transition method:
+  #+BEGIN_SRC javascript
+    import { Machine } from 'xstate';
+
+    const lightMachine = Machine({
+      /* ... */
+    });
+
+    const { initialState } = lightMachine;
+
+    let nextState = lightMachine.transition(initialState, 'TIMER'); // string event
+    console.log(nextState.value);
+    // => 'yellow'
+
+    nextState = lightMachine.transition(nextState, { type: 'TIMER' }); // event object
+    console.log(nextState.value);
+    // => 'red'
+  #+END_SRC
+** Null Events
+- A null event is an event that has no type, and occurs immediately
+  once a state is entered. In transitions, it is represented by an
+  empty string (''):
+  #+BEGIN_SRC javascript
+    // contrived example
+    const skipMachine = Machine({
+      id: 'skip',
+      initial: 'one',
+      states: {
+        one: {
+          on: { CLICK: 'two' }
+        },
+        two: {
+          // null event '' always occurs once state is entered
+          // immediately take the transition to 'three'
+          on: { '': 'three' }
+        },
+        three: {
+          type: 'final'
+        }
+      }
+    });
+
+    const { initialState } = skipMachine;
+    const nextState = skipMachine.transition(initialState, 'CLICK');
+
+    console.log(nextState.value);
+    // => 'three'
+  #+END_SRC
+- use-case
+  #+BEGIN_SRC javascript
+    const ageMachine = Machine({
+      id: 'age',
+      context: { age: undefined }, // age unknown
+      initial: 'unknown',
+      states: {
+        unknown: {
+          on: {
+            // immediately take transition that satisfies conditional guard.
+            // otherwise, no transition occurs
+            '': [
+              { target: 'adult', cond: context => context && context.age >= 18 },
+              { target: 'child', cond: context => context && context.age < 18 }
+            ]
+          }
+        },
+        adult: { type: 'final' },
+        child: { type: 'final' }
+      }
+    });
+
+    console.log(ageMachine.initialState.value);
+    // => 'unknown'
+
+    const personData = { age: 28 };
+
+    const personMachine = ageMachine.withContext(personData);
+
+    console.log(personMachine.initialState.value);
+    // => 'adult'
+  #+END_SRC
+** Transitions
+- A state transition defines what the next state is, given the current
+  state and event. State transitions are defined on state nodes, in
+  the ~on~ property:
+
+*** Self Transitions
+ - A self-transition is when a state transitions to itself, in which it
+   may exit and then reenter itself. Self-transitions can either be an
+   internal or external transition:
+   + An internal transition will not exit nor re-enter itself, but may
+     enter different child states.
+   + An external transition will exit and re-enter itself, and may also
+     exit/enter child states.
+
+ - By default, all transitions with a specified target are external.
+
+*** Internal Transitions
+- An internal transition is one that does not exit its state
+  node. Internal transitions are created by specifying a relative
+  target (e.g., ~'.left'~) or by explicitly setting ~{ internal: true }~
+  on the transition. For example, consider a machine that sets a
+  paragraph of text to align ~'left'~, ~'right'~, ~'center'~, or ~'justify'~:
+  #+BEGIN_SRC javascript
+    import { Machine } from 'xstate';
+
+    const wordMachine = Machine({
+      id: 'word',
+      initial: 'left',
+      states: {
+        left: {},
+        right: {},
+        center: {},
+        justify: {}
+      },
+      on: {
+        // internal transitions
+        LEFT_CLICK: '.left',
+        RIGHT_CLICK: { target: '.right' }, // same as '.right'
+        CENTER_CLICK: { target: '.center', internal: true }, // same as '.center'
+        JUSTIFY_CLICK: { target: 'word.justify', internal: true } // same as '.justify'
+      }
+    });
+  #+END_SRC
+  The above machine will start in the ~'left'~ state (for reference, the
+  full path and default ID is ~'word.left'~), and based on what is
+  clicked, will internally transition to its other child states. Also,
+  since the transitions are internal, ~onEntry~, ~onExit~ or any of the
+  ~actions~ defined on the parent state node are not executed again.
+- Transitions that have ~{ target: undefined }~ (or no ~target~) are
+  also internal transitions:
+- Summary of internal transitions:
+  + ~EVENT: '.foo'~ - internal transition to child
+  + ~EVENT: { target: '.foo' }~ - internal transition to child (starts with ~'.'~)
+  + ~EVENT: { target: 'same.foo', internal: true }~ - explicit
+    internal transition to child This would otherwise be an external
+    transition
+  + ~EVENT: undefined~~ - forbidden transition
+  + ~EVENT: { actions: [ ... ] }~ - internal self-transition
+  + ~EVENT: { actions: [ ... ], internal: true }~ - internal self-transition, same as above
+  + ~EVENT: { target: undefined, actions: [ ... ] }~ - internal self-transition, same as above
+*** External Transitions
+- External transitions will exit and reenter the state node in which
+  the transition is defined.
+  #+BEGIN_SRC javascript
+    on: {
+      // external transitions
+      LEFT_CLICK: 'word.left',
+      RIGHT_CLICK: 'word.right',
+      CENTER_CLICK: { target: '.center', internal: false }, // same as 'word.center'
+      JUSTIFY_CLICK: { target: 'word.justify', internal: false } // same as 'word.justify'
+    }
+  #+END_SRC
+  Every transition above is explicit and will have its onExit and
+  onEntry actions of the parent state executed.
+
+- Summary of external transitions:
+  + ~{ EVENT: 'foo' }~
+     * all transitions to siblings are external transitions
+  + ~{ EVENT: '#someTarget' }~
+     * all transitions to other nodes are external transitions
+  + ~{ EVENT: 'same.foo' }~
+     * external transition to child node with reference to self (parent node)
+  + ~{ EVENT: '.foo', internal: false }~
+     * external transition to child node This would otherwise be an internal transition
+  + ~{ actions: [ ... ], internal: false }~
+     * external self-transition
+  + ~{ target: undefined, actions: [ ... ], internal: false }~
+     * external self-transition, same as above
+*** Transient Transitions
+- A transient transition is a transition that is enabled by a null
+  event. In other words, it is a transition that is immediately taken
+  (i.e., without a triggering event) as long as any conditions are
+  met:
+  #+BEGIN_SRC javascript
+        states: {
+          playing: {
+            on: {
+              // Transient transition
+              // Will transition to either 'win' or 'lose' immediately upon
+              // (re)entering 'playing' state if the condition is met.
+              '': [
+                { target: 'win', cond: 'didPlayerWin' },
+                { target: 'lose', cond: 'didPlayerLose' }
+              ],
+              // Self-transition
+              AWARD_POINTS: {
+                actions: assign({
+                  points: 100
+                })
+              }
+            }
+          },
+          win: { type: 'final' },
+          lose: { type: 'final' }
+        }
+  #+END_SRC
+
+*** Forbidden Transitions
+- In XState, a "forbidden" transition is one that specifies that no
+  state transition should occur with the specified event.
+- That is, nothing should happen on a forbidden transition, and the
+  event should not be handled by parent state nodes.
+- A forbidden transition is made by specifying the ~target~ explicitly
+  as ~undefined~. This is the same as specifying it as an internal
+  transition with no actions:
+  #+BEGIN_SRC javascript
+    on: {
+      // forbidden transition
+      LOG: undefined,
+      // same thing as...
+      LOG: {
+        actions: []
+      }
+    }
+  #+END_SRC
+- example
+  #+BEGIN_SRC javascript
+    const formMachine = Machine({
+      id: 'form',
+      initial: 'firstPage',
+      states: {
+        firstPage: {
+          /* ... */
+        },
+        secondPage: {
+          /* ... */
+        },
+        userInfoPage: {
+          on: {
+            // explicitly forbid the LOG event from doing anything
+            // or taking any transitions to any other state
+            LOG: undefined
+          }
+        }
+      },
+      on: {
+        LOG: {
+          actions: 'logTelemetry'
+        }
+      }
+    });
+  #+END_SRC
+
+* Parallel State Nodes
+- A parallel state node represents multiple orthogonal child state
+  nodes; that is, a parallel state is in all of its child states at
+  the same time. The key word here is parallel (or orthogonal) - the
+  states are not directly dependent on each other, and no transitions
+  should exist between parallel state nodes.
+  #+BEGIN_SRC javascript
+    const fileMachine = Machine({
+      id: 'file',
+      type: 'parallel',
+      states: {
+        upload: {
+          initial: 'idle',
+          states: {
+            idle: {
+              on: {
+                INIT_UPLOAD: 'pending'
+              }
+            },
+            pending: {
+              on: {
+                UPLOAD_COMPLETE: 'success'
+              }
+            },
+            success: {}
+          }
+        },
+        download: {
+          initial: 'idle',
+          states: {
+            idle: {
+              on: {
+                INIT_DOWNLOAD: 'pending'
+              }
+            },
+            pending: {
+              on: {
+                DOWNLOAD_COMPLETE: 'success'
+              }
+            },
+            success: {}
+          }
+        }
+      }
+    });
+
+    console.log(fileMachine.initialState.value);
+    // => {
+    //   upload: 'idle',
+    //   download: 'idle'
+    // }
+  #+END_SRC
+* Effects
+- In statecharts, "side-effects" can be grouped into two categories:
+  1. "Fire-and-forget" effects, which execute a side-effect and do not
+     send any events back to the statechart:
+     + *Actions* - single, discrete effects
+     + *Activities* - continuous effects that are disposed when the
+       state they were started in are exited
+  2. Invoked effects, which executes a side-effect that can send and receive events:
+     + *Invoked Promises* - single, discrete effects over time that may
+       resolve or reject once, which are sent as events to the parent
+       machine
+
+     + *Invoked Callbacks* - continuous effects over time that may send
+       multiple events, as well as listen for events sent directly to
+       it, to/from the parent machine
+
+     + *Invoked Machines* - continuous effects represented by Machine
+       instances that can send/receive events, but also notify the
+       parent machine when it has reached its final state
+* Actions
+- Actions are fire-and-forget "side effects".
+- Actions are not immediately triggered. Instead, the State object
+  returned from ~machine.transition(...)~ will declaratively provide an
+  array of ~.actions~ that an interpreter can then execute.
+- There are three types of actions:
+  1. ~onEntry~ actions are executed upon entering a state
+  2. ~onExit~ actions are executed upon exiting a state
+  3. transition actions are executed when a transition is taken.
+- e.g.
+  #+BEGIN_SRC javascript
+    const triggerMachine = Machine(
+      {
+        id: 'trigger',
+        initial: 'inactive',
+        states: {
+          inactive: {
+            on: {
+              TRIGGER: {
+                target: 'active',
+                // transition actions
+                actions: ['activate', 'sendTelemetry']
+              }
+            }
+          },
+          active: {
+            // entry actions
+            onEntry: ['notifyActive', 'sendTelemetry'],
+            // exit actions
+            onExit: ['notifyInactive', 'sendTelemetry'],
+            on: {
+              STOP: 'inactive'
+            }
+          }
+        }
+      },
+      {
+        actions: {
+          // action implementations
+          activate: (context, event) => {
+            console.log('activating...');
+          },
+          notifyActive: (context, event) => {
+            console.log('active!');
+          },
+          notifyInactive: (context, event) => {
+            console.log('inactive!');
+          },
+          sendTelemetry: (context, event) => {
+            console.log('time:', Date.now());
+          }
+        }
+      }
+    );
+  #+END_SRC
+** Declarative Actions
+- The ~State~ instance returned from ~machine.transition(...)~ has an
+  ~.actions~ property, which is an array of action objects for the
+  interpreter to execute:
+  #+BEGIN_SRC javascript
+    const activeState = triggerMachine.transition('inactive', 'TRIGGER');
+
+    console.log(activeState.actions);
+    // [
+    //   { type: 'activate', exec: ... },
+    //   { type: 'sendTelemetry', exec: ... },
+    //   { type: 'notifyActive', exec: ... },
+    //   { type: 'sendTelemetry', exec: ... }
+    // ]
+  #+END_SRC
+- Each action object has two properties (and others, that you can
+  specify):
+  + ~type~ - the action type
+  + ~exec~ - the action implementation function
+    + The ~exec~ function takes three arguments:
+      * ~context~ - the current machine context
+      * ~event~ - the event that caused the transition
+      * ~actionMeta~ - an object containing meta data about the action, including:
+        + ~action~ - the original action object
+        + ~state~ - the resolved machine state, after transition
+** Action order
+- When interpreting statecharts, the order of actions should not
+  necessarily matter (that is, they should not be dependent on each
+  other). However, the order of the actions in the state.actions array
+  is:
+  + ~onExit~ actions - all the exit actions of the exited state node(s), from the atomic state node up
+  + transition actions - all actions defined on the chosen transition
+  + ~onEntry~ actions - all the entry actions of the entered state node(s), from the parent state down
+** Built-in Actions
+*** Send Action
+- The ~send(event)~ action creator creates a special "~send~" action
+  object that tells a service (i.e., interpreted machine) to send that
+  event to itself. It queues an event to the running service, in the
+  external event queue. This means the event is sent on the next
+  "step" of the interpreter.
+  The event argument passed to ~send(event)~ can be:
+  + A string event, e.g., ~send('TOGGLE')~
+  + An event object, e.g., ~send({ type: 'TOGGLE', payload: ... })~
+  + An event expression, which is a function that takes in the current
+    context and event that triggered the ~send()~ action, and returns an
+    event object:
+    #+BEGIN_SRC javascript
+      import { send } from 'xstate';
+
+      // contrived example - reads from the `context` and sends
+      // the dynamically created event
+      const sendName = send((context, event) => ({
+        type: 'NAME',
+        name: context.user.name
+      }));
+
+      const machine = Machine({
+        // ...
+        on: {
+          TOGGLE: {
+            actions: sendName
+          }
+        }
+        //...
+      });
+    #+END_SRC
+*** Raise Action
+- The ~raise()~ action creator queues an event to the statechart, in
+  the internal event queue. This means the event is immediately sent
+  on the current "step" of the interpreter.
+
+  #+BEGIN_SRC javascript
+    import { Machine, actions } from 'xstate';
+    const { raise } = actions;
+
+    const stubbornMachine = Machine({
+      id: 'stubborn',
+      initial: 'inactive',
+      states: {
+        inactive: {
+          on: {
+            TOGGLE: {
+              target: 'active',
+              // immediately consume the TOGGLE event
+              actions: raise('TOGGLE')
+            }
+          }
+        },
+        active: {
+          on: {
+            TOGGLE: 'inactive'
+          }
+        }
+      }
+    });
+
+    const nextState = stubbornMachine.transition('inactive', 'TOGGLE');
+
+    nextState.value;
+    // => 'inactive'
+    nextState.actions;
+    // => []
+  #+END_SRC
+*** Log Action
+- The ~log()~ action creator is a declarative way of logging anything
+  related to the current state context and/or event. It takes two
+  optional arguments:
+  + ~expr~ (optional) - a function that takes the ~context~ and
+    ~event~ as arguments and returns a value to be logged
+  + ~label~ (optional) - a string to label the logged message
+- e.g
+  #+BEGIN_SRC javascript
+    import { Machine, actions } from 'xstate';
+    const { log } = actions;
+
+    const loggingMachine = Machine({
+      id: 'logging',
+      context: { count: 42 },
+      initial: 'start',
+      states: {
+        start: {
+          on: {
+            FINISH: {
+              target: 'end',
+              actions: log(
+                (context, event) => `count: ${context.count}, event: ${event.type}`,
+                'Finish label'
+              )
+            }
+          }
+        },
+        end: {}
+      }
+    });
+
+    const endState = loggingMachine.transition('start', 'FINISH');
+
+    endState.actions;
+    // [
+    //   {
+    //     type: 'xstate.log',
+    //     label: 'Finish label',
+    //     expr: (context, event) => ...
+    //   }
+    // ]
+
+    // The interpreter would log the action's evaluated expression
+    // based on the current state context and event.
+  #+END_SRC
+
+*** Actions on self-transitions
+- e.g.
+  #+BEGIN_SRC javascript
+    onst counterMachine = Machine({
+      id: 'counter',
+      initial: 'counting',
+      states: {
+        counting: {
+          onEntry: 'enterCounting',
+          onExit: 'exitCounting',
+          on: {
+            // self-transitions
+            INC: { actions: 'increment' }, // internal (implicit)
+            DEC: { target: 'counting', actions: 'decrement' }, // external
+            DO_NOTHING: { internal: true, actions: 'logNothing' } // internal (explicit)
+          }
+        }
+      }
+    });
+
+    // External transition (onExit + transition actions + onEntry)
+    const stateA = counterMachine.transition('counting', 'DEC');
+    stateA.actions;
+    // ['exitCounting', 'decrement', 'enterCounting']
+
+    // Internal transition (transition actions)
+    const stateB = counterMachine.transition('counting', 'DO_NOTHING');
+    stateB.actions;
+    // ['logNothing']
+
+    const stateC = counterMachine.transition('counting', 'INC');
+    stateB.actions;
+    // ['increment']
+  #+END_SRC
+* Guards
+- Guards can (and should) be serialized as a string or an object with
+  the ~{ type: '...' }~ property. The implementation details of the
+  guard are specified on the guards property of the machine options,
+  where the ~key~ is the guard ~type~ (specified as a string or object)
+  and the value is a function that takes three arguments:
+  + ~context~ - the current machine context
+  + ~event~ - the event that triggered the (potential) transition
+  + ~guardMeta~  - an object containing meta data about the guard and transition, including:
+    * ~cond~ - the original cond object
+    * ~state~ - the current machine state, before transition
+- e.g.
+  #+BEGIN_SRC javascript
+    const searchMachine = Machine(
+      {
+        // ...
+        states: {
+          idle: {
+            on: {
+              SEARCH: {
+                target: 'searching',
+                // The 'searchValid' guard implementation details are
+                // specified in the machine config
+                cond: 'searchValid' // or { type: 'searchValid' }
+              }
+            }
+          }
+          // ...
+        }
+      },
+      {
+        guards: {
+          searchValid: (context, event) => {
+            return context.canSearch && event.query && event.query.length > 0;
+          }
+        }
+      }
+    );
+  #+END_SRC
+** Custom Guards
+- Sometimes, it is preferable to not only serialize state transitions
+  in JSON, but guard logic as well. This is where serializing guards
+  as objects is helpful, as objects may contain relevant data:
+  #+BEGIN_SRC javascript
+    const searchMachine = Machine(
+      {
+        // ...
+        states: {
+          idle: {
+            on: {
+              SEARCH: {
+                target: 'searching',
+                // Custom guard object
+                cond: {
+                  type: 'searchValid',
+                  minQueryLength: 3
+                }
+              }
+            }
+          }
+          // ...
+        }
+      },
+      {
+        guards: {
+          searchValid: (context, event, { cond }) => {
+            // cond === { type: 'searchValid', minQueryLength: 3 }
+            return (
+              context.canSearch &&
+              event.query &&
+              event.query.length > cond.minQueryLength
+            );
+          }
+        }
+      }
+    );
+  #+END_SRC
+
+** Multiple Guards
+- If you want to have a single event transition to different states in
+  certain situations you can supply an array of conditional
+  transitions. Each transition will be tested in order, and the first
+  transition whose cond guard evaluates to true will be taken.
+- e.g.
+  #+BEGIN_SRC js
+    import { Machine, actions, interpret, assign } from 'xstate';
+
+    const doorMachine = Machine(
+      {
+        id: 'door',
+        initial: 'closed',
+        context: {
+          level: 'admin',
+          alert: false // alert when intrusions happen
+        },
+        states: {
+          closed: {
+            initial: 'idle',
+            states: {
+              idle: {},
+              error: {}
+            },
+            on: {
+              SET_ADMIN: {
+                actions: assign({ level: 'admin' })
+              },
+              OPEN: [
+                // Transitions are tested one at a time.
+                // The first valid transition will be taken.
+                { target: 'opened', cond: 'isAdmin' },
+                { target: '.error', cond: 'shouldAlert' },
+                { target: '.idle' }
+              ]
+            }
+          },
+          opened: {
+            on: {
+              CLOSE: 'closed'
+            }
+          }
+        }
+      },
+      {
+        guards: {
+          isAdmin: context => context.level === 'admin',
+          shouldAlert: context => context.alert === true
+        }
+      }
+    );
+
+    const doorService = interpret(doorMachine)
+      .onTransition(state => console.log(state.value))
+      .start();
+    // => { closed: 'idle' }
+
+    doorService.send('OPEN');
+    // => { closed: 'error' }
+
+    doorService.send('SET_ADMIN');
+    // => { closed: 'error' }
+    // (state does not change, but context changes)
+
+    doorService.send('OPEN');
+    // => 'opened'
+    // (since context.isAdmin === true)
+  #+END_SRC
+** "In State" Guards
+- The ~in~ property takes a state ID as an argument and returns ~true~ if
+  and only if that state node is active in the current state. For
+  example, we can add a guard to the traffic light machine:
+  #+BEGIN_SRC javascript
+    const lightMachine = Machine({
+      id: 'light',
+      initial: 'green',
+      states: {
+        green: { on: { TIMER: 'yellow' } },
+        yellow: { on: { TIMER: 'red' } },
+        red: {
+          initial: 'walk',
+          states: {
+            walk: {
+              /* ... */
+            },
+            wait: {
+              /* ... */
+            },
+            stop: {
+              /* ... */
+            }
+          },
+          on: {
+            TIMER: [
+              {
+                target: 'green',
+                in: '#light.red.stop'
+              }
+            ]
+          }
+        }
+      }
+    });
+  #+END_SRC
+* Context
+- Updating context with ~assign~
+  + The ~assign()~ action is used to update the machine's context. It
+    takes the context "updater", which represents how the current
+    context should be updated.
+    #+BEGIN_SRC javascript
+      import { Machine, assign } from 'xstate';
+      // example: property updater
+
+      // ...
+        actions: assign({
+          // increment the current count by the event value
+          count: (context, event) => context.count + event.value,
+
+          // update the message statically (no function needed)
+          message: 'Count changed'
+        }),
+      // ...
+    #+END_SRC
+- Or it can be a function that returns the updated state:
+  #+BEGIN_SRC javascript
+    // example: context updater
+    // ...
+    // return a partial (or full) updated context
+      actions: assign((context, event) => ({
+        count: context.count + event.value,
+        message: 'Count changed'
+      })),
+    // ...
+  #+END_SRC
+** Action order
+- Custom actions are always executed with regard to the next state in
+  the transition. When a state transition has ~assign(...)~ actions,
+  those actions are always batched and computed first, to determine
+  the next state. This is because a state is a combination of the
+  finite state and the extended state (context).
+
+  #+BEGIN_SRC javascript
+    const counterMachine = Machine({
+      id: 'counter',
+      context: { count: 0 },
+      initial: 'active',
+      states: {
+        active: {
+          on: {
+            INC: {
+              actions: [
+                context => console.log(`Before: ${context.count}`),
+                assign({ count: context => context + 1 }), // count === 1
+                assign({ count: context => context + 1 }), // count === 2
+                context => console.log(`After: ${context.count}`)
+              ]
+            }
+          }
+        }
+      }
+    });
+
+    interpret(counterMachine).send('INC');
+    // => "Before: 2"
+    // => "After: 2"
+  #+END_SRC
+  This is because both ~assign(...)~ actions are batched in order, so
+  the next state context is ~{ count: 2 }~, which is passed to both
+  custom actions.
+  + A good way to refactor this to get the desired result is modeling
+    the context with explicit previous values, if those are needed:
+    #+BEGIN_SRC javascript
+      const counterMachine = Machine({
+        id: 'counter',
+        context: { count: 0, prevCount: undefined },
+        initial: 'active',
+        states: {
+          active: {
+            on: {
+              INC: {
+                actions: [
+                  context => console.log(`Before: ${context.prevCount}`),
+                  assign({
+                    count: context => context + 1,
+                    prevCount: context => context.count
+                  }), // count === 1, prevCount === 0
+                  assign({ count: context => context + 1 }), // count === 2
+                  context => console.log(`After: ${context.count}`)
+                ]
+              }
+            }
+          }
+        }
+      });
+
+      interpret(counterMachine).send('INC');
+      // => "Before: 0"
+      // => "After: 2"
+    #+END_SRC
+* Activity
+- An activity is an action that occurs over time, and can be started
+  and stopped.
+- e.g.
+  + For example, a toggle that "beeps" when active can be represented
+    by a 'beeping' activity:
+    #+BEGIN_SRC javascript
+      const toggleMachine = Machine(
+        {
+          id: 'toggle',
+          initial: 'inactive',
+          states: {
+            inactive: {
+              on: { TOGGLE: 'active' }
+            },
+            active: {
+              // The 'beeping' activity will take place as long as
+              // the machine is in the 'active' state
+              activities: ['beeping'],
+              on: { TOGGLE: 'inactive' }
+            }
+          }
+        },
+        {
+          activities: {
+            beeping: () => {
+              // Start the beeping activity
+              const interval = setInterval(() => console.log('BEEP!'), 1000);
+
+              // Return a function that stops the beeping activity
+              return () => clearInterval(interval);
+            }
+          }
+        }
+      );
+    #+END_SRC
+- In XState, activities are specified on the activities property of a
+  state node. When a state node is entered, an interpreter should
+  start its activities, and when it is exited, it should stop its
+  activities.
+* Invoking Services
+- Expressing the entire app's behavior in a single machine can quickly
+  become complex and unwieldy. It is natural (and encouraged!) to use
+  multiple machines that communicate with each other to express
+  complex logic instead. This closely resembles the Actor model, where
+  each machine instance is considered an "actor" that can send and
+  receive events (messages) to and from other "actors" (such as
+  Promises or other machines) and react to them.
+-

@@ -289,3 +289,9 @@ subscriptions are made to the ConnectableObservable.
   // 1st subscriber:4
   // 2nd subscriber:4
 #+END_SRC
+
+
+* front-end masters
+- ~concatAll~
+- ~mergeAll~
+- ~switchAll~
