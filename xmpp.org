@@ -1,0 +1,36 @@
+- XMPP Standards Foundation (XSF)
+- Jabber Software Foundation (JSF)
+- Jabber Extension Proposals (JEPs)
+
+* Getting to Know XMPP (The eXtensible Messaging and Presence Protocol)
+
+- Like HTTP, XMPP is a client-server protocol, but it differs from
+  HTTP by allowing either side to send data to the other
+  asynchronously. XMPP connections are long lived, and data is pushed
+  instead of pulled.
+
+** WhAt is XMPP?
+- XMPP, like all protocols, defines a format for moving data between
+  two or more communicating entities
+- XML is known primarily as a document format, but in XMPP, XML data
+  is organized as a pair of streams, one stream for each direction of
+  communication. Each XML stream consists of an opening element,
+  followed by XMPP stanzas and other top-level elements, and then a
+  closing element. Each XMPP stanza is a first-level child element
+  of the stream with all its descendent elements and attributes. At
+  the end of an XMPP connection, the two streams form a pair of valid
+  XML documents.
+
+
+** XMPP Network
+***  Servers
+- XMPP servers, or more accurately, XMPP entities speaking the
+  server-to-server protocol or the server end of the client-to-server
+  protocol, are the circulatory system of any XMPP network. A server’s
+  job is to route stanzas, whether they are internal from one user to
+  another or from a local user to a user on a remote server.
+- The set of XMPP servers that can mutually communicate forms an XMPP
+  network.
+- The set of public XMPP servers forms the global, federated XMPP
+  network. If a server does not speak the server-to- server protocol,
+  it becomes an island, unable to communicate with external servers.
