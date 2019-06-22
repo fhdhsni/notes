@@ -1,6 +1,7 @@
 - XMPP Standards Foundation (XSF)
 - Jabber Software Foundation (JSF)
 - Jabber Extension Proposals (JEPs)
+- JID (jabber identifier)
 
 * Getting to Know XMPP (The eXtensible Messaging and Presence Protocol)
 
@@ -23,7 +24,13 @@
 
 
 ** XMPP Network
-***  Servers
+- Any XMPP network is composed of a number of actors. These actors can
+  be categorized as servers, clients, components, and server
+  plug-ins. An XMPP developer will write code to create or modify one
+  of these types of actors. Each actor has its place on the XMPP
+  network’s stage.
+
+*** Servers
 - XMPP servers, or more accurately, XMPP entities speaking the
   server-to-server protocol or the server end of the client-to-server
   protocol, are the circulatory system of any XMPP network. A server’s
@@ -32,5 +39,104 @@
 - The set of XMPP servers that can mutually communicate forms an XMPP
   network.
 - The set of public XMPP servers forms the global, federated XMPP
-  network. If a server does not speak the server-to- server protocol,
+  network. If a server does not speak the server-to-server protocol,
   it becomes an island, unable to communicate with external servers.
+
+*** Clients
+*** Components
+*** Plug-ins
+*** XMPP Addressing
+- JIDs are divided into two categories, bare JIDs and full JIDs. The
+  full JID is always the most specific address for a particular
+  entity, and the bare JID is simply the full JID with any resource
+  part removed.
+- For example, if a client’s full JID is ~darcy@pemberley.lit/library~,
+  its bare JID would be ~darcy@pemberley.lit~. In some cases, the bare
+  JID and the full JID are the same, such as when addressing a server
+  or a specific multi-user chat room.
+
+- JID: ~darcy@pemberley.lit/library~
+  + the local part: ~darcy~
+  + the domain: ~pemberley.lit~
+  + the resource: ~library~
+
+
+*** XMPP Stanzas
+- Work is accomplished in XMPP by the sending and receiving of XMPP
+  stanzas over an XMPP stream
+- Three basic stanzas make up the core XMPP toolset. These stanzas are
+  ~<presence>~, ~<message>~, and ~<iq>~
+- XMPP stream is a set of two XML documents, one for each direction
+  of communication. These documents have a root ~<stream:stream>~
+  element. The children of this ~<stream:stream>~ element consist of
+  routable stanzas and stream related top-level children.
+- Each stanza is an XML element, including its children. The end
+  points of XMPP communication process input and generate output on a
+  stanza-by-stanza basis.
+- The following example shows a simplified and short XMPP session:
+  #+BEGIN_SRC xml
+    <stream:stream>
+
+      <iq type="get">
+        <query xmlns="jabber:iq:roster"/>
+      </iq>
+
+      <presence/>
+
+      <message to="darcy@pemberley.lit" from="elizabaeth@longbourn.lit/ballroom" type="chat">
+        <body>I cannot talk of books in a ball-room; my head is always full of something else.</body>
+      </message>
+
+      <presence type="unavailable"/>
+
+    </stream:stream>
+  #+END_SRC
+  + In this example, Elizabeth created an XMPP stream by sending the
+    opening ~<stream:stream>~ tag. With the stream open, she sent her
+    first stanza, an ~<iq>~ element. This ~<iq>~ element requested
+    Elizabeth’s roster, the list of all her stored contacts. Next, she
+    notified the server that she was online and available with a
+    ~<presence>~ stanza. After noticing that Mr. Darcy was online, she
+    sent him a short ~<message>~ stanza, thwarting his attempt at
+    small talk. Finally, Elizabeth sent another ~<presence>~ stanza to
+    inform the server she was unavailable and closed the
+    ~<stream:stream>~ element, ending the session.
+
+**** Common Attributes
+- All three stanzas support a set of common attributes. Whether they
+  are attributes of ~<presence>~, ~<message>~, or ~<iq>~ elements, the
+  following attributes all mean the same thing.
+  + ~from~
+    * This attribute identifies the JID of the stanza’s origin.
+    * Setting the from attribute on outgoing stanzas is not
+      recommended; the server adds the correct from attribute to all
+      stanzas as they pass through, and if you set the from attribute
+      incorrectly, the server may reject your stanza altogether.
+    * If the from attribute is missing on a received stanza in a
+      client-to-server stream, this is interpreted to mean that the
+      stanza originated from the server itself.
+    * In the server-to-server protocol, a missing from attribute is an
+      error.
+  + ~to~
+    * XMPP servers route your stanzas to the JID supplied in the to
+      attribute. Similarly to the ~from~ attribute, if the ~to~
+      attribute is missing in a client-to-server stream, the server
+      assumes it is a message intended for the server itself. It is
+      recommended that you omit the to attribute when you address the
+      server itself.
+    * If the JID specified in the ~to~ attribute is a user, the server
+      potentially handles the stanza on the user’s behalf. If the
+      destination is a bare JID, the server handles the stanza. This
+      behavior is different for the three stanza types. If a full JID
+      is specified as the destination, the server routes the stanza
+      directly to the user.
+  + ~type~
+    * The type attribute specifies the specific kind of ~<presence>~,
+      ~<message>~, or ~<iq>~ stanza. Each of the three basic stanzas has
+      several possible values for the type attribute, and these are
+      explained when each stanza is covered in detail. All three
+      stanzas may have their type attribute set to a value of
+      ~error~. This indicates that the stanza is an error response to a
+      received stanza of the same kind. You must not respond to a
+      stanza with an error type, to avoid feedback loops on the
+      network.
