@@ -1,5 +1,6 @@
 - XMPP Standards Foundation (XSF)
 - Jabber Software Foundation (JSF)
+- XMPP Extension Protocols (XEPs, previously known as JEPs)
 - Jabber Extension Proposals (JEPs)
 - JID (jabber identifier)
 
@@ -140,3 +141,114 @@
       received stanza of the same kind. You must not respond to a
       stanza with an error type, to avoid feedback loops on the
       network.
+  + ~id~
+    * Stanzas may be given an id attribute to aid in identifying
+      responses.
+    * For ~<iq>~ stanzas, this attribute is required, but for the other
+      two it is optional.
+    * If a stanza is generated in reply to a stanza with an ~id~
+      attribute, the reply stanza must contain an ~id~ attribute with
+      the same value.
+    * The ~id~ attribute needs to be unique enough that the stanza’s
+      sender can use it to disambiguate responses.
+    * Reply stanzas for ~<message>~ and ~<presence>~ stanzas are
+      generally limited to reporting errors. Reply stanzas for ~<iq>~
+      can signal successful operations, acknowledge a command, or
+      return requested data. In all these cases, the client uses the
+      id attribute of the reply stanza to identify which request
+      stanza it is associated with.
+
+**** Presence stanzas
+- The ~<presence>~ stanza controls and reports the availability of an
+  entity. This availability can range from simple online and offline
+  to the more complex away and do not disturb. In addition, ~<presence>~
+  stanzas are used to establish and terminate presence subscriptions
+  to other entities.
+**** Message stanzas
+- A ~<message>~ stanza is fire and forget
+
+**** IQ stanzas
+- The ~<iq>~ stanza stands for Info/Query and provides a request and
+  response mechanism for XMPP communication. It is very similar to the
+  basic workings of the HTTP protocol, allowing both ~get~ and ~set~
+  queries, similar to the GET and POST actions of HTTP.
+- Each ~<iq>~ stanza is required to have a response, and, as mentioned
+  previously, the stanza’s required id attribute is used to associate
+  a response with the request that caused it.
+- The ~<iq>~ stanza comes in four flavors differentiated by the stanza’s
+  type attribute. There are two types of ~<iq>~ stanza requests, ~get~ and
+  ~set~, and two types of responses, ~result~ and ~error~.
+
+** the connection life cycle
+*** Connection
+- Before any stanzas are sent, an XMPP stream is necessary. Before an XMPP stream can exist, a con- nection must be made to an XMPP server.
+- The first thing an XMPP client or server does when connecting to
+  another XMPP server is to query the appropriate SRV record at the
+  server’s domain. The response may include multiple SRV records,
+  which can be used to load balance connections across multiple
+  servers.
+-
+- If an appropriate SRV record cannot be found, the application tries
+  to connect to the given domain directly as a fallback. Most
+  libraries also allow you to specify a server to connect to
+  explicitly.
+
+*** Stream set up
+- Once a connection is established to a given XMPP server, an XMPP
+  stream is started. An XMPP stream is opened by sending the opening
+  ~<stream:stream>~ element to the server. The server responds by
+  sending the response stream’s opening ~<stream:stream>~ tag.
+- Once XMPP streams are open in both directions, elements can be sent
+  back and forth. At this stage of the connection life cycle, these
+  elements will be related to the stream and the stream’s features.
+- The server first sends a ~<stream:features>~ element, which details
+  all the supported features on the XMPP stream. These mostly relate
+  to encryption and authentication options that are available. For
+  example, the server will specify if encryption (TLS) is available
+  and whether or not anonymous logins are allowed.
+- example
+  1. First, the client sends the opening element to the server:
+     #+BEGIN_SRC xml
+       <?xml version='1.0'?>
+       <stream:stream xmlns='jabber:client'
+                      xmlns:stream='http://etherx.jabber.org/streams' version='1.0'
+                      to='pemberley.lit'>
+     #+END_SRC
+  2. The server replies:
+     #+BEGIN_SRC xml
+       <?xml version='1.0'?>
+       <stream:stream
+           xmlns='jabber:client'
+           xmlns:stream='http://etherx.jabber.org/streams'
+           version='1.0'
+           from='pemberley.lit' id='893ca401f5ff2ec29499984e9b7e8afc'
+           xml:lang='en'>
+         <stream:features>
+           <stream:features>
+             <starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>
+             <compression xmlns='http://jabber.org/features/compress'>
+               <method>zlib</method>
+             </compression>
+             <mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>
+               <mechanism>DIGEST-MD5</mechanism>
+               <mechanism>PLAIN</mechanism>
+             </mechanisms>
+           </stream:features>
+     #+END_SRC
+     The XMPP streams set up between two servers look identical except
+     that the top-level namespace is ~jabber:server~ instead of
+     ~jabber:client~.
+*** Authentication
+- XMPP allows for Transport Layer Security (TLS) encryption, and most
+  clients use this by default. Once TLS support is advertised by the
+  server, the client starts the TLS connection and upgrades the
+  current socket to an encrypted one without disconnecting. Once TLS
+  encryption is established, a new pair of XMPP streams is created.
+- Authentication in XMPP uses the Simple Authentication and Security
+  Layers (SASL) protocol
+- Disconnection
+  + A polite disconnection would look like this:
+    #+BEGIN_SRC xml
+      <presence type='unavailable'/>
+    </stream:stream>
+    #+END_SRC
