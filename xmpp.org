@@ -1,8 +1,11 @@
-- XMPP Standards Foundation (XSF)
-- Jabber Software Foundation (JSF)
-- XMPP Extension Protocols (XEPs, previously known as JEPs)
-- Jabber Extension Proposals (JEPs)
-- JID (jabber identifier)
+- XSF: XMPP Standards Foundation
+- JSF: Jabber Software Foundation
+- XEPs, previously known as JEPs: XMPP Extension Protocols
+  + https://xmpp.org/extensions/
+- JEPs: Jabber Extension Proposals
+- JID: jabber identifier
+- BOSH: Bidirectional streams Over Synchronous HTTP
+- PEP: Personal Eventing Protocol
 
 * Getting to Know XMPP (The eXtensible Messaging and Presence Protocol)
 
@@ -164,6 +167,10 @@
   to the more complex away and do not disturb. In addition, ~<presence>~
   stanzas are used to establish and terminate presence subscriptions
   to other entities.
+- e.g.
+  #+BEGIN_SRC javascript
+  $pres().c(‘show’).t(“away”).up().c(‘status’).t(“reading”);
+  #+END_SRC
 **** Message stanzas
 - A ~<message>~ stanza is fire and forget
 
@@ -247,8 +254,351 @@
 - Authentication in XMPP uses the Simple Authentication and Security
   Layers (SASL) protocol
 - Disconnection
-  + A polite disconnection would look like this:
+  + A polite disconfnection would look like this:
     #+BEGIN_SRC xml
       <presence type='unavailable'/>
     </stream:stream>
     #+END_SRC
+* Designing XMPP Applications
+- XMPP’s sweet spot is real-time communication, collaboration, and
+  data exchange. *Where other protocols pull data, XMPP pushes it*
+
+** XMPP versus HTTP
+*** advantages of XMPP
+- XMPP has the following advantages over HTTP, each of which are
+  explored in detail:
+  + Enables pushing data, not just pulling
+    * HTTP clients can only request data from a server. Unless the
+      server is responding to a client request, it cannot send data to
+      the client. XMPP connections, on the other hand, are
+      bidirectional. Either party can send data to the other at any
+      time, as long as the connection is open.
+  + Firewall friendly
+  + Strong authentication and security
+  + Provides many out-of-the-box tools for solving a wide range of problems
+*** disadvantages of XMPP
+- Stateful protocol
+- Community and deployments are not as broad as HTTP
+- More overhead than HTTP for simple chores
+- Specialized implementations still needed
+** Bridging XMPP and the web
+- Even though several browsers are experimenting with features that
+  use XMPP, none of the major browsers currently provides built-in
+  support for the XMPP protocol. However, by using some clever
+  programming and a little server-side help, you can tunnel XMPP
+  sessions over HTTP connections efficiently and effectively.
+- The technology that enables this efficient tunneling is called HTTP
+  long polling. Coupled with a simple HTTP-based management protocol
+  and an XMPP connection manager
+*** Long polling
+- If there is new data ready on the server, the server
+  answers immediately. If there is not new data, the server keeps the
+  connection open, holding any reply. Once new data arrives, it
+  finally responds to the request. If no new data arrives after some
+  period of time, the server can send back an empty reply, so as not
+  to hold too many open connections at once. Once a request is
+  returned, the client immediately sends a new one, and the whole
+  process starts over.
+- Multiple libraries and protocols have been designed to take
+  advantage of long polling, but XMPP’s is one of the oldest
+  implementations. In XMPP, this bridge is called *BOSH*, for
+  Bidirectional streams Over Synchronous HTTP. You may also have heard
+  of Comet or reverse HTTP, which are protocols built on the same
+  technique.
+*** managing the connection
+- XMPP connections live for arbitrarily long periods of time, but HTTP
+  requests are quite short lived. A connection manager maintains an
+  XMPP connection for a third party and provides access to the
+  connection via the HTTP long polling technique.
+- The browser and the connection manager communicate over HTTP using a
+  simple protocol called BOSH. Essentially, BOSH helps an HTTP client
+  establish a new XMPP session, then transports stanzas back and forth
+  over HTTP wrapped in a special ~<body>~ element. It also provides some
+  security features to make sure that XMPP sessions can’t be easily
+  hijacked. The connection manager communicates with an XMPP server as
+  if it were a normal client.
+*** making JS speak XMPP
+- With HTTP long polling, you have the technology for low-latency data
+  updates from a server. Combining this with a connection manager
+  gives you a way to send and receive XMPP data over a series of HTTP
+  requests.
+*** making XMPP applications
+-
+* Saying hello
+** The Connection life Cycle
+- XMPP connections are created, destroyed, and go through a number of
+  phases during their lifetimes,
+- When you ask Strophe to connect to a server, you also provide it a
+  callback function, which Strophe invokes every time the connection
+  phase changes.
+- Strophe Connection Statuses
+  |----------------+----------------------------------------------------------------------------------------------------------|
+  | CONNECTING     | Strophe has started its attempt to make a connection to the XMPP server.                                 |
+  | AUTHENTICATING | The connection has been established, and Strophe is now attempting to authenticate and create a session. |
+  | CONNECTED      | A session has been established, and user data may now flow freely.                                       |
+  | DISCONNECTING  | Termination of the connection has started.                                                               |
+  | DISCONNECTED   | The connection is fully terminated.                                                                      |
+  | CONNFAIL       | Strophe encountered a problem trying to establish the connection.                                        |
+  | AUTHFAIL       | An error occurred during the authentication process.                                                     |
+
+  + ATTACHED: 8
+  + AUTHENTICATING: 3
+  + AUTHFAIL: 4
+  + CONNECTED: 5
+  + CONNECTING: 1
+  + CONNFAIL: 2
+  + CONNTIMEOUT: 10
+  + DISCONNECTED: 6
+  + DISCONNECTING: 7
+  + ERROR: 0
+  + REDIRECT: 9
+
+** Creating a Connection
+- XMPP connections are managed through the ~Strophe.Connection~ object.
+  #+BEGIN_SRC js
+    import O, { Strophe } from "strophe.js";
+
+    const conn = new Strophe.Connection("https://conversejs.org/http-bind/");
+
+    conn.connect(username, password, function(evt: any) {
+      console.log(evt);
+    });
+  #+END_SRC
+** Creating Stanzas
+*** Strophe builders
+    #+BEGIN_SRC js
+      const pres = new Strophe.Builder("presence", {
+        to: "example.com",
+      });
+    #+END_SRC
+- Because building stanzas is such a common operation and typing ~new Strophe.Builder~
+  is rather long, Strophe provides four global
+  aliases for stanza creation: ~$build()~, ~$msg()~, ~$pres()~, and
+  ~$iq()~. The code for these functions just creates ~Strophe.Builder~
+  objects exactly like the examples shown. The function ~$build()~ takes
+  the same two arguments as the constructor for ~Strophe.Builder~. The
+  other three functions create ~<message/>~, ~<presence/>~, and ~<iq/>~
+  stanzas, respectively, and take an optional argument of the desired
+  attributes.
+  #+BEGIN_SRC javascript
+    import { Strophe, $build, $iq, $msg, $pres } from "strophe.js";
+
+    const pres1 = $build(“presence”);
+    const pres2 = $build(“presence”, {to: “example.com”});
+    const pres3 = $pres();
+    const pres4 = $pres({to: “example.com”});
+  #+END_SRC
+  #+BEGIN_SRC js
+
+  #+END_SRC
+
+  #+BEGIN_SRC js
+    var message = $msg({to: 'darcy@pemberley.lit', type: 'chat'})
+        .c('body').t('How do you do?');
+    // produces:
+    //
+    //  <message to='darcy@pemberley.lit' type='chat'>
+    //    <body>How do you do?</body>
+    //  </message>
+    //
+
+    var iq = $iq({to: 'pemberley.lit', type: 'get', id: 'disco1'})
+                .c('query', {xmlns: 'http://jabber.org/protocol/disco#info'});
+    // produces:
+    //
+    // <iq to='pemberley.lit' type='get' id='disco1'>
+    //   <query xmlns='http://jabber.org/protocol/disco#info'/>
+    // </iq>
+
+    var presence = $pres().c('show').t('away').up().c('status').t('Off to Meryton');
+    // produces
+    //
+    // <presence>
+    //   <show>away</show>
+    //   <status>Off to Meryton</status>
+    // </presence>
+  #+END_SRC
+
+*** sending
+- e.g
+  #+BEGIN_SRC javascript
+    const [conn, set_conn] = useState(
+      new Strophe.Connection("https://conversejs.org/http-bind/"),
+      /* new Strophe.Connection("ws://localhost:5443/ws"), */
+    );
+
+    conn.connect(fhdhsni, token, function(evt) {
+              set_status(evt);
+            });
+
+    useEffect(
+      function() {
+        if (status === Strophe.Status.CONNECTED) {
+          const domain = Strophe.getDomainFromJid(conn.jid);
+          const ping = $iq({ to: domain, type: "get", id: "ping1" }).c("ping", {
+            xmln: "urn:xmpp:ping",
+          });
+
+          conn.send(ping);
+        }
+      },
+      [status],
+    );
+
+  #+END_SRC
+
+*** Adding and removing handlers
+-
+   #+BEGIN_SRC javascript
+     conn.addHandler(
+                handler: (stanza: Element) => any,
+                ns: string,
+                name: string,
+                type: string,
+                id: string,
+                from: string,
+                options?: { matchBare: boolean }
+                ): any;
+   #+END_SRC
+  +
+    #+BEGIN_SRC js
+    conn.addHandler(
+      function(res) {
+        const msg = {
+          id: res.getAttribute("id")!,
+          name: res.getAttribute("from")!.replace(/@.*$/, ""),
+          body: res.querySelector("body")!.textContent!,
+        };
+
+        set_msgs([...msgs, msg]);
+      },
+      undefined,
+      "message",
+      "chat",
+      undefined,
+      undefined,
+    );
+    #+END_SRC
+
+  + The last four criteria — ~name~, ~type~, ~id~, and ~from~ —
+    specify filters on the stanza’s element ~name~ and the ~type~,
+    ~id~, and ~from~ attributes. These four criteria are checked only
+    on the top-level element, not on any of the element’s descendants.
+  + The first criterion, ~ns~, is slightly different, and it is checked
+    for the top-level element as well as its immediate children
+    * Matching on the ~ns~ (for namespace) criterion is mostly done with
+      IQ stanzas. IQ stanzas generally contain a single child element
+      that is namespaced according to the type of function it
+      serves. For example, the ping stanza you sent earlier was an
+      IQ-get stanza with a ~<ping/>~ child under the ~urn:xmpp:ping~
+      namespace. Setting up a handler to catch all incoming ping
+      requests could be done with the following code:
+      #+BEGIN_SRC javascript
+      conn.addHandler(my_ping_handler, “urn:xmpp:ping”, “iq”)
+      #+END_SRC
+      The function ~my_ping_handler()~ would be called anytime the
+      connection received an IQ stanza with a child under the
+      ~urn:xmpp:ping~ namespace. It would get all of these stanzas,
+      regardless of their ~type~, ~id~, or ~fro~ attributes, because those
+      criteria were left unspecified.
+
+  + The name criterion will almost always be ~null~, to match any
+    stanza, or one of ~message~, ~presence~, or ~iq~.
+  + You should use ~from~ with care, because you may not always know
+    which resource another user or service will use to communicate
+    with you. A bare JID supplied as a ~from~ criterion will not match
+    any full JID; the match must be exact.
+  +
+- Whenever a matching stanza is found for a handler, the handler
+  function is invoked and passed the stanza as its argument. Unless
+  the function returns true or some expression that evaluates to true,
+  the handler function will be removed once it finishes.
+* peek
+-
+  #+BEGIN_SRC javascript
+    const [conn] = useState(new Strophe.Connection("wss://chat.fhdhsni.me:5443/ws"));
+
+    conn.xmlInput = function(body) {
+      console.log("<<<<<<<<<<<<<<<<");
+      console.log(body);
+      console.log("<<<<<<<<<<<<<<<<");
+    };
+
+    conn.xmlOutput = function(body) {
+      console.log(">>>>>>>>>>>>>>>>");
+      console.log(body);
+      console.log(">>>>>>>>>>>>>>>>");
+    };
+  #+END_SRC
+
+* One‑on‑One Chat
+** Presence
+- XMPP’s designers were quite sensitive to privacy issues, so presence
+  information is controlled through subscriptions. In order for
+  Elizabeth to receive presence updates from Wickham, she must first
+  subscribe to those updates. Furthermore, Wickham must approve her
+  subscription request.
+- Presence subscriptions are asymmetric. If Elizabeth has a
+  subscription to Wickham’s presence, it does not necessarily mean
+  that Wickham is subscribed to Elizabeth’s. In most cases, a user
+  will send a subscription request to someone, and automatically
+  approve the subscription request coming from that same person.
+** Messages
+- a message can be addressed to a contact’s bare JID
+  (~elizabeth@longbourn.lit~) or to a full JID
+  (~elizabeth@longbourn.lit/library~).
+** building the roster
+- XMPP chat clients generally perform the following actions when they
+  start:
+    1. Connect and authenticate to the server.
+    2. Request the roster.
+    3. Send initial presence.
+       + This step causes the server to send presence probes to
+         contacts for whom the user has a presence subscription. These
+         probes will result in a ~<presence>~ stanza being sent back to
+         the user for each contact that is online.
+*** requesting rosters
+- Rosters are manipulated with IQ-get and IQ-set stanzas that contain
+  a ~<query>~ element under the ~jabber:iq:roster~ namespace. Rosters can
+  be retrieved and contacts modified and deleted using these simple
+  stanzas.
+
+- The following stanza requests Elizabeth’s roster from her server:
+  #+BEGIN_SRC xml
+    <iq from='elizabeth@longbourn.lit/library'
+        type='get'
+        id='roster1'>
+      <query xmlns='jabber:iq:roster'/>
+    </iq>
+  #+END_SRC
+  which in JS
+  #+BEGIN_SRC javascript
+    function() {
+      const iq = $iq({ type: "get" }).c("query", {
+        xmlns: "jabber:iq:roster",
+      });
+
+      conn.sendIQ(iq, function(resp) {
+        console.log(resp);
+      });
+    }
+  #+END_SRC
+  + Her server will reply with something similar to the following
+    #+BEGIN_SRC xml
+      <iq to='elizabeth@longbourn.lit/library'
+          type='result'
+          id='roster1'>
+          <query xmlns='jabber:iq:roster'>
+            <item jid='darcy@pemberley.lit' name='Mr. Darcy' subscription='both'/>
+            <item jid='jane@longbourn.lit' name='Jane' subscription='both'/>
+          </query>
+      </iq>
+    #+END_SRC
+    * The ~subscription~ attribute is set based on the presence
+      subscription status of the contact. It can have the value ~both~
+      if there is a subscription in each direction, ~to~ if Elizabeth
+      has a subscription but the other party does not, and ~from~ if
+      Elizabeth is not subscribed to the contact’s presence but the
+      other user has a subscription to her presence. Generally, the
+      user will only want to see contacts in the roster for which the
+      subscription value is ~both~ or ~to~.

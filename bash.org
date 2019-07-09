@@ -462,3 +462,6 @@ interactive (see also linux keyboard shortcuts)
 
   while inotifywait -e close_write myfile.py; do ./myfile.py; done
   #+END_SRC
+* ufw
+- https://www.digitalocean.com/community/tutorials/ufw-essentials-common-firewall-rules-and-commands
+- https://www.digitalocean.com/community/tutorials/how-to-set-up-a-firewall-with-ufw-on-ubuntu-18-04

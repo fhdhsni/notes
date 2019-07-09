@@ -1,9 +1,9 @@
 * Security
 1. Creating a new (non-root) user
     #+BEGIN_SRC shell
-      sudo adduser someusername
-      sudo groupadd sudo                   # create group sudo
-      sudo usermod -a -G sudo someusername # for redhat: sudo usermod -a -G wheel someusername
+    sudo adduser someusername
+    sudo groupadd sudo                   # create group sudo
+    sudo usermod -a -G sudo someusername # for redhat: sudo usermod -a -G wheel someusername
     #+END_SRC
 2. Allowing this user to use “sudo” for administrative privileges
     =/etc/sudoers=
