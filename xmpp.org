@@ -594,11 +594,158 @@
           </query>
       </iq>
     #+END_SRC
-    * The ~subscription~ attribute is set based on the presence
-      subscription status of the contact. It can have the value ~both~
-      if there is a subscription in each direction, ~to~ if Elizabeth
-      has a subscription but the other party does not, and ~from~ if
-      Elizabeth is not subscribed to the contact’s presence but the
-      other user has a subscription to her presence. Generally, the
-      user will only want to see contacts in the roster for which the
-      subscription value is ~both~ or ~to~.
+    * The ~subscription~ attribute is set based on the *presence*
+      subscription status of the contact:
+      - ~both~: if there is a subscription in each direction
+      - ~to~: if Elizabeth has a subscription but the other party does not
+      - ~from~: if Elizabeth is not subscribed to the contact’s presence but the other user has a subscription to her presence.
+    * Generally, the user will only want to see contacts in the roster
+      for which the subscription value is ~both~ or ~to~.
+- ~sendIQ~
+  #+BEGIN_SRC javascript
+    Connection.sendIQ(iq_stanza, success_callback?, error_callback?, timeout?);
+  #+END_SRC
+*** Adding new contacts
+- e.g.
+  #+BEGIN_SRC js
+    const data = {jid: jid, name: name};
+
+    /* add to roster */
+    conn.sendIQ(
+      $iq({ type: "set" })
+        .c("query", {
+          xmlns: "jabber:iq:roster",
+        })
+        .c("item", data),
+
+
+        function on_success() {
+        /* subscribe to the added jid */
+        conn.send(
+          $pres({ to: data.jid, type: "subscribe" }),
+        );
+      },
+    );
+    },
+  #+END_SRC
+
+*** presence subscription request
+- e.g.
+  #+BEGIN_SRC js
+    conn.send($pres({ to: data.jid, type: "subscribe" }),);
+  #+END_SRC
+  the other side can respond with ~subscribed~ or ~unsubscribed~
+  #+BEGIN_SRC js
+    conn.send($pres({to: jid, type: "subscribed"}));
+  #+END_SRC
+* Service Discovery
+- ~disco#info~
+  + returns basic identity information and supported features for an entity
+  + Most XMPP entities you will interact with will respond to
+    ~disco#info~ queries. Generally, these queries are concerned with
+    two kinds of information: identity and features. Identity
+    information contains the entity’s name and purpose, and some
+    services may have multiple identities. Feature information is
+    useful to discover which particular features a service
+    supports. For example, a publish-subscribe service may report that
+    it supports all the required and some of the optional features
+    defined in the Publish-Subscribe specification (XEP-0060) and that
+    it also supports several other extensions.
+- ~disco#items~
+  + enumerate an entity’s children.
+  + Service discovery information is organized in the form of a
+    tree. The disco#items query requests the list of children for an
+    entity. Some of these children will be other entities and some
+    will be internal nodes. By continuing to do disco#items queries on
+    each child, the entire service tree can be expanded
+  + e.g.
+    #+BEGIN_SRC js
+      /* Disco#items Queries */
+      conn.sendIQ(
+        $iq({
+          type: "get",
+          to: "chat.fhdhsni.me",
+        }).c("query", {
+          xmlns: "http://jabber.org/protocol/disco#items",
+        }),
+        function(res) {
+          console.log(res);
+        },
+      );
+    #+END_SRC
+    result:
+    #+BEGIN_SRC xml
+      <iq xmlns="jabber:client"
+          xml:lang="en"
+          to="farhad@chat.fhdhsni.me/1724753382249485781820162"
+          from="chat.fhdhsni.me"
+          type="result"
+          id="4d667938-5243-42ff-9e3c-e48151b8f244:sendIQ">
+        <query xmlns="http://jabber.org/protocol/disco#items">
+          <item jid="conference.chat.fhdhsni.me"/>
+          <item jid="proxy.chat.fhdhsni.me"/>
+          <item jid="pubsub.chat.fhdhsni.me"/>
+          <item jid="upload.chat.fhdhsni.me"/>
+        </query>
+      </iq>
+    #+END_SRC
+    which can be continued with further discovering
+    #+BEGIN_SRC js
+      conn.sendIQ(
+        $iq({
+          type: "get",
+          to: "conference.chat.fhdhsni.me",
+        }).c("query", {
+          xmlns: "http://jabber.org/protocol/disco#items",
+        }),
+        function(res) {
+          console.log(res);
+        },
+      );
+    #+END_SRC
+
+    result:
+    #+BEGIN_SRC xml
+      <iq xmlns="jabber:client"
+          xml:lang="en"
+          to="farhad@chat.fhdhsni.me/494140291225571480820210"
+          from="conference.chat.fhdhsni.me"
+          type="result"
+          id="bb23b24f-2924-4f25-952e-ea21fb43c0be:sendIQ">
+        <query xmlns="http://jabber.org/protocol/disco#items">
+          <item name="foo (private, 1)" jid="otime@conference.chat.fhdhsni.me"/>
+          <item name="Foobar (private, 1)" jid="peral@conference.chat.fhdhsni.me"/>
+        </query>
+      </iq>
+    #+END_SRC
+* MUC
+- MUC is also a form of message broadcast. A single message sent to a
+  room gets rebroadcast out to all the participants
+  automatically. This makes it similar to Publish-Subscribe, which you
+  see in the next chapter. Unlike Publish-Subscribe, MUC provides a
+  lot of advanced management features typical of group chat services,
+  such as room moderation, and each participant is often allowed to
+  broadcast messages to the room as well.
+** Group chat services
+- Group chat is provided as a service, usually alongside a regular
+  XMPP server. The group chat service has its own domain; for example,
+  the jabber.org server runs a group chat service at
+  conference.jabber.org.
+- Each room on the group chat service gets its own address, which
+  looks just like a user’s JID. The XMPP developer’s chat room on the
+  conference.jabber.org service is at jdev@conference.jabber.org, and
+  general XMPP-related chat takes place in
+  jabber@conference.jabber.org.
+** entering and leaving a room
+- Users can join a group chat room simply by sending available
+  presence to the room, along with a note that they understand the
+  multi-user chat protocol. Sending presence directly to a JID instead
+  of to the user’s server is called directed presence. Similarly, to
+  leave, unavailable presence is sent to the room.
+- Every participant in a group chat room gets their own address as
+  well. Each participant picks a nickname for the room, and their JID
+  within the room is the room’s JID with a resource added containing
+  their nickname. For example, Darcy’s nickname in the Meryton ball
+  chat room is darcy, so his group chat JID is
+  ball@chat.meryton.lit/darcy.
+-
