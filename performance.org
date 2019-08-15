@@ -1,5 +1,5 @@
 - to render 60 FPS we have 16ms (well it's actully ~10ms for us) 16ms per frame. 1000ms / 60 fps = 16ms
-  
+
 *** Critical Rendering Path
 1. GET request
 2. =Parse HTML= to create the DOM
@@ -20,8 +20,8 @@
    - as a side note, remember more specific selector are slower. e.g =.foo .bar= is slower than =.foo--bar=
    - we can use =media= attribute to avoid render blocking nature
      of stylesheet links for those style that doesn't apply to our current
-     media. e.g <link rel=stylesheel href=style-print.css media=*print*
-     /> doesn't block rendering on =screen= (But browser download it anyway)
+     media. e.g ~<link rel=stylesheel href=style-print.css media=*print* />~
+     doesn't block rendering on =screen= (But browser download it anyway)
    - Another thing to remember is that CSS also blocks JavaScript
      execution if it doesn't have =async= or attribute.
 4. Running javascript (if there's any)
@@ -35,8 +35,8 @@
 6. Calculate =Layout= (Layout is where the browser figures out the
    geometric information for elements: their size and location in the
    page. Browser calculate all these based on layout viewport, i.e
-   viewport meta tag in HTML file `<meta name="viewport"
-   content="width=device-width"/>`. If this tag doesn't exist browser
+   viewport meta tag in HTML file ~<meta name="viewport" content="width=device-width"/>~.
+   If this tag doesn't exist browser
    falls back to default layout viewport which is usually 980px)
    - Change of some styles (like left, margin, width...) triggers this step which is costly (hence batch style updates).
    - Also, window resize, scripts that add, remove nodes will trigger layout.

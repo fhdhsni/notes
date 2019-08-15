@@ -176,7 +176,7 @@ Arrays are very inflexible when it comes to resizing.
   + Accept data of SOME_VALUE to be added to the stack.
   + Add that data to the stack at the top of the stack.
   + Change the location of the top of the stack.
-  
+
   In Gerneral case, pop() needs to:
   + Accept a pointer to the stack.
   + Change the location of the top of the stack.
@@ -375,11 +375,11 @@ function insertion_sort ($arr) {
   up. (combining sorted 1-element arrays into 2-element arrys,
   combined sorted 2-element arrays into 4-element arrays...) => O(n log n)
 - *Worst-case scenario*: The array is already perfectly sorted. But we
-  stil have tosplit and recombine it back together. => 𝛀(n log n)
+  stil have to split and recombine it back together. => 𝛀(n log n)
 - Its space complexity is O(n)
 
 PHP implementation:
-#+BEGIN_SRC php
+#+BEGIN_SRC c
   <?php
   /*
    ,* This file is part of PHP CS Fixer.

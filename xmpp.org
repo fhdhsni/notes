@@ -543,6 +543,16 @@
   that Wickham is subscribed to Elizabeth’s. In most cases, a user
   will send a subscription request to someone, and automatically
   approve the subscription request coming from that same person.
+- Presence priorities give information to the user’s server about
+  which connected resources are more important for message
+  delivery. Messages will be routed to the resources with the highest
+  positive presence priority, and in the case of a tie, the message
+  will be delivered to one or all of the resources with tied
+  priorities.
+  #+BEGIN_SRC js
+  send($pres().c(‘priority’).t(‘-1’));
+  #+END_SRC
+
 ** Messages
 - a message can be addressed to a contact’s bare JID
   (~elizabeth@longbourn.lit~) or to a full JID
@@ -748,4 +758,1094 @@
   their nickname. For example, Darcy’s nickname in the Meryton ball
   chat room is darcy, so his group chat JID is
   ball@chat.meryton.lit/darcy.
+- Sending presence stanzas directly to a JID instead of to the user’s
+  server is called sending directed presence. Directed presence is
+  quite useful in XMPP protocols and extensions because it has some
+  special properties. Directed presence can be sent to users or
+  services without requiring that presence subscriptions be set
+  up. This is useful for giving another user or an external service
+  temporary access to presence information. Another property of
+  directed presence is that the server keeps track of who has received
+  direct presence notifications. The server uses this information to
+  ensure that the recipients are notified when the sender goes
+  offline, even if the sender forgets to send unavailable presence
+  before logging off. There is one limitation to be aware of when
+  using directed presence — only unavailable presence is sent
+  automatically. Presence changes from available to away or away to
+  available are not automatically broadcast on the sender’s
+  behalf. Because group chat services need to keep track of
+  participants’ presence, direct presence fulfills a crucial role. The
+  server rarely loses track of a participant’s presence, even if that
+  person forgets to send unavailable presence.
+- Every participant in a group chat room gets their own address as
+  well. Each participant picks a nickname for the room, and their JID
+  within the room is the room’s JID with a resource added containing
+  their nickname. For example, Darcy’s nickname in the Meryton ball
+  chat room is darcy, so his group chat JID is
+  ~ball@chat.meryton.lit/darcy~
+  + If Bingley and Jane want to join the group chat room for the
+    Meryton ball, they will both need to send directed presence to
+    their desired identity in the room ball@chat.meryton.lit. Their
+    stanzas are shown here:
+    #+BEGIN_SRC xml
+      <presence to='ball@chat.meryton.lit/bingley'
+                from='bingley@netherfield.lit/meryton'>
+        <x xmlns='http://jabber.org/protocol/muc'/>
+      </presence>
+
+      <presence to='ball@chat.meryton.lit/jane'
+                from='jane@longbourn.lit/meryton'>
+        <x xmlns='http://jabber.org/protocol/muc'/>
+      </presence>
+    #+END_SRC
+    * Once they have joined the room, the group chat service will
+      broadcast all the other participants’ presence statuses to
+      them. After all the other participants’ presence stanzas are
+      sent, the server concludes the presence broadcast by sending the
+      arriving participant’s presence to everyone, including the new
+      arrival. Thus, when a new participant sees their own presence
+      broadcast back to them, they know they have fully joined the
+      room.
+    * This is what Jane’s client will receive upon joining the room:
+      #+BEGIN_SRC xml
+        <presence to='jane@longbourn.lit/meryton'
+          from='ball@chat.meryton.lit/elizabeth'>
+          <x xmlns='http://jabber.org/protocol/muc'>
+            <item affiliation='member' role='participant'/>
+          </x>
+        </presence>
+        ..
+        <presence to='jane@longbourn.lit/meryton'
+          from='ball@chat.meryton.lit/bingley'>
+          <x xmlns='http://jabber.org/protocol/muc'>
+            <item affiliation='member' role='participant'/>
+          </x>
+        </presence>
+
+        <presence to='jane@longbourn.lit/meryton'
+          from='ball@chat.meryton.lit/jane'>
+          <x xmlns='http://jabber.org/protocol/muc'>
+            <item affiliation='member' role='participant'/>
+            <status code='110'/>
+          </x>
+        </presence>
+      #+END_SRC
+      The room sends the affiliations and roles of each participant
+      along with their presence. Jane’s own presence broadcast also
+      includes a status code of 110, which signals that this presence
+      refers to the user herself. Just as with presence updates from
+      Jane’s roster, Jane will also receive presence updates from the
+      room as people leave and new people join.
+- Leaving a room is accomplished by sending unavailable presence to
+  your room JID.
+  #+BEGIN_SRC xml
+  <presence to='ball@chat.meryton.lit/darcy'
+            from='darcy@pemberley.lit/meryton'
+            type='unavailable'/>
+  #+END_SRC
+** sending and receiving Messages
+- Messages are sent to the room with a special type —
+  ~groupchat~. Messages directed to the bare room JID,
+  ~ball@chat.meryton.lit~, for example, are broadcast out to all
+  occupants. Messages sent to the full JID of an occupant in the room
+  are private and relayed by the room to the real JID of the user.
+  #+BEGIN_SRC js
+    conn.send(
+      $msg({
+        type: "groupchat",
+        to: "peral@conference.chat.fhdhsni.me",
+      })
+        .c("body")
+        .t("fuckers, watup?"),
+    );
+  #+END_SRC
+** anonymity
+- XMPP multi-user chat rooms have configurable levels of anonymity,
+  unlike many other group chat systems. Three levels are currently
+  defined in the specification:
+  + non-anonymous
+    * each occupant can see the real JID of the other occupants; the
+      room will broadcast an extra jid attribute in the occupant’s
+      presence updates.
+  + semi-anonymous
+    * only owners and admins can see the real JIDs of
+      occupants. Semianonymous and non-anonymous rooms are the most
+      common types, and most group chat services will be configured to
+      use one of these as the default for newly created rooms.
+  + fully anonymous
+    *  are quite rare, and only server administrators have access to
+      the real JIDs of participants of these rooms. Not even the
+      room’s owner can access the real JIDs.
+- Normal private messages cannot be sent to participants in
+  semi-anonymous or anonymous rooms, as the sender does not have
+  access to the participant’s actual JID. This is why private messages
+  in group chat are sent to the participant’s room JID
+
+** Creating rooms
+- rooms can be created just by joining a non-existent room. Assuming
+  the service allows the user to create new rooms, sending directed
+  presence to the desired room JID of the new room will cause the room
+  to be created and the user to be set as the room’s owner.
+  #+BEGIN_SRC xml
+    <presence to='chatter@chat.netherfield.lit/bingley'
+              from='bingley@netherfield.lit/drawing_room'>
+      <x xmlns='http://jabber.org/protocol/muc'/>
+    </presence>
+  #+END_SRC
+  The ~chat.netherfield.lit~ service responds with the presence
+  broadcast for the room’s new and only occupant:
+  #+BEGIN_SRC xml
+    <presence to='bingley@netherfield.lit/drawing_room'
+      from='chatter@chat.netherfield.lit/bingley'>
+      <x xmlns='http://jabber.org/protocol/muc'>
+        <item affiliation='owner' role='moderator'/>
+        <status code='110'/>
+        <status code='201'/>
+      </x>
+    </presence>
+  #+END_SRC
+  + Bingley has the ~owner~ affiliation and the ~moderator~ role.
+  + 201 means that a new room has been created.
+
+- Once the room is created, the owner will usually configure it to
+  behave as desired.
+  + Room persistence, or whether the room will continue to exist after
+    all participants have left
+  + Room description
+  + Whether the room’s messages should be logged
+  + Whether participants are allowed to change the room’s topic
+  + The maximum number of occupants
+  + Access controls like membership lists
+  + Room configuration is done with Data Forms (XEP-0004)
+
+** Understanding roles and affiliations
+- Occupants will usually have a role of ~participant~ and an affiliation
+  of ~member~
+
+- the room’s creator has a role of ~moderator~ and an affiliation of ~owner~
+
+- Roles and affiliations enable or restrict functionality, but they
+  apply on different time scales.
+
+- An affiliation is a long-term property that persists across visits
+  to the room
+
+- but roles apply only to the current visit
+
+- For example, when the room’s owner joins the room, their ~role~ is
+  ~moderator~, and when they leave, their role becomes ~none~, but even
+  after leaving, their ~affiliation~ remains as ~owner~.
+
+- Roles and affiliations are mostly hierarchical, and each level has
+  all the properties of the previous one as well a few new ones
+
+- Group Chat Roles
+  | Role        | Privileges                                                          |
+  |-------------+---------------------------------------------------------------------|
+  | None        | No permissions - not in the room                                    |
+  | Visitor     | Can observe conversation, but can't talk                            |
+  | Participant | Can fully participate in public conversation                        |
+  | Moderator   | Can remove users from the room, or promote participants to visitors |
+
+- Group Chat Affiliations
+  | Affiliation | Privileges                                                                                             |
+  |-------------+--------------------------------------------------------------------------------------------------------|
+  | Outcast     | Banned from the room                                                                                   |
+  | None        | Can join the room                                                                                      |
+  | Member      | Can join even if room is members-only, and can retrieve the member list                                |
+  | Admin       | Can ban members or unaffiliated users; can add and remove the member affiliation or the moderator role |
+  | Owner       | Can add and remove admins and owners; can configure or destroy the room                                |
+
+- Manipulating roles and affiliations is done via IQ-set and IQ-get
+  stanzas. Modifying the role or affiliation of a participant usually
+  causes new presence information to be broadcast to the room for the
+  affected user.
+  #+BEGIN_SRC xml
+    <iq id="150dbf90-14b4-4635-83a9-00b6af7e29db" to="blah@conference.localhost" type="set">
+      <query xmlns="http://jabber.org/protocol/muc#admin">
+        <item nick="asghar" role="none"/>
+      </query>
+    </iq>
+  #+END_SRC
+  + Note that the nick attribute is used to specify nickname; because
+    roles apply to a single room visit, changing roles is done by
+    nicknames instead of JIDs.
+  or
+  #+BEGIN_SRC xml
+    <iq id="0e4e7d38-56a3-432e-9d69-cebf5e074e58" to="blah@conference.localhost" type="set">
+      <query xmlns="http://jabber.org/protocol/muc#admin">
+          <item affiliation="outcast" jid="asghar@localhost"/>
+      </query>
+    </iq>
+  #+END_SRC
+** Managing the Room
+- Topic changes are sent out as bodiless messages that contain a
+  ~<subject>~ element, and the content of the ~<subject>~ element becomes
+  the new room topic
+  #+BEGIN_SRC javascript
+    conn.send(
+      $msg({
+        to: "please@conference.localhost",
+        type: "groupchat",
+      })
+        .c("subject")
+        .t("this is the topic of the roommm"),
+    );
+  #+END_SRC
+** kicking out and banning
+   #+BEGIN_SRC js
+     /* kick someone out of the room */
+     conn.sendIQ(
+       $iq({
+         to: "please@conference.localhost",
+         type: "set",
+       })
+         .c("query", {
+           xmln: "http://jabber.org/protocol/muc#admin",
+         })
+         .c("item", {
+           role: "none",
+           nick: "jafar@localhost",
+         }),
+       function(res) {
+         console.log(res);
+       },
+     );
+
+     /* Ban someone */
+     ctx.conn!.sendIQ(
+       $iq({
+         to: "please@conference.localhost",
+         type: "set",
+       })
+         .c("query", {
+           xmln: "http://jabber.org/protocol/muc#admin",
+         })
+         .c("item", {
+           affiliation: "outcast",
+           jid: "jafar@localhost",
+           /* Users must be banned using their bare JIDs,
+              not their room nicknames  */
+         }),
+       function(res) {
+         console.log(res);
+       },
+     );
+   #+END_SRC
+** make a jid admin
+   #+BEGIN_SRC js
+     connection.sendIQ(
+       $iq({
+         to: room,
+         type: "set"
+       })
+         .c("query", {
+           xmlns: Groupie.NS_MUC + "#admin"
+         })
+         .c("item", {
+           jid: jid],
+           affiliation: "admin"
+         })
+   #+END_SRC
+* Publish-Subscribee (pubsub)
+** Data Forms extension
+- It allows applications to define a form with fields of various types
+  — text fields, list fields, and address fields to name a few. It
+  also provides a lightweight workflow on top of these forms enabling
+  applications to request, provide, submit, and cancel forms.
+- An example form is shown here. This form has a type attribute whose
+  value is ~form~, which means that the system expects it to be filled
+  it out.
+  #+BEGIN_SRC html
+    <x xmlns='jabber:x:data' type='form'>
+      <title>A Simple Form</title>
+      <instructions>Fill out this simple form!</instructions>
+      <field type='text-single'
+             label='What's your favorite color?'
+             var='favorite_color'>
+        <required/>
+      </field>
+    </x>
+  #+END_SRC
+  A completed version of the preceding form might look like this:
+  #+BEGIN_SRC xml
+    <x xmlns='jabber:x:data' type='submit'>
+      <field type='text-single'
+             var='favorite_color'>
+        <value>orange</value>
+      </field>
+    </x>
+  #+END_SRC
+*** Form elements, Fields, and types
+- ~<x>~
+  + The ~<x>~ element is an historical artifact; if protocol designers
+    were building Data Forms today, this would probably have been the
+    more descriptive ~<form>~.
+  + The ~type~ attribute in a form has four possible values: ~form~,
+    ~submit~, ~cancel~, and ~result~. These relate to the form’s place in a
+    particular workflow
+  + A value of ~form~ means that the form is blank and needs filling out
+  + The ~submit~ value is used when you return a completed form
+  + If you change your mind about completing a form, you can send back
+    an empty form with the ~cancel~ type.
+  + ~result~ type is used when the form represents a generic data set,
+    or the result of submitting a form generated some response
+    data. After completing a new account form at the cheaper bank, the
+    clerk creates the account and hands you a document containing your
+    account details. This document is a form with a ~type~ of ~result~.
+- ~<field>~
+  + The heart of every form is the collection of fields waiting to be
+    filled out or communicating result data.
+  + Every field can have some metadata associated with it.
+  + Fields may also contain the ~<required>~ element, which means that
+    any submission of the form must include a value for that
+    field. And just like the ~<instructions>~ element in the form
+    itself, each field can have a ~<desc>~ element containing a
+    human-readable description of the field’s purpose.
+  + Every field must have a ~var~ attribute, which uniquely identifies
+    the field. This can be any identifier you like, but most XMPP
+    extensions use standardized form fields as defined in Field
+    Standardization for Data Forms (XEP-0068).
+  + Each field has a ~type~ attribute that describes the type of data
+    for the field. The following types are defined:
+    * ~text-single~: A single line of text, similar to ~<input type='text'>~ in HTML
+    * ~text-private~: A single line of text that is obscured during
+      entry, similar to ~<input type='password'>~ in HTML
+    * ~text-multi~: Multiple lines of text, similar to ~<textarea>~ in HTML
+    * ~list-single~: A single value from a predefined list of options,
+      similar to ~<select>~ in HTML
+    * ~list-multi~: Multiple values from a predefined list of options,
+      similar to ~<select multiple='multiple'>~ in HTML
+      - The options for ~list-single~ and ~list-multi~ fields are
+        specified by including ~<option>~ elements as children of the
+        field. Each ~<option>~ element can have a label attribute, and
+        the value of the option is specified in a ~<value>~
+        #+BEGIN_SRC html
+          <field type='list-single' var='animals'
+                 label='Pick an animal'>
+            <option label='Fox'>
+              <value>fox</value>
+            </option>
+            <option label='Hare'>
+              <value>hare</value>
+            </option>
+            <option label='Tortoise'>
+              <value>tortoise</value>
+            </option>
+          </field>
+        #+END_SRC
+    * ~jid-single~: A single JID
+    * ~jid-multi~: Multiple JIDs
+    * ~boolean~: Either ~true~ or ~false~
+    * ~hidden~: A field hidden from the user and whose value is
+      normally returned unmodified
+    * ~fixed~: A human-readable description, used for section headers
+      in the form
+  + Fields may also specify a default value by including a ~<value>~
+    element as an immediate child. If the field can have multiple
+    values, as with ~list-multi~, ~jid-multi~, and ~text-multi~ fields,
+    multiple ~<value>~ children can be present.
+    #+BEGIN_SRC html
+      <field type='jid-multi' var='admins'>
+          <value>alice@example.com</value>
+          <value>bob@example.com</value>
+      </field>
+    #+END_SRC
+
+*** Standardized Form Fields (XEP-0068)
+- having forms be so malleable does have a downside. How do you get
+  everyone to agree what the fields should be ffor common forms? XMPP
+  community addressed this problem with Field Standardization for Data
+  Forms (XEP-0068)
+- Each standardized form has a form type, which is encoded in a
+  special field
+  #+BEGIN_SRC html
+    <x xmlns='jabber:x:data' type='submit'>
+      <field var='FORM_TYPE' type='hidden'>
+        <value>http://jabber.org/protocol/pubsub#node_config</value>
+      </field>
+      <field var='pubsub#title'>
+        <value>Best Node Ever</value>
+      </field>
+    </x>
+  #+END_SRC
+  + The standardized form type is included as a special ~hidden~ field
+    with a ~var~ attribute equal to ~FORM_TYPE~.
+  + The value of this field is the form type’s identifier.
+  + The pubsub extension defines several different types of forms, and
+    consulting the pubsub specificrtion in XEP-0060, you can see that
+    http://jabber.org/protocol/pubsub#node_config is the identifier
+    for the node configuration form.
+- Fields within a standardized form will have ~var~ attributes that are
+  defined in the specification for the form.
+  #+BEGIN_SRC html
+    <form_type>
+      <name>http://jabber.org/protocol/pubsub#node_config</name>
+      <!-- parts omitted -->
+      <field var='pubsub#title'
+             type='text-single'
+             label='A friendly name for the node'/>
+      <!-- parts omitted -->
+    </form_type>
+  #+END_SRC
+  The content of the ~<name>~ element is what will appear in the
+  ~FORM_TYPE~ field, and the ~<field>~ element specifies what kind of
+  field it will be.
+** Working With pubsub nodes
+- Pubsub nodes are the communication hubs of the publish-subscribe
+  system. Users and applications can subscribe to a node that they are
+  interested in, and when data is published there, the node will
+  immediately broadcast that data to all subscribers.
+- These nodes are provided by pubsub services. Nearly every XMPP
+  server has a built-in pubsub service for its users.
+- All you need to know to start using pubsub is the location of a
+  pubsub service. You can create an interesting pubsub node, and to
+  subscribe, a user needs to know the service’s address and the node’s
+  name.
+
+*** Creating nodes
+- A pubsub node is created by sending an IQ-set stanza to the pubsub
+  service:
+  #+BEGIN_SRC html
+    <iq to='pubsub.pemberley.lit'
+        from='darcy@pemberley.lit/library'
+        type='set'
+        id='create1'>
+      <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+        <create node='latest_books'/>
+      </pubsub>
+    </iq>
+  #+END_SRC
+  + Other than Service Discovery queries, pubsub-related actions all
+    contain a ~<pubsub>~ element qualified by one of the pubsub
+    namespaces. Here, http://jabber.org/protocol/pubsub is used, which
+    is the main pubsub namespace, but some actions, such as node
+    configuration, require related namespaces like
+    http://jabber.org/protocol/pubsub#owner. It’s easy to assume that
+    they are all the same.
+  + It’s possible to let the server choose the name when you create a node.
+   #+BEGIN_SRC html
+     <iq to='pubsub.pemberley.lit'
+         from='darcy@pemberley.lit/library'
+         type='set'
+         id='create1'>
+       <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+         <create />
+       </pubsub>
+     </iq>
+   #+END_SRC
+   the server will include the node's name with its response
+   #+BEGIN_EXPORT html
+   <iq from='pubsub.pemberley.lit'
+       to='darcy@pemberley.lit/library'
+       type='result'
+       id='instant1'>
+     <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+       <create node='1390361429'/>
+     </pubsub>
+   </iq>
+   #+END_EXPORT
+
+*** Configuring nodes
+- Pubsub node configuration is done by submitting a form inside a
+  ~<configure>~ action. Node configuration must be done by the owner of
+  the node, so the ~<pubsub>~ element’s namespace is slightly different
+  than the previous example. First, request a configuration form to
+  see what options are available:
+  #+BEGIN_EXPORT html
+  <iq from='darcy@pemberley.lit/library'
+      to='pubsub.pemberley.lit'
+      type='get'
+      id='configure1'>
+    <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+      <configure node='latest_books'/>
+    </pubsub>
+  </iq>
+  #+END_EXPORT
+  a sample response
+  #+BEGIN_SRC html
+    <iq xmlns="jabber:client"
+        xml:lang="en"
+        to="farhad@localhost/15007739549779253443202"
+        from="pubsub.localhost"
+        type="result"
+        id="d9b8262a-5e59-485e-9bf9-b21859475335:sendIQ">
+        <pubsub xmlns="http://jabber.org/protocol/pubsub#owner">
+            <configure node="latest_books">
+                <x xmlns="jabber:x:data" type="form">
+                    <field var="FORM_TYPE" type="hidden">
+                        <value>http://jabber.org/protocol/pubsub#node_config</value>
+                    </field>
+
+                    <field var="pubsub#access_model" type="list-single" label="Specify the access model">
+                        <value>open</value>
+                        <option label="Subscription requests must be approved and only subscribers may retrieve items">
+                            <value>authorize</value>
+                        </option>
+                        <option label="Anyone may subscribe and retrieve items">
+                            <value>open</value>
+                        </option>
+                        <option label="Anyone with a presence subscription of both or from may subscribe and retrieve items">
+                            <value>presence</value>
+                        </option>
+                        <option label="Anyone in the specified roster group(s) may subscribe and retrieve items">
+                            <value>roster</value>
+                        </option>
+                        <option label="Only those on a whitelist may subscribe and retrieve items">
+                            <value>whitelist</value>
+                        </option>
+                    </field>
+
+                    <field var="pubsub#deliver_notifications" type="boolean" label="Deliver event notifications">
+                        <value>1</value>
+                    </field>
+
+                    <field var="pubsub#deliver_payloads" type="boolean" label="Deliver payloads with event notifications">
+                        <value>1</value>
+                    </field>
+
+                    <field var="pubsub#itemreply" type="list-single" label="Whether owners or publisher should receive replies to items">
+                        <value>none</value>
+                        <option label="Statically specify a replyto of the node owner(s)">
+                            <value>owner</value>
+                        </option>
+                        <option label="Dynamically specify a replyto of the item publisher">
+                            <value>publisher</value>
+                        </option>
+                        <option>
+                            <value>none</value>
+                        </option>
+                    </field>
+
+                    <field var="pubsub#max_items" type="text-single" label="Max # of items to persist">
+                        <value>10</value>
+                    </field>
+
+                    <field var="pubsub#max_payload_size" type="text-single" label="Max payload size in bytes">
+                        <value>250000</value>
+                    </field>
+
+                    <field var="pubsub#notification_type" type="list-single" label="Specify the event message type">
+                        <value>headline</value>
+                        <option label="Messages of type normal">
+                            <value>normal</value>
+                        </option>
+                        <option label="Messages of type headline">
+                            <value>headline</value>
+                        </option>
+                    </field>
+
+                    <field var="pubsub#notify_config" type="boolean" label="Notify subscribers when the node configuration changes">
+                        <value>0</value>
+                    </field>
+
+                    <field var="pubsub#notify_delete" type="boolean" label="Notify subscribers when the node is deleted">
+                        <value>0</value>
+                    </field>
+
+                    <field var="pubsub#notify_retract" type="boolean" label="Notify subscribers when items are removed from the node">
+                        <value>1</value>
+                    </field>
+
+                    <field var="pubsub#persist_items" type="boolean" label="Persist items to storage">
+                        <value>1</value>
+                    </field>
+
+                    <field var="pubsub#presence_based_delivery" type="boolean" label="Only deliver notifications to available users">
+                        <value>0</value>
+                    </field>
+
+                    <field var="pubsub#publish_model" type="list-single" label="Specify the publisher model">
+                        <value>publishers</value>
+                        <option label="Only publishers may publish">
+                            <value>publishers</value>
+                        </option>
+                        <option label="Subscribers may publish">
+                            <value>subscribers</value>
+                        </option>
+                        <option label="Anyone may publish">
+                            <value>open</value>
+                        </option>
+                    </field>
+
+                    <field var="pubsub#purge_offline" type="boolean" label="Purge all items when the relevant publisher goes offline">
+                        <value>0</value>
+                    </field>
+
+                    <field var="pubsub#roster_groups_allowed" type="list-multi" label="Roster groups allowed to subscribe" />
+
+                    <field var="pubsub#send_last_published_item" type="list-single" label="When to send the last published item">
+                        <value>on_sub_and_presence</value>
+                        <option label="Never">
+                            <value>never</value>
+                        </option>
+                        <option label="When a new subscription is processed">
+                            <value>on_sub</value>
+                        </option>
+                        <option label="When a new subscription is processed and whenever a subscriber comes online">
+                            <value>on_sub_and_presence</value>
+                        </option>
+                    </field>
+
+                    <field var="pubsub#subscribe" type="boolean" label="Whether to allow subscriptions">
+                        <value>1</value>
+                    </field>
+                </x>
+            </configure>
+        </pubsub>
+    </iq>
+  #+END_SRC
+  + The first field in the form is the form type identifier and after
+    that are the normal fields
+  + sample response of form completion
+    #+BEGIN_EXPORT html
+    <iq from='darcy@pemberley.lit/library'
+        to='pubsub.pemberley.lit'
+        type='set'
+        id='configure2'>
+      <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+        <configure node='latest_books'>
+          <x xmlns='jabber:x:data' type='submit'>
+            <field var='FORM_TYPE'>
+              <value>http://jabber.org/protocol/pubsub#node_config</value>
+            </field>
+
+            <field var='pubsub#title'>
+              <value>Books I've Read Lately</value>
+            </field>
+
+            <field var='pubsub#persist_items'>
+              <value>true</value>
+            </field>
+
+            <field var='pubsub#max_items'>
+              <value>100</value>
+            </field>
+          </x>
+        </configure>
+      </pubsub>
+    </iq>
+
+    #+END_EXPORT
+
+*** pubsub events
+- The real value of pubsub nodes is in the events that are published
+  to them and broadcast to subscribers
+- Anything can be included in a pubsub event. The pubsub service
+  doesn’t know or care what is inside the event; it simply broadcasts
+  this data to a node’s subscribers. The content of a pubsub event is
+  called its payload.
+- When publishing, the event is wrapped in a ~<publish>~ action within
+  the ~<pubsub>~ element, and when receiving events, the same event is
+  carried in a ~<message>~ stanza. In both cases the event payload is
+  the same.
+  + e.g: Forms are flexible enough to represent many kinds of
+    payloads:
+    #+BEGIN_EXPORT html
+    <x xmlns='jabber:x:data' type='result'>
+      <field var='title'>
+        <value>A History of Pemberley</value>
+      </field>
+      <field var='author'>
+        <value>Sir Lewis de Bourgh</value>
+      </field>
+    </x>
+    #+END_EXPORT
+*** publishing to a node
+    #+BEGIN_EXPORT html
+    <iq from='darcy@pemberley.lit/library'
+        to='pubsub.pemberley.lit'
+        type='set'
+        id='publish1'>
+      <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+        <publish node='latest_books'>
+          <item>
+            <x xmlns='jabber:x:data' type='result'>
+              <field var='title'>
+                <value>A History of Pemberley</value>
+              </field>
+              <field var='author'>
+                <value>Sir Lewis de Bourgh</value>
+              </field>
+            </x>
+          </item>
+        </publish>
+      </pubsub>
+    </iq>
+    #+END_EXPORT
+
+    the server will respond with
+    #+BEGIN_SRC html
+      <iq from='pubsub.pemberly.lit'
+          to='darcy@pemberley.lit/library'
+          type='result'
+          id='publish1'>
+        <pubsub pubsub xmlns='http://jabber.org/protocol/pubsub'>
+          <publish node='latest_books'>
+            <item id='821b576dfabfc6b358b6ec4139b87f5c'/>
+          </publish>
+        </pubsub>
+      </iq>
+    #+END_SRC
+    Notice that the server’s response also includes an ~<item>~
+    element. Because Mr. Darcy’s ~<item>~ element did not contain an ~id~
+    attribute, the server created one for him since every item must
+    have an identifier. These identifiers are used for notifications,
+    item retrieval, and retraction.
+*** subscribing and unsubscribing
+**** subscribe
+    #+BEGIN_EXPORT html
+    <iq from='elizabeth@longbourn.lit/outside'
+        to='pubsub.pemberley.lit'
+        type='set'
+        id='subscribe1'>
+      <pubsub pubsub xmlns='http://jabber.org/protocol/pubsub'>
+        <subscribe node='latest_books'
+                   jid='elizabeth@longbourn.lit/outside'/>
+      </pubsub>
+    </iq>
+    #+END_EXPORT
+    server would respond with something like
+    #+BEGIN_EXPORT html
+    <iq xmlns="jabber:client"
+        xml:lang="en"
+        to="farhad@localhost/279101230134859417237"
+        from="pubsub.localhost"
+        type="result"
+        id="6a9c8923-e746-4831-af26-9ee7d61be547:sendIQ">
+
+      <pubsub xmlns="http://jabber.org/protocol/pubsub">
+        <subscription subscription="subscribed"
+                      subid="61D962811C04D"
+                      node="latest_books"
+                      jid="farhad@localhost/279101230134859417237"/>
+      </pubsub>
+    </iq>
+    #+END_EXPORT
+    + Event broadcasts are sent in ~<message>~ stanzas containing an
+      ~<event>~ child with the http://jabber.org/protocol/pubsub#event
+      namespace. The ~<event>~ element will contain one or more ~<item>~
+      elements wrapped in an ~<items>~ element; the payloads are
+      contained within the ~<item>~ elements, if included.
+      #+BEGIN_EXPORT html
+      <message from='pubsub.pemberley.lit'
+               to='elizabeth@longbourn.lit/outside'>
+        <event xmlns='http://jabber.org/protocol/pubsub#event'>
+          <items node='latest_books'>
+            <item id='821b576dfabfc6b358b6ec4139b87f5c'>
+              <x xmlns='jabber:x:data' type='result'>
+                <field var='title'>
+                  <value>A History of Pemberley</value>
+                </field>
+                <field var='author'>
+                  <value>Sir Lewis de Bourgh</value>
+                </field>
+              </x>
+            </item>
+          </items>
+        </event>
+      </message>
+      #+END_EXPORT
+
+**** unsubscribe
+     #+BEGIN_EXPORT html
+     <iq from='georgiana@pemberley.lit/piano'
+         to='pubsub.pemberley.lit'
+         type='set'
+         id='unsubscribe1'>
+       <pubsub pubsub xmlns='http://jabber.org/protocol/pubsub'>
+         <unsubscribe node='latest_books'
+                      jid='georgiana@pemberley.lit/piano'/>
+       </pubsub>
+     </iq
+     #+END_EXPORT
+     the server response
+     #+BEGIN_EXPORT html
+     <iq from='pubsub.pemberley.lit'
+         to='georgiana@pemberley.lit/piano'
+         type='result'
+         id='unsubscribe1'/>
+     #+END_EXPORT
+
+*** retrieving subscriptions
+- query the list of subscribers
+  #+BEGIN_EXPORT html
+  <iq from='darcy@pemberley.lit/library'
+      to='pubsub.pemberley.lit'
+      type='get'
+      id='subscribers1'>
+    <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+      <subscriptions node='latest_books'/>
+    </pubsub>
+  </iq>
+  #+END_EXPORT
+  server responds with sth like
+  #+BEGIN_SRC html
+    <iq from='pubsub.pemberley.lit'
+        to='darcy@pemberley.lit/library'
+        type='result'
+        id='subscribers1'>
+      <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+        <subscriptions node='latest_books'>
+          <subscription jid='elizabeth@longbourn.lit/outside'
+                        subscription='subscribed'/>
+          <subscription jid='bingley@netherfield.lit/house'
+                        subscription='subscribed'/>
+        </subscriptions>
+      </pubsub>
+    </iq>
+  #+END_SRC
+
+*** retrieving items
++ e.g.
+    #+BEGIN_EXPORT html
+    <iq from='elizabeth@longbourn.lit/outside'
+        to='pubsub.pemberley.lit'
+        type='get'
+        id='items1'>
+      <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+        <items node='latest_books' max_items='3'/>
+      </pubsub>
+    </iq>
+    #+END_EXPORT
++ The server responds with the requested items along with their
+  payloads:
+  #+BEGIN_EXPORT html
+  <iq from='pubsub.pemberley.lit'
+      to='elizabeth@longbourn.lit/outside'
+      type='result'
+      id='items1'>
+    <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+      <items node='latest_books'>
+        <item id='4f900045977f0ccd372c4a670bcba27f'>
+          <x xmlns='jabber:x:data' type='result'>
+            <field var='title'>
+              <value>Of Acquaintances and Persuasion</value>
+            </field>
+            <field var='author'>
+              <value>Daleforth Carnham</value>
+            </field>
+          </x>
+        </item>
+        <item id='16ddab0d5b3572388446c552d1bdf793'>
+          <x xmlns='jabber:x:data' type='result'>
+            <field var='title'>
+              <value>Managing Temperment</value>
+            </field>
+            <field var='author'>
+              <value>Sarah Pratt</value>
+            </field>
+          </x>
+        </item>
+        <item id='e4139c9d583558c172a28f68ec036c6c'>
+          <x xmlns='jabber:x:data' type='result'>
+            <field var='title'>
+              <value>The Haunting at Hertfordshire</value>
+            </field>
+            <field var='author'>
+              <value>Sir William Lucas</value>
+            </field>
+          </x>
+        </item>
+      </items>
+    </pubsub>
+  </iq>
+  #+END_EXPORT
+
++ The node could have been configured to send only notifications, in
+  which case the payloads would be missing. the response would've been like:
+  #+BEGIN_EXPORT html
+  <iq from='pubsub.pemberley.lit'
+      to='elizabeth@longbourn.lit/outside'
+      type='result'
+      id='items1'>
+    <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+      <items node='latest_books'>
+        <item id='4f900045977f0ccd372c4a670bcba27f'/>
+        <item id='16ddab0d5b3572388446c552d1bdf793'/>
+        <item id='e4139c9d583558c172a28f68ec036c6c'/>
+      </items>
+    </pubsub>
+  </iq>
+  #+END_EXPORT
+  a separate request must be sent to the server to retreve the items
+  with their payloads:
+  #+BEGIN_EXPORT html
+  <iq from='elizabeth@longbourn.lit/outside'
+      to='pubsub.pemberley.lit'
+      type='get'
+      id='items2'>
+    <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+      <items node='latest_books'>
+        <item id='4f900045977f0ccd372c4a670bcba27f'/>
+        <item id='16ddab0d5b3572388446c552d1bdf793'/>
+        <item id='e4139c9d583558c172a28f68ec036c6c'/>
+      </items>
+    </pubsub>
+  </iq>
+  #+END_EXPORT
+  If a node is configured to send only notifications, subscribers will
+  receive ~<message>~ containing a list of items that are new. A similar
+  retrieval process is necessary to get the event payloads for these
+  items.
+
+*** subscription management
+- When subscribing to a pubsub node, you must include the JID at which
+  you want to receive event notifications. This JID can be either the
+  bare JID (as with ~elizabeth@longbourn.lit~) or a full JID (as with
+  ~darcy@pemberley.lit/library~). Because delivery of events is done
+  with ~<message>~ stanzas, the delivery semantics are different
+  depending on whether a subscription is for the bare or full
+  JID. Whether an application should use the bare or full JID depends
+  on the situation
+- Normally, each subscription will last as long as the pubsub node
+  exists or until the user unsubscribes. A pubsub node can also have a
+  different subscription life cycle; the specification contains
+  several examples of expiring subscriptions (see section 12.18 of
+  XEP-0060 for an example). For instance, anonymously connected users’
+  subscriptions will be removed when their session terminates, even if
+  they never unsubscribe explicitly. Some clever developers are even
+  working on presence-based subscriptions that can be canceled as soon
+  as the subscriber goes offline.
+
+**** get a list of your subscriptions
+     #+BEGIN_EXPORT html
+     <iq from='elizabeth@longbourn.lit/outside'
+         to='pubsub.pemberley.lit'
+         type='get'
+         id='mysubs1'>
+       <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+         <subscriptions/> <!-- could specify a node attribute on the <subscriptions> action to limit to a specific node. -->
+       </pubsub>
+     </iq>
+     #+END_EXPORT
+* Extending The XMPP Protocol
+- XML documents are easily extensible through the use of
+  namespaces. Every attribute or element is attached to some
+  namespace, and new elements and attributes can be added under
+  different namespaces. XMPP systems are designed to ignore XML under
+  namespaces they don’t recognize, but they will forward these
+  payloads along to their final destinations. This combination of
+  features makes XMPP easy to extend.
+** ignoring the unknown
+- XMPP extensions work because XMPP systems do not require knowledge
+  of every bit of XML passing through. New things can be added without
+  breaking existing XMPP software, and anything unknown will not only
+  be ignored, but it will also be preserved until it is finally
+  delivered to its destination.
+** XML namespaces
+- Namespaces are important for defining XMPP extensions because they
+  allow the addition of elements and attributes that will be
+  interpreted in a new context.
+- An XML namespace is simply a URI, or uniform resource identifier. It
+  is important to note that although a URI may sometimes look like a
+  URL, it does not necessarily reference an actual location on the
+  Web.
+- XML elements can have a default namespace, and this namespace is
+  inherited by child elements that have no namespace declaration of
+  their own. For instance, XMPP client streams use a default namespace
+  of jabber:client; a <message> element in the stream does not need to
+  declare itself part of the jabber:client namespace because it will
+  inherit this property from the default namespace. This inheritance
+  is quite handy because it saves having to declare the namespace of
+  every element; most of the time, elements will all be in a common,
+  inherited namespace
+** extended elements
+- Extended elements are just new child elements that live under a
+  different namespace.
+- There’s no restriction on where you can place extended elements,
+  except that you cannot normally place an extended element at the
+  XMPP stanza level. XMPP extensions routinely add extended ele‑ ments
+  even to other XMPP extensions’ elements.
+- Extended elements can appear two ways. Either they can declare a new
+  default namespace by including the xmlns attribute in the element,
+  or they can use namespace prefixes.
+*** Changing the Default Namespace
+- Changing the default namespace is the most common method used with
+  extended elements. Any element can declare the default namespace by
+  setting the value of the ~xmlns~ attribute to the namespace desired
+  #+BEGIN_EXPORT html
+  <message to='elizabeth@longbourn.lit/bedroom'
+           from='pubsub.pemberley.lit'>
+    <event xmlns='http://jabber.org/protocol/pubsub#event'>
+      <items node='latest_books'>
+        <item id='821b576dfabfc6b358b6ec4139b87f5c'>
+          <x xmlns='jabber:x:data' type='result'>
+            <field var='title'>
+              <value>A History of Pemberley</value>
+            </field>
+            <field var='author'>
+              <value>Sir Lewis de Bourgh</value>
+            </field>
+          </x>
+        </item>
+      </items>
+    </event>
+  </message>
+  #+END_EXPORT
+  The above example shows a ~<message>~ stanza with an extended
+  ~<event>~ child under a new default namespace. Some children under the
+  ~<event>~ element are also under the new namespace because they have
+  no namespace specifically declared, and the ~<x>~ element declares
+  another default namespace for the form and its children.
+*** Namespace Prefixes
+- Prefixes must be defined before or at the time of their use, and
+  descendants of an element that defines a prefix will also inherit
+  the prefix’s definition. The prefix is defined by including an
+  ~xmlns:foo~ attribute, where ~foo~ is the prefix you want you use.
+
+    #+BEGIN_EXPORT html
+    <message to='elizabeth@longbourn.lit/bedroom'
+             from='pubsub.pemberley.lit'>
+      <pubsub:event xmlns:pubsub='http://jabber.org/protocol/pubsub#event'>
+        <pybsub:items node='latest_books'>
+          <pubsub:item id='821b576dfabfc6b358b6ec4139b87f5c'>
+            <form:x xmlns:form='jabber:x:data' type='result'>
+              <form:field var='title'>
+                <form:value>A History of Pemberley</form:value>
+              </form:field>
+              <form:field var='author'>
+                <form:value>Sir Lewis de Bourgh</form:value>
+              </form:field>
+            </form:x>
+          </pubsub:item>
+    </pubsub:items>
+    </pubsub:event>
+    </message>
+    #+END_EXPORT
+
+*** extended attributes
+- Extended attributes can also be created, but these are rarely used
+  in protocol extensions. Attributes are treated somewhat differently
+  in XML than elements; an attribute with no prefix does not belong to
+  the default namespace, but to the element in which it appears. What
+  interpretation an element gives to such an attribute is application
+  defined. For this reason, it is suggested that only prefixed
+  attributes be used for extending XMPP.
+
+- Prefixed attributes work very similarly to prefixed elements, and
+  the prefix must be defined in the same manner as with prefixed
+  elements. The following example uses a prefixed attribute on a
+  message’s <body> element to add an explicit emotion to the text:
+
+  #+BEGIN_SRC html
+    <message to='darcy@pemberley.lit'
+             from='elizabaeth@longbourn.lit/ballroom'
+             type='chat'>
+      <body emote:emotion='annoyed' xmlns:emote='http;//metajack.im/ns/emote-0'>
+        I cannot talk of books in a ball-room; my head is always full of
+        something else.
+      </body>
+    </message>
+  #+END_SRC
+
+- One prefix is always defined — xml — and this prefix is often used
+  to add attributes to various XMPP elements. In addition, any prefix
+  beginning with “xml” (or “XML”, “xMl”, and so on) is reserved. Most
+  often you will see the ~xml:lang~ attribute used to designate which
+  language is used for a piece of text. It can also be used to provide
+  alternate translations. For example, you could send a message with
+  two ~<body>~ elements, each with a different ~xml:lang~ value. Unlike
+  other prefixes, the xml prefix does not need to be defined; it is
+  always implicitly defined in XML, as is the ~xmlns~ attribute.
 -
