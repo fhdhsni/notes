@@ -843,6 +843,22 @@
             from='darcy@pemberley.lit/meryton'
             type='unavailable'/>
   #+END_SRC
+** inviting
+   #+BEGIN_EXPORT html
+   <message to='elizabeth@longbourn.lit/sitting_room'
+            from='toetem-456@games.pemberley.lit'>
+     <x xmlns='http://jabber.org/protocol/muc#user'>
+       <invite from='referee@pemberley.lit/toetem'/>
+     </x>
+   </message>
+
+   <message to='jane@longbourn.lit/outside'
+            from='toetem-456@games.pemberley.lit'>
+     <x xmlns='http://jabber.org/protocol/muc#user'>
+       <invite from='referee@pemberley.lit/toetem'/>
+     </x>
+   </message>
+   #+END_EXPORT
 ** sending and receiving Messages
 - Messages are sent to the room with a special type —
   ~groupchat~. Messages directed to the bare room JID,
@@ -1047,6 +1063,7 @@
            affiliation: "admin"
          })
    #+END_SRC
+
 * Publish-Subscribee (pubsub)
 ** Data Forms extension
 - It allows applications to define a form with fields of various types
