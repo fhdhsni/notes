@@ -6,6 +6,17 @@
 - JID: jabber identifier
 - BOSH: Bidirectional streams Over Synchronous HTTP
 - PEP: Personal Eventing Protocol
+- SID: Session Identifier
+- RID: Request Identifier
+- In-Band Bytestreams (XEP-0047)
+  + which break up a large payload into smaller chunks and send them
+    in a series of ~<iq>~ or ~<message>~ stanzas.
+- Results Set Management (XEP-0059)
+  + Roster Versioning (XEP-0237) provides a similar solution
+    specifically for rosters.
+- The Jingle extensions (XEP-0166, XEP-0234, XEP-0247, and others)
+  provide a very flexible framework for negotiating, establishing, and
+  communicating over OOB connections.
 
 * Getting to Know XMPP (The eXtensible Messaging and Presence Protocol)
 
@@ -1171,7 +1182,7 @@
 
 *** Standardized Form Fields (XEP-0068)
 - having forms be so malleable does have a downside. How do you get
-  everyone to agree what the fields should be ffor common forms? XMPP
+  everyone to agree what the fields should be for common forms? XMPP
   community addressed this problem with Field Standardization for Data
   Forms (XEP-0068)
 - Each standardized form has a form type, which is encoded in a
@@ -1865,4 +1876,327 @@
   two ~<body>~ elements, each with a different ~xml:lang~ value. Unlike
   other prefixes, the xml prefix does not need to be defined; it is
   always implicitly defined in XML, as is the ~xmlns~ attribute.
+
+* Strophe Plug-in
+- Plug-ins are created by making a prototype object that defines the
+  plug-in’s functionality and registering that prototype with the
+  Strophe library. When a new Strophe connection is created, it
+  creates a plug-in object from the plug-in prototype and calls the
+  object’s ~init()~ function to initialize the plug-in. After
+  initialization, the plug-in is ready to be used by your application
+  code.
+- The ~init()~ function also serves another purpose. Most plug-ins will
+  need to send data over the XMPP connection and set up stanza
+  handlers, and for these tasks, the plug-in needs access to a
+  Strophe.Connection object. Strophe will pass the connection object
+  as the first parameter to ~init()~, and the plug-in can then save this
+  reference for later use.
+- Another function common to most plug-ins is ~statusChanged()~. Strophe
+  calls each plug-in’s ~statusChanged()~ function whenever the
+  connection status changes.
+- This allows the plug-in to react to events like ~CONNECTED~ and
+  ~DISCONNECTED~. This function is optional, because some plug-ins only
+  need to respond to direct invocation.
+- Example
+  #+BEGIN_SRC javascript
+    Strophe.addConnectionPlugin('simple', {
+      init: function (connection) {
+        this.connection = connection;
+      },
+      online: function () {
+        this.connection.send($pres());
+      },
+      offline: function () {
+        this.connection.send($pres({type: “unavailable”}));
+      }
+    });
+  #+END_SRC
+  + users of this plugin can
+    #+BEGIN_SRC js
+      connection.simple.online() // to send available presence and
+      connection.simple.offline() // to send unavailable presence
+    #+END_SRC
+  + Registering new Strophe plug-ins is accomplished via the
+    ~addConnectionPlugin()~ function. This function takes the name of
+    the plug-in and the plug-in prototype as arguments.
+  + These plug-ins are called connection plug-ins because they augment
+    the ~Strophe.Connection~ object.
+- Strophe plug-ins can augment the namespaces available in the
+  ~Strophe.NS~ object by using ~.addNamespace()~.
+  #+BEGIN_SRC javascript
+    Strophe.addNamespace('DISCO_INFO', 'http://jabber.org/protocol/disco#info';
+    Strophe.addNamespace('DISCO_ITEMS', 'http://jabber.org/protocol/disco#items';
+  #+END_SRC
+** Creating a roster plug-in
+- Managing the roster involves a few basic operations:
+  + First, you’ll need to query the roster and store it.
+  + Then you’ll need ways to add, edit, and delete roster items.
+  + Because other connection resources might also be making roster
+    changes, you’ll need to listen for those and update the roster
+    accordingly
+  + Finally, you will want to keep the status of your roster fresh as
+    presence information comes in from your contacts.
+*** storing Contacts
+- Following is a sample roster expressed as a JavaScript literal
+  #+BEGIN_SRC js
+    contacts = {
+      "darcy@pemberley.lit" {
+        name: "Darcy",
+        resources: {
+          "library":, {
+            show: "away",
+            status: "reading"
+          }
+        },
+        subscription: "both",
+        ask: "",
+        groups: ["Family"]
+      },
+      "bingley@netherfield.lit": {
+        name: "Charles",
+        resources: {},
+        subscription: "both",
+        ask: "",
+        groups: ["Friends"]
+      }
+    };
+  #+END_SRC
+
+
+** XEPs
+*** XEP-0136: Message Archiving
+- depricated, see XEP-0313 (Ejabberd supports XEP-0313)
+*** XEP-0313
+- Ejabberd supports this XEP
+- A stored message consists of at least the following pieces of
+  information:
+  + A timestamp of when the message was sent (for an outgoing message)
+    or received (for an incoming message).
+  + The remote JID that the stanza is to (for an outgoing message) or
+    from (for an incoming message).
+  + A server-assigned UID that MUST be unpredictable and unique within
+    the archive.
+  + The message stanza itself. The entire original stanza SHOULD be
+    stored, but at a minimum only the ~<body/>~ tag MUST be preserved
+    (ie. the server might, at its discretion, strip certain extensions
+    from messages before storage).
+- Note that 'incoming' and 'outgoing' messages are viewed within the
+  context of the archived JID, rather than the system as a whole. For
+  example, if romeo@montegue.lit sent a message to juliet@capulet.lit,
+  it would be an outgoing message in the context of archiving for
+  Romeo, and an incoming message in the context of archiving for
+  Juliet.
+
+**** Order of messages
+- Order within the archive MUST be preserved, where the order of
+  messages is the same as the order that the client originally
+  received them (or would have received them if online). however
+  implementors should take care not to rely on timestamps alone for
+  ordering messages, as multiple messages may share the same
+  timestamp.
+
+**** Querying an archive
+- An entity is able to query (subject to appropriate access rights) an
+  archive for all messages within a certain timespan, optionally
+  restricting results to those to/from a particular JID. To allow
+  limiting the results or paging through them a client may use Result
+  Set Management (XEP-0059), which MUST be supported by both the
+  client and the server.
+
+- A query consists of an ~<iq/>~ stanza of type 'set' addressed to the
+  account or server entity hosting the archive, with a 'query'
+  payload. On receiving the query, the server pushes to the client a
+  series of messages in chronological order from the archive that
+  match the client's given criteria. After the results it then returns
+  the ~<iq/>~ result to indicate that the query is completed.
+
+- The final ~<iq/>~ result response MUST include an RSM ~<set/>~ element,
+  wrapped into a ~<fin/>~ element qualified by the ~'urn:xmpp:mam:2'~
+  namespace, indicating the UID of the first and last message of the
+  (possibly limited) result set. This allows clients to accurately
+  page through messages.
+
+**** Filtering results
+- By default all messages match a query, and filters are used to
+  request a subset of the archived messages. Filters are specified in
+  a Data Forms (XEP-0004) data form included with the query. The
+  hidden FORM_TYPE field MUST be set to this protocol's namespace,
+  'urn:xmpp:mam:2'. Three further fields are defined by this XEP and
+  MUST be supported by servers, though all of them are optional for
+  the client. These fields are:
+  + ~start~
+  + ~end~
+  + ~with~
+**** Filtering by JID
+- If a 'with' field is present in the form, it contains a JID against
+  which to match messages. The server MUST only return messages if
+  they match the supplied JID. A message in a user's archive matches
+  if the JID matches either the to or from of the message. An item in
+  a pubsub or MUC archive matches if the publisher of the item matches
+  the JID; note that this should only be available to entities that
+  would already have been allowed to know the publisher of the events
+  (e.g. this could not be used by a visitor to a semi-anonymous MUC).
+  #+BEGIN_SRC html
+    <iq type="set"
+        xmlns="jabber:client"
+        id="9ff2acd4-49cb-42a7-a677-e67169432947:sendIQ">
+      <query xmlns="urn:xmpp:mam:2">
+        <x xmlns="jabber:x:data" type="submit">
+          <field var="FORM_TYPE" type="hidden">
+            <value>urn:xmpp:mam:2</value>
+          </field>
+          <field var="with"> <!-- here -->
+            <value>jafar@localhost</value>
+          </field>
+          <field var="start">
+            <value>2010-06-07T00:00:00Z</value>
+          </field>
+        </x>
+        <set xmlns="http://jabber.org/protocol/rsm">
+          <max>100</max>
+          <before/>
+        </set>
+      </query>
+    </iq>
+  #+END_SRC
+- If the ~with~ field's value is the bare JID of the archive, the
+  server must only return results where both the 'to' and 'from' match
+  the bare JID (either as bare or by ignoring the resource), as
+  otherwise every message in the archive would match
+- If ~with~ is omitted, the server MUST match all messages in the
+  selected timespan with the query, regardless of the to/from
+  addresses on each message.
+**** Filtering by time received
+- The 'start' and 'end' fields, if provided, MUST contain timestamps
+  formatted according to the DateTime profile defined in XMPP Date and
+  Time Profiles (XEP-0082)
+- The 'start' field is used to filter out messages before a certain
+  date/time. If specified, a server MUST only return messages whose
+  timestamp is equal to or later than the given timestamp.
+- If omitted, the server SHOULD assume the value of 'start' to be
+  equal to the date/time of the earliest message stored in the
+  archive.
+- Conversely, the 'end' field is used to exclude from the results
+  messages after a certain point in time. If specified, a server MUST
+  only return messages whose timestamp is equal to or earlier than the
+  timestamp given in the 'end' field.
+- If omitted, the server SHOULD assume the value of 'end' to be equal
+  to the date/time of the most recent message stored in the archive.
+  #+BEGIN_EXPORT html
+  <!-- Querying the archive for all messages in a certain timespan¶ -->
+  <iq type='set' id='juliet1'>
+    <query xmlns='urn:xmpp:mam:2'>
+      <x xmlns='jabber:x:data' type='submit'>
+        <field var='FORM_TYPE' type='hidden'>
+          <value>urn:xmpp:mam:2</value>
+        </field>
+        <field var='start'>
+          <value>2010-06-07T00:00:00Z</value>
+        </field>
+        <field var='end'>
+          <value>2010-07-07T13:23:54Z</value>
+        </field>
+      </x>
+    </query>
+  </iq>
+
+  <!-- Querying the archive for all messages after a certain time¶ -->
+  <iq type='set' id='juliet1'>
+    <query xmlns='urn:xmpp:mam:2'>
+      <x xmlns='jabber:x:data' type='submit'>
+        <field var='FORM_TYPE' type='hidden'>
+          <value>urn:xmpp:mam:2</value>
+        </field>
+        <field var='start'>
+          <value>2010-08-07T00:00:00Z</value>
+        </field>
+      </x>
+    </query>
+  </iq>
+  #+END_EXPORT
+
+**** Limiting results
+- Finally, in order for the client or server to limit the number of
+  results transmitted at a time a server MUST support Result Set
+  Management (XEP-0059) and MUST support the paging mechanism
+  defined therein. A client MAY include a ~<set/>~ element in its query.
+  #+BEGIN_EXPORT html
+  <iq type='set' id='q29302'>
+    <query xmlns='urn:xmpp:mam:2'>
+      <x xmlns='jabber:x:data' type='submit'>
+        <field var='FORM_TYPE' type='hidden'>
+          <value>urn:xmpp:mam:2</value>
+        </field>
+        <field var='start'>
+          <value>2010-08-07T00:00:00Z</value>
+        </field>
+      </x>
+      <set xmlns='http://jabber.org/protocol/rsm'>
+        <max>10</max>
+      </set>
+    </query>
+  </iq>
+  #+END_EXPORT
+  #+BEGIN_EXPORT html
+   <!-- Server responds to client with limited results using RSM¶ -->
+  <!-- result messages -->
+  <iq type='result' id='q29302'>
+    <fin xmlns='urn:xmpp:mam:2'>
+      <set xmlns='http://jabber.org/protocol/rsm'>
+        <first index='0'>28482-98726-73623</first>
+        <last>09af3-cc343-b409f</last>
+        <count>20</count>
+      </set>
+    </fin>
+  </iq>
+  #+END_EXPORT
+- The ~<first>~ and ~<last>~ elements specify the UID of the first and
+  last returned results (not necessarily of all the messages that
+  matched the query, if the results have been limited).
+- The RSM ~<count>~ element and the ~index~ attribute on the RSM ~<first>~
+  element are optional, but servers SHOULD include them.
+  :note:
+   note from RSM:
+
+   The responding entity SHOULD also include the number of items in the
+   full result set (which MAY be approximate) encapsulated in a
+   ~<count/>~ element. The ~<first/>~ element SHOULD include an ~index~
+   attribute. This integer specifies the position within the full set
+   (which MAY be approximate) of the first item in the page. If that
+   item is the first in the full set, then the index SHOULD be '0'. If
+   the last item in the page is the last item in the full set, then the
+   value of the <first/> element's 'index' attribute SHOULD be the
+   specified count minus the number of items in the last page.
+  :end:
+
+**** Paging through results
+- Having previously made a query that returned results limited by the
+  server (as described above), a client can re-send the same request
+  and receive the next 'page' of results. It does this by including a
+  ~<set>~ element with its request, containing an ~<after/>~ with the UID
+  of the last message it received from the previous query.
+  #+BEGIN_EXPORT html
+  <iq type='set' id='q29303'>
+    <query xmlns='urn:xmpp:mam:2'>
+        <x xmlns='jabber:x:data' type='submit'>
+          <field var='FORM_TYPE' type='hidden'>
+            <value>urn:xmpp:mam:2</value>
+          </field>
+          <field var='start'>
+            <value>2010-08-07T00:00:00Z</value>
+          </field>
+        </x>
+        <set xmlns='http://jabber.org/protocol/rsm'>
+           <max>10</max>
+           <after>09af3-cc343-b409f</after>
+        </set>
+    </query>
+  </iq>
+  #+END_EXPORT
+- If the UID contained within an ~<after>~ or ~<before>~ element is not
+  present in the archive, the server MUST return an item-not-found
+  error in response to the query
+**** Retrieving form fields
+- https://xmpp.org/extensions/xep-0313.html#query-form
 -
+*** XEP-0059: Result Set Management
