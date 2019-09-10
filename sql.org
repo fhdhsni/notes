@@ -1096,6 +1096,10 @@ through another column that depends on the PK.
 - ~[postgres]$ initdb -D /var/lib/postgres/data~
   + ~/var/lib/postgres~ should belong to ~postgres~ username
     * ~sudo chown -R postgres:postgres /var/lib/postgres/postgres~
+- ~createdb~
+- ~createuser~
+- ~dropdb~
+- ~dropuser~
 - ~psql -d myDatabaseName~
 - ~psql -U username -d myDatabaseName~
 - List all users and their permission levels: ~\du~

@@ -1726,7 +1726,6 @@
      . . .
    #+END_SRC
 
-
 * Custom Errors
 - Phoenix provides an ~ErrorView~, ~lib/hello_web/views/error_view.ex~, to
   render errors in our applications. The full module name will include
@@ -1736,3 +1735,150 @@
   an appropriate error template. Any errors which don’t match an
   existing clause of ~render/2~ will be caught by ~template_not_found/2~.
 - https://hexdocs.pm/phoenix/errors.html
+
+
+
+* Phoenix book
+- action -> view -> template
+- The ~<%= %>~ brackets surround the code we want to substitute into
+  the rendered page
+
+** The Request Pipeline
+- The Phoenix encourages breaking big functions down into smaller
+  ones. Then, it provides a place to explicitly register each smaller
+  function in a way that’s easy to understand and replace. We’ll tie
+  all of these functions together with the ~Plug~ library.
+- Think of the Plug library as a specification for building
+  applications that connect to the web. Each plug consumes and
+  produces a common data structure called ~Plug.Conn~
+- Think of each individual plug as a function that takes a conn, does
+  something small, and returns a slightly changed conn.
+- The web server provides the initial data for our request, and then
+  Phoenix calls one plug after another.
+- Each plug can transform the conn in some small way until you
+  eventually send a response back to the user.
+- Plugs are functions. Your web applications are pipelines of plugs.
+
+- structure
+  #+BEGIN_SRC text
+    ...
+    ├── assets
+    ├── config
+    ├── lib
+    ├──── hello
+    ├──── hello_web
+    ├── test
+    ...
+  #+END_SRC
+  + Browser files like JavaScript and CSS go into ~assets~
+  + Phoenix configuration goes into ~config~
+  + supervision trees, long-running processes, and application
+    business logic goes into ~lib/hello~
+  + web-related code—including controllers, views, and templates—goes
+    in ~lib/hello_web~.
+  + ~config/config.exs~
+    #+BEGIN_SRC elixir
+      use Mix.Config
+      # Configures the endpoint
+      config :hello, HelloWeb.Endpoint,
+      url: [host: "localhost"],
+      secret_key_base: "U8VmJ...hNnTsFFvrhmD",
+      render_errors: [view: HelloWeb.ErrorView, accepts: ~w(html json)],
+      pubsub: [name: Hello.PubSub,
+      adapter: Phoenix.PubSub.PG2]
+    #+END_SRC
+    this code has our /endpoint/, which is the beginning of our
+    world. The ~config~ function call configures the ~HelloWeb.Endpoint~
+    endpoint in our ~:hello~ application, giving a keyword list with
+    configuration options.
+  + ~HelloWeb.Endpoint~
+    #+BEGIN_SRC elixir
+      defmodule HelloWeb.Endpoint do
+        use Phoenix.Endpoint, otp_app: :hello
+        plug Plug.Static, ...
+        plug Plug.RequestId
+        plug Plug.Telemetry, ...
+        plug Plug.Parsers, ...
+        plug Plug.MethodOverride
+        plug Plug.Head
+        plug Plug.Session, ...
+        plug HelloWeb.Router
+      end
+    #+END_SRC
+    Endpoints are the chain of functions at the beginning of each
+    request.
+- Summarizing what we have so far: an endpoint is a plug, one that’s
+  made up of other plugs. Your application is a series of plugs,
+  beginning with an endpoint and ending with a controller:
+- When you break it down, every traditional Phoenix application looks
+  like this:
+  #+BEGIN_SRC elixir
+    connection
+    |> endpoint()
+    |> router()
+    |> pipeline()
+    |> controller()
+  #+END_SRC
+  + The endpoint has functions that happen for every request.
+  + The connection goes through a named pipeline, which has common
+    functions for each major type of request.
+  + The controller invokes the model and renders a template through a
+    view.
+
+*** Controllers, Views, and Templates
+- a request comes through an endpoint, through the router, through a
+  pipeline, and into the controller.
+- For Phoenix, your web-related code, including controllers, views,
+  and templates goes into the ~lib/hello_web/~ directory.
+  #+BEGIN_SRC text
+    lib
+    ├── hello
+    │   ├── application.ex
+    │   └── repo.ex
+    ├── hello.ex
+    │
+    ├── hello_web
+    │   ├── channels
+    │   │   └── user_socket.ex
+    │   ├── controllers
+    │   │   ├── hello_controller.ex
+    │   │   └── page_controller.ex
+    │   ├── endpoint.ex
+    │   ├── gettext.ex
+    │   ├── router.ex
+    │   ├── templates
+    │   │   ├── hello
+    │   │   │   └── world.html.eex
+    │   │   ├── layout
+    │   │   │   └── app.html.eex
+    │   │   └── page
+    │   │   │   └── index.html.eex
+    │   └── views
+    │       ├── error_helpers.ex
+    │       ├── error_view.ex
+    │       ├── hello_view.ex
+    │       ├── layout_view.ex
+    │       └── page_view.ex
+    └── hello_web.ex
+  #+END_SRC
+  + ~hello.ex~ and ~hello_web.ex~. The ~Hello~ module is an empty
+    module which defines the top-level interface and documentation for
+    your application.
+  + The ~HelloWeb~ module contains some glue code that defines the
+    overall structure to the web-related modules of your application.
+  + The endpoint will filter out static requests and also parse the
+    request into pieces, and trigger the router
+  +  The browser pipeline will honor Accept headers, fetch the
+    session, and protect from attacks like Cross-Site Request Forgery
+    (CSRF).
+- You have a good picture of exactly which functions Phoenix calls on
+  a request to ~/hello~, and where that code lives within the code base:
+  #+BEGIN_SRC elixir
+    connection # Plug.Conn
+    |> endpoint() # lib/hello_web/endpoint.ex
+    |> browser() # lib/hello_web/router.ex
+    |> HelloController.world() # lib/hello_web/controllers/hello_controller.ex
+    |> HelloView.render( # lib/hello_web/views/hello_view.ex
+    "world.html") # lib/hello_web/templates/hello/world.html.eex
+  #+END_SRC
+** Controllers
