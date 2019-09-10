@@ -2197,6 +2197,74 @@
   present in the archive, the server MUST return an item-not-found
   error in response to the query
 **** Retrieving form fields
-- https://xmpp.org/extensions/xep-0313.html#query-form
--
+- Client requests supported query fields
+  #+BEGIN_EXPORT html
+  <iq type='get' id='form1'>
+    <query xmlns='urn:xmpp:mam:2'/>
+  </iq>
+  #+END_EXPORT
+  response:
+  #+BEGIN_EXPORT html
+  <iq type='result' id='form1'>
+    <query xmlns='urn:xmpp:mam:2'>
+      <x xmlns='jabber:x:data' type='form'>
+        <field type='hidden' var='FORM_TYPE'>
+          <value>urn:xmpp:mam:2</value>
+        </field>
+        <field type='jid-single' var='with'/>
+        <field type='text-single' var='start'/>
+        <field type='text-single' var='end'/>
+        <field type='text-single' var='urn:example:xmpp:free-text-search'/>
+        <field type='text-single' var='urn:example:xmpp:stanza-content'/>
+      </x>
+    </query>
+  </iq>
+  #+END_EXPORT
+**** Query results
+- sample server repsonse
+  #+BEGIN_EXPORT html
+  <message id='aeb213' to='juliet@capulet.lit/chamber'>
+    <result xmlns='urn:xmpp:mam:2' queryid='f27' id='28482-98726-73623'>
+      <forwarded xmlns='urn:xmpp:forward:0'>
+        <delay xmlns='urn:xmpp:delay' stamp='2010-07-10T23:08:25Z'/>
+        <message xmlns='jabber:client'
+          to='juliet@capulet.lit/balcony'
+          from='romeo@montague.lit/orchard'
+          type='chat'>
+          <body>Call me but love, and I'll be new baptized; Henceforth I never will be Romeo.</body>
+        </message>
+      </forwarded>
+    </result>
+  </message>
+
+  <message id='aeb214' to='juliet@capulet.lit/chamber'>
+    <result xmlns='urn:xmpp:mam:2' queryid='f27' id='5d398-28273-f7382'>
+      <forwarded xmlns='urn:xmpp:forward:0'>
+        <delay xmlns='urn:xmpp:delay' stamp='2010-07-10T23:09:32Z'/>
+        <message xmlns='jabber:client'
+           to='romeo@montague.lit/orchard'
+           from='juliet@capulet.lit/balcony'
+           type='chat' id='8a54s'>
+          <body>What man art thou that thus bescreen'd in night so stumblest on my counsel?</body>
+        </message>
+      </forwarded>
+    </result>
+  </message>
+  #+END_EXPORT
+
 *** XEP-0059: Result Set Management
+**** Requesting the Last Page in a Result Set
+- The requesting entity MAY ask for the last page in a result set by
+  including in its request an empty <before/> element, and the maximum
+  number of items to return.
+  #+BEGIN_EXPORT html
+  <iq type='set' from='stpeter@jabber.org/roundabout' to='users.jabber.org' id='page1'>
+    <query xmlns='jabber:iq:search'>
+      <nick>Pete</nick>
+      <set xmlns='http://jabber.org/protocol/rsm'>
+        <max>10</max>
+        <before/>
+      </set>
+    </query>
+  </iq>
+  #+END_EXPORT
