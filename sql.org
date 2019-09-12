@@ -1100,6 +1100,11 @@ through another column that depends on the PK.
 - ~createuser~
 - ~dropdb~
 - ~dropuser~
+-
+  #+BEGIN_SRC sql
+    CREATE USER postgres SUPERUSER;
+    CREATE DATABASE postgres WITH OWNER postgres;
+  #+END_SRC
 - ~psql -d myDatabaseName~
 - ~psql -U username -d myDatabaseName~
 - List all users and their permission levels: ~\du~
