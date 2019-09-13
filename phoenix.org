@@ -2117,4 +2117,635 @@
   #+BEGIN_SRC
   mix ecto.gen.migration create_users
   #+END_SRC
--
+*** resource
+- ~resources "/users", UserController~ is equivalent to
+  #+BEGIN_SRC elixir
+    get "/users", UserController, :index
+    get "/users/:id/edit", UserController, :edit
+    get "/users/new", UserController, :new
+    get "/users/:id", UserController, :show
+    post "/users", UserController, :create
+    patch "/users/:id", UserController, :update
+    put "/users/:id", UserController, :update
+    delete "/users/:id", UserController, :delete
+  #+END_SRC
+
+- If at any time you want to see all available routes, you can run the
+  phx.routes Mix task, like this:
+  #+BEGIN_SRC sh
+    $ mix phx.routes
+
+    page_path GET / RumblWeb.PageController :index
+    user_path GET /users RumblWeb.UserController :index
+    user_path GET /users/new RumblWeb.UserController :new
+    user_path GET /users/:id RumblWeb.UserController :show
+    user_path POST /users RumblWeb.UserController :create
+  #+END_SRC
+*** form
+- schema
+  #+BEGIN_SRC elixir
+    defmodule Rumbl.Accounts.User do
+      use Ecto.Schema
+      import Ecto.Changeset
+
+      schema "users" do
+        field :name, :string
+        field :username, :string
+
+        timestamps()
+      end
+
+      def changeset(user, attrs) do
+        user
+        |> cast(attrs, [:name, :username])
+        |> validate_required([:name, :username])
+        |> validate_length(:username, min: 1, max: 20)
+      end
+    end
+  #+END_SRC
+
+- context
+  #+BEGIN_SRC elixir
+    defmodule Rumbl.Accounts do
+      @moduledoc """
+      The Accounts context.
+      """
+      alias Rumbl.Accounts.User
+      alias Rumbl.Repo
+
+      def get_user(id) do
+        Repo.get(User, id)
+      end
+
+      def get_user!(id) do
+        Repo.get!(User, id)
+      end
+
+      def get_user_by(params) do
+        Repo.get_by(User, params)
+      end
+
+      def list_users do
+        Repo.all(User)
+      end
+
+      def change_user(%User{} = user) do
+        User.changeset(user, %{})
+      end
+    end
+  #+END_SRC
+
+- router
+  #+BEGIN_SRC elixir
+    scope "/" do
+      pipe_through :browser
+
+      resources "/users", RumblWeb.UserController, only: [:index, :show, :new, :create]
+    end
+  #+END_SRC
+
+- controller
+  #+BEGIN_SRC elixir
+      def new(conn, _params) do
+        changeset = Accounts.change_user(%User{})
+        render(conn, "new.html", changeset: changeset)
+      end
+  #+END_SRC
+
+- template
+  #+BEGIN_SRC html
+    <h1>New User</h1>
+
+    <%= form_for @changeset, Routes.user_path(@conn, :create), fn f -> %>
+    <div>
+      <%= text_input f, :name, placeholder: "Name" %>
+    </div>
+    <div>
+      <%= text_input f, :username, placeholder: "Username" %>
+    </div>
+    <%= submit "Create User" %>
+    <% end %>
+  #+END_SRC
+  + We use a function, rather than HTML tags, to build the form,
+    giving it an anonymous function. ~form_for~ provides conveniences
+    like security, UTF-8 encoding, and more. The function takes three
+    arguments: a changeset, a path, and an anonymous function. That
+    function takes one argument, the form data we’re labeling ~f~. We’re
+    asking the template engine to build a function returning
+    everything in the template between ~fn f ->~ and ~end~. You can see
+    the additional functions in play as well. These build two input
+    fields and a ~submit~ tag.
+  + Similar to ~link~, all those functions are documented in the
+    ~Phoenix.HTML~ library.
+  + the generated markup
+    #+BEGIN_SRC html
+      <form accept-charset="UTF-8" action="/users" method="post">
+        <input name="_csrf_token"
+               type="hidden"
+               value="MFgTPhAieHUgGzJ2OiRDXXw3Luc7wV7h/reiiA==">
+        <input name="_utf8" type="hidden" value="✓">
+        <div>
+          <input id="user_name"
+                 name="user[name]"
+                 placeholder="Name"
+                 type="text">
+        </div>
+        <div>
+          <input id="user_username"
+                 name="user[username]"
+                 placeholder="Username"
+                 type="text">
+        </div>
+        <button type="submit" value="Create User"></button>
+      </form>
+    #+END_SRC
+
+*** router helpers
+-  In some places, we’re going to need to refer to specific routes in
+  the application. Generally, these get automatically generated, and
+  you can access them from the YourApplication.Router.Helpers
+  module. That’s a lot to type each time you need a route. In the
+  auto-generated rumbl_web file, you’ll find the following snippet:
+
+  rumbl_web.ex
+  #+BEGIN_SRC elixir
+    def controller do
+      quote do
+        use Phoenix.Controller, namespace: RumblWeb
+        import Plug.Conn
+        import RumblWeb.Gettext
+        alias RumblWeb.Router.Helpers, as: Routes # <-- this
+      end
+    end
+  #+END_SRC
+  The line ~alias RumblWeb.Router.Helpers, as: Routes~ gives us
+  exactly what we need. Here’s why. Phoenix automatically generates
+  the ~Helpers~ inside your router which contains named helpers to help
+  developers generate and keep their routes up to date. Routes is a
+  simple alias for ~Router.Helpers~. That’s why you can get any route
+  through ~Routes.some_path~!
+
+*** form errors
+- controller
+  #+BEGIN_SRC elixir
+    def create(conn, %{"user" => user_params}) do
+      case Accounts.create_user(user_params) do
+        {:ok, user} ->
+          conn
+          |> put_flash(:info, "#{user.name} created!")
+          |> redirect(to: Routes.user_path(conn, :index))
+        {:error, %Ecto.Changeset{} = changeset} ->
+          render(conn, "new.html", changeset: changeset)
+      end
+    end
+  #+END_SRC
+- template
+  #+BEGIN_SRC html
+    <h1>New User</h1>
+
+    <%= form_for @changeset, Routes.user_path(@conn, :create), fn f -> %>
+    <%= if @changeset.action do %>                                  <!-- this -->
+    <div class="alert alert-danger">
+      <p>Oops, something went wrong! please check the errors below.</p>
+    </div>
+    <% end %>
+    <div>
+      <%= text_input f, :name, placeholder: "Name" %>
+      <%= error_tag f, :name %>                                     <!-- this -->
+    </div>
+    <div>
+      <%= text_input f, :username, placeholder: "Username" %>
+      <%= error_tag f, :username %>                                 <!-- this -->
+    </div>
+    <%= submit "Create User" %>
+    <% end %>
+  #+END_SRC
+  + The ~:action~ field of a changeset indicates an action we tried to
+    perform on it, such as ~:insert~. When we build a new changeset,
+    the field is ~nil~.
+  + we use the ~error_tag~ function defined in
+    ~lib/rumbl_web/views/error_helpers.ex~ to display an error tag next
+    to each form input with the validation error for each field.
+  + In addition to validation errors, the changesets also track
+    changes!
+    #+BEGIN_SRC shell
+      iex> alias Rumbl.Accounts.User
+
+      iex> changeset = User.changeset(%User{username: "eric"}, %{})
+      %Ecto.Changeset{changes: %{}, ...}
+
+      iex> import Ecto.Changeset
+      Ecto.Changeset
+
+      iex> changeset = put_change(changeset, :username, "ericmj")
+      %Ecto.Changeset{changes: %{username: "ericmj"}, ...}
+
+      iex> changeset.changes
+      %{username: "ericmj"}
+
+      iex> get_change(changeset, :username)
+      "ericmj"
+    #+END_SRC
+    Ecto is using changesets as a bucket to hold everything related to
+    a database change, before and after persistence.
+** auth
+- changeset
+  #+BEGIN_SRC elixir
+    def changeset(user, attrs) do
+      user
+      |> cast(attrs, [:name, :username])
+      |> validate_required([:name, :username])
+      |> validate_length(:username, min: 1, max: 20)
+    end
+  #+END_SRC
+  The ~Ecto.Changeset.cast~ function converts a raw map of user input to
+  a changeset, accepting only the ~:name~ and ~:username~ keys.
+
+- hash
+  #+BEGIN_SRC elixir
+    defmodule Rumbl.Accounts.User do
+      use Ecto.Schema
+      import Ecto.Changeset
+
+      schema "users" do
+        field :name, :string
+        field :username, :string
+        field :password, :string, virtual: true
+        field :password_hash, :string
+
+        timestamps()
+      end
+
+      def changeset(user, attrs) do
+        user
+        |> cast(attrs, [:name, :username])
+        |> validate_required([:name, :username])
+        |> validate_length(:username, min: 1, max: 20)
+      end
+
+      def registration_changeset(user, params) do
+        user
+        |> changeset(params)
+        |> cast(params, [:password])
+        |> validate_required([:password])
+        |> validate_length(:password, min: 6, max: 100)
+        |> put_pass_hash()
+      end
+
+      defp put_pass_hash(changeset) do
+        case changeset do
+          %Ecto.Changeset{valid?: true, changes: %{password: pass}} ->
+            put_change(changeset, :password_hash, Pbkdf2.hash_pwd_salt(pass))
+
+          _ ->
+            changeset
+        end
+      end
+    end
+  #+END_SRC
+  Here you can see how easy it is to compose with changesets. We used
+  our base ~User.changeset~ function to cast and validate the ~name~ and
+  ~username~ parameters. Then we validated our virtual password field
+  inside our registration changeset. Notice that it’s trivial to
+  validate our virtual password field, though we’re not actually
+  storing that value in the database! Persistence is not strongly
+  coupled to our change policies
+  :NOTE:
+    for real world scenarios use the guild-lines in the following documents
+    https://github.com/OWASP/CheatSheetSeries
+  :END:
+  #+BEGIN_SRC shell
+    iex> changeset = User.registration_changeset(%User{}, %{
+    ...> username: "max", name: "Max", password: "asecret"
+    ...> })
+    #Ecto.Changeset<
+        action: nil,
+        changes: %{
+            name: "Max",
+            username: "max",
+            password: "asecret",
+            password_hash: "$pbkdf2-sha512$r7zRM4aQgSUGlOy4483cFe1UouMC/9emcOI75MhgDQ6A9WNWBpfr."
+        },
+        errors: [],
+        data: #Rumbl.Accounts.User<>,
+        valid?: true
+    >
+
+    iex> changeset.valid?
+    true
+
+    iex> changeset.changes
+    %{
+        name: "Max",
+        username: "max",
+        password: "asecret",
+        password_hash:
+        "$pbkdf2-sha512$r7zRM4aQgSUGlOy4483cFe1UouMC/9emcOI75MhgDQ6A9WNWBpfr."
+    }
+  #+END_SRC
+
+*** The Anatomy of a Plug
+- There are two kinds of plugs:
+  1. module plugs: A module plug is a module that provides two
+     functions with some configuration details.
+     #+BEGIN_SRC
+     plug Plug.RequestId
+     #+END_SRC
+  2. function plugs: A function plug is a single function
+     #+BEGIN_SRC
+     plug :protect_from_forgery
+     #+END_SRC
+- You specify a function plug with the name of the function as an
+  atom. Because a module is just a collection of functions, it
+  strengthens the idea that plugs are just functions
+- Sometimes you might want to share a plug across more than one
+  module. In that case, you can use a module plug.
+- To satisfy the Plug specification, a module plug must have two
+  functions, named ~init~ and ~call~
+- The simplest possible module plug returns the given options on ~init~
+  and the given connection on ~call~. This plug does nothing:
+  #+BEGIN_SRC elixir
+    defmodule NothingPlug do
+      def init(opts) do
+        opts
+      end
+      def call(conn, _opts) do
+        conn
+      end
+    end
+  #+END_SRC
+  + Sometimes, you might want to let the programmer change the
+    behavior of a plug. We can do that work in the second argument to
+    ~call~, options. In our ~NothingPlug~, we don’t need any more
+    information to do our job, so we ignore the options.
+- Sometimes, you might need Phoenix to do some heavy lifting to
+  transform options. That’s the job of the ~init~ function. Plug uses
+  the result of init as the second argument to call. In development
+  mode, Phoenix calls init at runtime, but in production mode, init is
+  called only once, at compile time. This strategy makes init the
+  perfect place to validate and transform options without slowing down
+  every request so call can be as fast as possible. Since call is the
+  workhorse of Plug, we want it to do as little work as possible.
+
+- For both module and function plugs, the request interface is the
+  same. conn, the first argument, is the data we pass through every
+  plug. It has the details for any request, and we morph it in tiny
+  steps until we eventually send a response. All plugs take a conn and
+  return a conn.
+**** Plug.Conn Fields
+- [[https://hexdocs.pm/plug/Plug.Conn.html#module-request-fields][Request fields]]
+  + ~host~
+  + ~method~
+  + ~path_info~
+  + ~req_headers~
+  + ~scheme~
+- fetchable fields
+  + A fetchable field is empty until you explicitly request it
+  + These fields require a little time to process, so they’re left out
+    of the connection by default until you want to explicitly fetch
+    them
+  + ~cookies~
+  + ~params~
+    - These are the request parameters. Some plugs help to parse these
+      parameters from the query string, or from the request body.
+- Next are a series of fields that are used to process web requests
+  and keep information about the plug pipeline. Here are some of the
+  fields you’ll encounter:
+  + ~assigns~
+    * This user-defined map contains anything you want to put in
+      it. For instance, this is where we will keep the authenticated
+      user for the current request.
+  + ~halted~
+    * Sometimes a connection must be halted, such as a failed
+      authorization. In this case, the halting plug sets this flag.
+- Since the Plug framework handles the whole life cycle of a request,
+  including both the request and the response, Plug.Conn provides
+  fields for the response:
+  + ~resp_body~
+    * nitially an empty string, the response body will contain the
+      HTTP response string when it’s available.
+  + ~resp_cookies~
+    * The resp_cookies has the outbound cookies for the response.
+  + ~resp_headers~
+    * These headers follow the HTTP specification and contain
+      information such as the response type and caching rules.
+  + ~status~
+    * The response code generally contains 200–299 for success,
+      300–399 for redirects, 400–499 for bad client requests such as
+      not-found, and 500+ for server errors.
+- Finally, Plug supports some private fields reserved for the adapter
+  and frameworks:
+  + ~adapter~
+    * Information about the underlying web server is stored here.
+  + ~private~
+    * This field has a map for the private use of frameworks.
+*** Writing an Authentication Plug
+- ~lib/rumbl_web/controllers/auth.ex~
+  #+BEGIN_SRC elixir
+    defmodule RumblWeb.Auth do
+      import Plug.Conn
+
+      def init(opts), do: opts
+
+      def call(conn, _opts) do
+        user_id = get_session(conn, :user_id)
+        user = user_id && Rumbl.Accounts.get_user(user_id)
+        assign(conn, :current_user, user)
+      end
+    end
+  #+END_SRC
+-  router.ex
+  #+BEGIN_SRC elixir
+    defmodule RumblWeb.Router do
+      use RumblWeb, :router
+
+      pipeline :browser do
+        plug :accepts, ["html"]
+        plug :fetch_session
+        plug :fetch_flash
+        plug :protect_from_forgery
+        plug :put_secure_browser_headers
+        plug RumblWeb.Auth                  # <-- use the plug
+      end
+
+      # ...
+      # ...
+      # ...
+    end
+  #+END_SRC
+- Restricting Access
+  #+BEGIN_SRC elixir
+    defmodule RumblWeb.UserController do
+      use RumblWeb, :controller
+      alias Rumbl.Accounts
+      alias Rumbl.Accounts.User
+      plug :authenticate when action in [:index, :show] # <-- restriction
+
+      def index(conn, _params) do
+      # ...
+      end
+
+      def show(conn, %{"id" => id}) do
+      # ...
+      end
+
+      def new(conn, _params) do
+      # ...
+      end
+
+      def create(conn, %{"user" => user_params}) do
+      # ...
+      end
+
+      defp authenticate(conn, _opts) do
+        if conn.assigns.current_user do
+          conn
+        else
+          conn
+          |> put_flash(:error, "you must be logged in to acess that page")
+          |> redirect(to: Routes.page_path(conn, :index))
+          |> halt()
+        end
+      end
+    end
+  #+END_SRC
+
+- Elixir macro expansion
+  #+BEGIN_SRC elixir
+    plug :one
+    plug Two
+    plug :three, some: :option
+
+    # It would compile to:
+
+    case one(conn, []) do
+      %Plug.Conn{halted: true} = conn -> conn
+      conn ->
+        case Two.call(conn, Two.init([])) do
+          %Plug.Conn{halted: true} = conn -> conn
+          conn ->
+            case three(conn, some: :option) do
+              %Plug.Conn{halted: true} = conn -> conn
+              conn -> conn
+            end
+        end
+    end
+  #+END_SRC
+
+*** Implementing Login and Logout
+- in our context
+  #+BEGIN_SRC elixir
+    def authenticate_by_username_and_pass(username, given_pass) do
+      user = get_user_by(username: username)
+
+      cond do
+        user && Pbkdf2.verify_pass(given_pass, user.password_hash) ->
+          {:ok, user}
+
+        user ->
+          {:error, :unauthorized}
+
+        true ->
+          Pbkdf2.no_user_verify() # <- to simulate a password check with variable timing.
+          {:error, :not_found}
+      end
+    end
+  #+END_SRC
+- router
+  #+BEGIN_SRC elixir
+  resources("/sessions", RumblWeb.SessionController, only: [:new, :create, :delete])
+  #+END_SRC
+- session controller
+  #+BEGIN_SRC elixir
+    defmodule RumblWeb.SessionController do
+      use RumblWeb, :controller
+
+      def new(conn, _) do
+        render(conn, "new.html")
+      end
+
+      def create(conn, %{"session" => %{"username" => username, "password" => pass}}) do
+        case Rumbl.Accounts.authenticate_by_username_and_pass(username, pass) do
+          {:ok, user} ->
+            conn
+            |> RumblWeb.Auth.login(user)
+            |> put_flash(:info, "Welcome back")
+            |> redirect(to: Routes.page_path(conn, :index))
+
+          {:error, _reason} ->
+            conn
+            |> put_flash(:error, "Invalid username/password combination")
+            |> render("new.html")
+        end
+      end
+
+      def delete(conn, _) do
+        conn
+        |> RumblWeb.Auth.logout()
+        |> redirect(to: Routes.page_path(conn, :index))
+      end
+    end
+  #+END_SRC
+
+- auth
+  #+BEGIN_SRC elixir
+    defmodule RumblWeb.Auth do
+      import Plug.Conn
+
+      def init(opts), do: opts
+
+      def call(conn, _opts) do
+        user_id = get_session(conn, :user_id)
+        user = user_id && Rumbl.Accounts.get_user(user_id)
+        assign(conn, :current_user, user)
+      end
+
+      def login(conn, user) do
+        conn
+        |> assign(:current_user, user)
+        |> put_session(:user_id, user.id)
+        |> configure_session(renew: true)
+      end
+
+      def logout(conn) do
+        # also would be possible by delete_session(conn, :user_id)
+        configure_session(conn, drop: true)
+      end
+    end
+  #+END_SRC
+- login template
+  #+BEGIN_SRC html
+    <h1>Login</h1>
+    <%= form_for @conn,
+        Routes.session_path(@conn, :create),
+        [as: :session],
+        fn f -> %>
+    <div>
+      <%= text_input f, :username, placeholder: "Username" %>
+    </div>
+    <div>
+      <%= password_input f, :password, placeholder: "Password" %>
+    </div>
+    <%= submit "Log in" %>
+    <% end %>
+  #+END_SRC
+- app layout template for logout
+  #+BEGIN_SRC html
+    <section>
+      <nav>
+        <ul>
+          <%= if @current_user do %>
+          <li><%= @current_user.username %></li>
+          <li>
+            <%= link "Log out",
+                to: Routes.session_path(@conn, :delete, @current_user),
+                method: "delete" %>
+          </li>
+          <% else %>
+          <li><%= link "Register", to: Routes.user_path(@conn, :new) %></li>
+          <li><%= link "Log in", to: Routes.session_path(@conn, :new) %></li>
+          <% end %>
+        </ul>
+      </nav>
+    </section>
+  #+END_SRC
