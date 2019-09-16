@@ -1101,12 +1101,13 @@ through another column that depends on the PK.
 - ~dropdb~
 - ~dropuser~
 -
-  #+BEGIN_SRC sql
-    CREATE USER postgres SUPERUSER;
-    CREATE DATABASE postgres WITH OWNER postgres;
-  #+END_SRC
+   #+BEGIN_SRC sql
+     CREATE USER postgres SUPERUSER;
+     CREATE DATABASE postgres WITH OWNER postgres;
+   #+END_SRC
 - ~psql -d myDatabaseName~
 - ~psql -U username -d myDatabaseName~
+- to connect to a db ~\c~
 - List all users and their permission levels: ~\du~
 - List all databases in the PostgreSQL database server: ~\l~
 - Show summary information about all tables in the current database: ~\dt~

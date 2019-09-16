@@ -1883,6 +1883,7 @@
   #+END_SRC
 ** Controllers
 *** Understanding Controllers
+- Each controller is also a plug.
 - e.g.
   #+BEGIN_SRC elixir
 
@@ -2749,3 +2750,75 @@
       </nav>
     </section>
   #+END_SRC
+** Generators and Relationships
+- possibilities
+  + ~mix phx.gen.html Multimedia Category categories name:string~.
+    This command generates a controller, view, and
+    template on the front end. On the back end, it generates a
+    ~Multimedia~ context, a ~Multimedia.Category~ schema, and a
+    migration. This generator, and the similar ~mix phx.gen.json~
+    generator, are typically used when we want to define all
+    conveniences to expose a resource over the web interface.
+
+  + ~mix phx.gen.context Multimedia Category categories name:string~.
+    This command makes a ~Multimedia~ context, a
+    ~Multimedia.Category~ schema and the associated migration. This
+    generator is useful for generating a resource with all of its
+    context functions without exposing that resource via the web
+    interface. Note that if the context already exists, which is the
+    case for ~Multimedia~, the generator will inject the new category
+    functions into the existing context.
+
+  + ~mix phx.gen.schema Multimedia.Category categories name:string~.
+    This command creates a schema with a migration. It’s
+    useful for creating a resource when you want to define the context
+    functions yourself.
+
+  + ~mix ecto.gen.migration create_categories~. This generator builds
+    a new empty migration. Useful when the schema and context are
+    already laid out, and all you need is to update the database
+
+
+- ~phx.gen.html~ creates a simple HTTP scaffold with HTML pages
+  + e.g.
+    #+BEGIN_SRC shell
+      $ mix phx.gen.html \
+                        Multimedia \    # the name of the context
+                        Video \         # module defining schema
+                        videos \        # plural form of the schema name
+                        user_id:references:users url:string title:string description:text # Each field, with some type information
+
+      * creating lib/rumbl_web/controllers/video_controller.ex
+      * creating lib/rumbl_web/templates/video/edit.html.eex
+      * creating lib/rumbl_web/templates/video/form.html.eex
+      * creating lib/rumbl_web/templates/video/index.html.eex
+      * creating lib/rumbl_web/templates/video/new.html.eex
+      * creating lib/rumbl_web/templates/video/show.html.eex
+      * creating lib/rumbl_web/views/video_view.ex
+      * creating test/rumbl_web/controllers/video_controller_test.exs
+      * creating lib/rumbl/multimedia/video.ex
+      * creating priv/repo/migrations/20190916073249_create_videos.exs
+      * creating lib/rumbl/multimedia.ex
+      * injecting lib/rumbl/multimedia.ex
+      * creating test/rumbl/multimedia_test.exs
+      * injecting test/rumbl/multimedia_test.exs
+
+      Add the resource to your browser scope in lib/rumbl_web/router.ex:
+
+          resources "/videos", VideoController
+
+
+      Remember to update your repository by running migrations:
+
+          $ mix ecto.migrate
+
+    #+END_SRC
+    * we give it
+      - The name of the context: ~Multimedia~
+      - The name of the module that defines the schema: ~Video~
+      - The plural form of the schema name: ~videos~
+      - Each field, with some type information
+- They give you a simple scaffold for a traditional web-based
+  application with CRUD (create, read, update, and delete)
+  operations. You get migrations, a basic context, controllers, and
+  templates for simple CRUD operations of a resource, as well as tests
