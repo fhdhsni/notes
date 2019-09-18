@@ -4227,7 +4227,7 @@ file.
   mode. ~elixir --detached -S mix run --no-halt~
   + turn the beam instance into a node so you can interact with it
     #+BEGIN_SRC
-    $ elixir --detached --sname todo_system@localhost -S mix run --no-halt
+    $ elixir --detached --sname todo_system@localhost -S mix run --no-halt # --detached is deprecated use  ~--erl "-detached"~
     #+END_SRC
     * You can check that it’s running by looking at which BEAM nodes
       exist on your system: ~epmd -names~

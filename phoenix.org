@@ -2822,3 +2822,135 @@
   application with CRUD (create, read, update, and delete)
   operations. You get migrations, a basic context, controllers, and
   templates for simple CRUD operations of a resource, as well as tests
+** Constraints
+- we use constraints to manage change in a way that combines the harsh
+  protections of the database with Ecto’s gentle guiding hand to
+  report errors without crashing
+- Relational databases deal with relationships between tables. A
+  database constraint is a mechanism for restricting data in a table
+  based on the needs of an application. For example, a given user_id
+  must exist as the id field in a users table, or an email field must
+  be unique. Ensuring data is consistent across records is a critical
+  job that all database-backed applications need to handle.
+
+*** constraint
+- An explicit database constraint. This might be a uniqueness
+  constraint on an index, or an integrity constraint between primary
+  and foreign keys.
+*** constraint error
+- The ~Ecto.ConstraintError~. This happens when Ecto identifies a
+  constraint problem, such as trying to insert a record without
+  specifying a required key.
+*** changeset constraint
+- A constraint annotation added to the changeset that allows Ecto to
+  convert constraint errors into changeset error messages.
+
+*** changeset error messages
+- Beautiful error messages for the consumption of  humans.
+
+**** how Ecto manages constraints
+
+***** ~unique_constraint~
+  + validating unique data
+    #+BEGIN_SRC elixir
+      def changeset(user, attrs) do
+        user
+        |> cast(attrs, [:name, :username])
+        |> validate_required([:name, :username])
+        |> validate_length(:username, min: 1, max: 20)
+        |> unique_constraint(:username)                   # constraint
+      end
+    #+END_SRC
+
+***** Validating Foreign Keys with ~assoc_constraint~
+  #+BEGIN_SRC elixir
+    def changeset(video, attrs) do
+      video
+      |> cast(attrs, [:url, :title, :description, :category_id])
+      |> validate_required([:url, :title, :description])
+      |> assoc_constraint(:category)                                # constraint
+    end
+  #+END_SRC
+  ~assoc_constraint~ converts foreign-key constraint errors into
+  human-readable error messages and guarantees that a video is created
+  only if the category exists in the database.
+  #+BEGIN_SRC shell
+    iex> import Ecto.Query
+    iex> alias Rumbl.Repo
+    iex> alias Rumbl.Multimedia.{Video, Category}
+
+    iex> category = Repo.get_by(Category, name: "Drama")
+    %Rumbl.Multimedia.Category{...}
+
+    iex> video = Repo.one(from v in Video, limit: 1)
+    ...
+    %Rumbl.Multimedia.Video{...}
+
+
+    iex> changeset = Video.changeset(video, %{category_id: category.id})
+    iex> Repo.update(changeset)
+    ...
+    {:ok, %Rumbl.Multimedia.Video{...}}
+
+
+    iex> changeset = Video.changeset(video, %{category_id: 12345})
+    iex> Repo.update(changeset)
+    ...
+    {:error, %Ecto.Changeset{}}
+
+    iex> {:error, changeset} = v(-1)
+    iex> changeset.errors
+    [category: {"does not exist", []}
+  #+END_SRC
+  As with ~unique_constraint~, when we set up ~assoc_constraint~, we no
+  longer get ~Ecto.ConstraintError~. Instead, they’re converted into
+  changeset error messages.
+
+***** On Delete
+- Our constraints have helped us insert and update database data
+  safely. They should also apply when we remove data. Let’s open up
+  IEx once more:
+  #+BEGIN_SRC elixir
+    iex> alias Rumbl.Repo
+    iex> alias Rumbl.Multimedia.Category
+
+    iex> category = Repo.get_by(Category, name: "Drama")
+    %Rumbl.Multimedia.Category{...}
+
+    iex> Repo.delete(category)
+    ,** (Ecto.ConstraintError) constraint error when attempting to delete
+    struct
+  #+END_SRC
+- We pick the ~Drama~ category because we added a video to it in the
+  previous section. A video is tied to the category, so we can’t
+  delete the category because it would leave orphaned records.
+
+- ~foreign_key_constraint~
+  #+BEGIN_SRC elixir
+    iex> import Ecto.Changeset
+    iex> changeset = change(category)
+    iex> changeset = foreign_key_constraint(changeset, :videos,
+    name: :videos_category_id_fkey, message: "still exist")
+
+    iex> Repo.delete(changeset)
+     {:error,
+     #Ecto.Changeset<
+     ...,
+     errors: [videos: {"still exist", []}],
+     valid?: false
+     >}
+  #+END_SRC
+- you could configure the database references to either cascade the
+  deletions or simply make the ~videos.category_id~ columns ~NULL~ on
+  delete.
+  #+BEGIN_SRC elixir
+  add :category_id, references(:categories)
+  #+END_SRC
+  The ~references~ function accepts the ~:on_delete~ option, such as
+  ~references(:categories, on_delete: :nothing)~, with one of the
+  following:
+  + ~:nothing~: The default.
+  + ~:delete_all~: When the category is deleted, all videos in that
+    category are deleted.
+  + ~:nilify_all~: When a category is deleted, the ~category_id~ of all
+    associated videos is set to NULL
