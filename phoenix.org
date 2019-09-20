@@ -2954,3 +2954,53 @@
     category are deleted.
   + ~:nilify_all~: When a category is deleted, the ~category_id~ of all
     associated videos is set to NULL
+** Testing MVC
+- For unit tests, Phoenix includes a ~bypass_through~ test helper that
+  allows us to do a request that goes through the whole pipeline but
+  bypasses the router dispatch.
+
+** Watching Videos
+- everything in ~assets/static~ that doesn’t need to be transformed by
+  webpack. The build tool will simply copy those static assets just as
+  they are to ~priv/static~, where they’ll be served by ~Plug.Static~ in
+  our endpoint.
+
+
+*** Extending Phoenix with Protocols
+-
+   #+BEGIN_SRC elixir
+   <%= link "Watch", to: Routes.watch_path(@conn, :show, video), class: "button" %>
+   #+END_SRC
+   ~RumblWeb.Router~ generates the ~Routes.watch_path~. It’s available
+   to our controller code because of the Routes alias in
+   ~lib/rumbl_web.ex~. When we pass a struct like video to ~watch_path~,
+   Phoenix automatically extracts its ID to use in the returned URL. To
+   use slugs, we could simply change the route call to the following:
+   #+BEGIN_SRC elixir
+   Routes.watch_path(@conn, :show, "#{video.id}-#{video.slug}")
+   #+END_SRC
+   There’s a better way. We can customize how Phoenix generates URLs
+   for the videos. Phoenix and Elixir have the perfect solution for
+   this. Phoenix knows to use the ~id~ field in a ~Video~ struct because
+   Phoenix defines a protocol, called ~Phoenix.Param~. By default, this
+   protocol extracts the id of the struct, if one exists.
+  + since ~Phoenix.Param~ is an Elixir protocol, we can customize it for
+    any data type in the language, including the ones we define
+    ourselves. To do so for the ~Video~ struct.
+    #+BEGIN_SRC elixir
+      defimpl Phoenix.Param, for: Rumbl.Multimedia.Video do
+        def to_param(%{slug: slug, id: id}) do
+          "#{id}-#{slug}"
+        end
+      end
+    #+END_SRC
+  +
+    #+BEGIN_SRC elixir
+      iex> video = %Rumbl.Multimedia.Video{id: 1, slug: "hello"}
+      %Rumbl.Multimedia.Video{id: 1, slug: "hello", ...}
+
+      iex> alias RumblWeb.Router.Helpers, as: Routes
+
+      iex> Routes.watch_path(%URI{}, :show, video)
+      "/watch/1-hello"
+    #+END_SRC
