@@ -742,11 +742,11 @@
 * MUC
 - MUC is also a form of message broadcast. A single message sent to a
   room gets rebroadcast out to all the participants
-  automatically. This makes it similar to Publish-Subscribe, which you
-  see in the next chapter. Unlike Publish-Subscribe, MUC provides a
-  lot of advanced management features typical of group chat services,
-  such as room moderation, and each participant is often allowed to
-  broadcast messages to the room as well.
+  automatically. This makes it similar to Publish-Subscribe. Unlike
+  Publish-Subscribe, MUC provides a lot of advanced management
+  features typical of group chat services, such as room moderation,
+  and each participant is often allowed to broadcast messages to the
+  room as well.
 ** Group chat services
 - Group chat is provided as a service, usually alongside a regular
   XMPP server. The group chat service has its own domain; for example,
@@ -763,12 +763,6 @@
   multi-user chat protocol. Sending presence directly to a JID instead
   of to the user’s server is called directed presence. Similarly, to
   leave, unavailable presence is sent to the room.
-- Every participant in a group chat room gets their own address as
-  well. Each participant picks a nickname for the room, and their JID
-  within the room is the room’s JID with a resource added containing
-  their nickname. For example, Darcy’s nickname in the Meryton ball
-  chat room is darcy, so his group chat JID is
-  ball@chat.meryton.lit/darcy.
 - Sending presence stanzas directly to a JID instead of to the user’s
   server is called sending directed presence. Directed presence is
   quite useful in XMPP protocols and extensions because it has some

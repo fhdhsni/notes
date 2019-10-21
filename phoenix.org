@@ -1737,7 +1737,6 @@
 - https://hexdocs.pm/phoenix/errors.html
 
 
-
 * Phoenix book
 - action -> view -> template
 - The ~<%= %>~ brackets surround the code we want to substitute into
@@ -3004,3 +3003,209 @@
       iex> Routes.watch_path(%URI{}, :show, video)
       "/watch/1-hello"
     #+END_SRC
+    Note that we give the URI struct to ~watch_path~ instead of the
+    usual connection. The ~URI~ struct is part of Elixir’s standard
+    library, and all route functions accept it as their first argument
+    + ~URI~: This convenience is particularly useful when building URLs
+      outside of your web request. Think emails, messages, and so
+      on. Let’s play a bit with this idea:
+      #+BEGIN_SRC elixir
+        iex> url = URI.parse("http://example.com/prefix")
+        %URI{...}
+        iex> Routes.watch_path(url, :show, video)
+        "/prefix/watch/1-hello"
+        iex> Routes.watch_url(url, :show, video)
+        "http://example.com/prefix/watch/1-hello"
+      #+END_SRC
+      You can also ask your endpoint to return the struct_url, based
+      on the values you’ve defined in your configuration files:
+      #+BEGIN_SRC elixir
+        iex> url = RumblWeb.Endpoint.struct_url()
+        %URI{...}
+
+        iex> Routes.watch_url(url, :show, video)
+        "http://localhost:4000/watch/1-hello"
+      #+END_SRC
+*** Extending Schemas with Ecto Types
+- Sometimes, the basic type information in our schemas isn’t
+  enough. In those cases, we’d like to improve our schemas with types
+  that have a knowledge of Ecto.
+  #+BEGIN_SRC elixir
+    defmodule Rumbl.Multimedia.Permlink do
+      @behaviour Ecto.Type
+
+      def type, do: :id
+
+      def cast(binary) when is_binary(binary) do
+        case Integer.parse(binary) do
+          {int, _} when int > 0 -> {:ok, int}
+          _ -> :error
+        end
+      end
+
+      def cast(integer) when is_integer(integer) do
+        {:ok, integer}
+      end
+
+      def cast(_) do
+        :error
+      end
+
+      def dump(integer) when is_integer(integer) do
+        {:ok, integer}
+      end
+
+      def load(integer) when is_integer(integer) do
+        {:ok, integer}
+      end
+    end
+  #+END_SRC
+  + ~Rumbl.Multimedia.Permalink~ is a custom type defined according to the ~Ecto.Type~ behaviour. It expects us to define four functions:
+    - ~type~: Returns the underlying Ecto type. In this case, we’re
+      building on top of ~:id~.
+    - ~cast~: Called when external data is passed into Ecto. It’s
+      invoked when values in queries are interpolated or also by the
+      cast function in changesets.
+    - ~dump~ Invoked when data is sent to the database.
+    - ~load~ Invoked when data is loaded from the database.
+  + to use it
+    #+BEGIN_SRC elixir
+      defmodule Rumbl.Multimedia.Video do
+        use Ecto.Schema
+        import Ecto.Changeset
+
+        @primary_key {:id, Rumbl.Multimedia.Permlink, autogenerate: true}
+        schema "videos" do
+          # ....
+        end
+
+        # ...
+      end
+
+    #+END_SRC
+** using channels
+- A Phoenix channel is a conversation. The channel sends messages,
+  receives messages, and keeps state. We call the messages events, and
+  we put the state in a struct called ~socket~
+
+- A Phoenix conversation is about a topic, and it maps onto
+  application concepts like a chat room, a local map, a game, or
+  annotations on a video. More than one user might be interested in
+  the same topic at the same time. Channels give you tools to organize
+  your code and the communication among users. The concept that makes
+  channels so powerful in Elixir is that each user’s conversation on a
+  topic has its own isolated, dedicated process.
+
+- Here’s the kicker. Whereas request/response interactions are
+  stateless, conversations in a long-running process can be
+  stateful. This means that for more-sophisticated user interactions
+  like interactive pages or multiplayer. games, you don’t have to work
+  so hard to keep track of the conversation by using cookies,
+  databases, or the like. Each call to a channel simply picks up where
+  the last one left off.
+
+- Your channels application will have to worry about three things,
+  each on both the client and the server:
+  + Making and breaking connections
+  + Sending messages
+  + Receiving messages
+
+
+- In channels, a client establishes a new connection with a
+  ~socket~. After the connection is made, that ~socket~ will be
+  transformed through the life of the connection.
+
+- At the high level, your ~socket~ is the ongoing conversation between
+  client and server. It has all of the information necessary to do its
+  job. When you make a connection, you’re creating your initial
+  ~socket~, and that same ~socket~ will be transformed with each new
+  received event, through the whole life of the whole conversation.
+
+- You need to do a couple of things to make a connection. First, you
+  decide whether to allow the connection. Next, you create the initial
+  ~socket~, including any custom application setup your application
+  might need.
+
+-
+  #+BEGIN_SRC elixir
+  socket "/socket", RumblWeb.UserSocket,
+  websocket: true,
+  longpoll: false
+  #+END_SRC
+  Each ~socket~ macro establishes a socket mount providing all
+  configuration for a single user socket. The ~UserSocket~ module
+  serves as the starting point for all socket connections. it’s also
+  responsible for authenticating, and also for wiring up default
+  socket information for all channels.
+  #+BEGIN_SRC elixir
+    defmodule RumblWeb.UserSocket do
+      use Phoenix.Socket
+      # channel "room:*", RumblWeb.RoomChannel
+      def connect(_params, socket, _connect_info) do
+        {:ok, socket}
+      end
+      def id(_socket), do: nil
+    end
+  #+END_SRC
+  ~UserSocket~ will use a single connection to the server to handle all
+  of your channel processes. Phoenix will handle getting the right
+  message to the right channel
+
+*** Creating the Channel
+- a channel is a conversation on a topic. Our topic has an identifier
+  of ~videos:video_id~, where ~video_id~ is a dynamic ID matching a
+  record in the database. In our application, we want a user to get
+  all events for a topic,
+- at their most basic level, topics are strings that serve as
+  identifiers. They often take the form of ~topic:subtopic~, where ~topic~
+  is often a resource name and ~subtopic~ is often an ID, but any string
+  is a valid topic.
+- Since topics are organizing concepts, we’ll include topics where
+  you’d expect: as parameters to functions and in our URLs to identify
+  conversations. Just as the client passes a URL with an :id parameter
+  to represent a resource for a controller, we’ll provide a topic ID
+  to scope our channel connections.
+*** Joining a Channel
+- In general, when clients join a channel, they must provide
+  a topic. They’ll be able to join any number of channels and any
+  number of topics on a channel.
+  #+BEGIN_SRC elixir
+    defmodule RumblWeb.UserSocket do
+      use Phoenix.Socket
+
+      ## Channels
+      channel "videos:*", RumblWeb.VideoChannel
+
+      def connect(_params, socket, _connect_info) do
+        {:ok, socket}
+      end
+
+      def id(_socket), do: nil
+    end
+  #+END_SRC
+
+- channel module
+  #+BEGIN_SRC elixir
+    defmodule RumblWeb.VideoChannel do
+      use RumblWeb, :channel
+
+      def join("videos:" <> video_id, _params, socket) do
+        # {:error, socket} to deny
+        {:ok, assign(socket, :video_id, String.to_integer(video_id))} # to authorize
+      end
+
+    end
+  #+END_SRC
+  For channels, the socket is transformed in a loop rather than a
+  single pipeline. In fact, the socket state will remain for the
+  duration of a connection. That means the socket state we add in join
+  will be accessible later as events come into and out of the
+  channel. This small distinction leads to an enormous difference in
+  efficiency between the channels API and the controllers API
+*** Sending and Receiving Events
+- Just as controllers receive requests, channels receive events. With
+  channels, we receive a message containing an event name, such as
+  new_message, and a payload of arbitrary data.
+- Each channel module has three ways to receive events. ~handle_in~
+  receives direct channel events, ~handle_out~ intercepts broadcast
+  events, and ~handle_info~ receives OTP messages.

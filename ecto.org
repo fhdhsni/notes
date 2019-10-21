@@ -4170,7 +4170,6 @@
    ~types~
 
 * Programming Ecto Book
-
 - ~Repo~ is the heart of Ecto and acts as a kind of proxy for your
   database. All communication to and from the database goes through
   ~Repo~.
@@ -4201,23 +4200,39 @@
   when multiple developers are involved, but ~Migration~ helps you
   coordinate these changes so that everyone stays in sync.
 ** Repo
-- delete_all
-- insert_all
-- update_all
+- ~insert_all~
   #+BEGIN_SRC elixir
-  Repo.update_all("artists", set: [updated_at: DateTime.utc_now()])
+    Repo.insert_all("artists",
+    [%{name: "Max Roach", inserted_at: DateTime.utc_now()},
+    %{name: "Art Blakey", inserted_at: DateTime.utc_now()}])
+
+    #=> {2, nil}
   #+END_SRC
-  + set
-  + inc
-  + push
-  + pull
-- e.g.
   #+BEGIN_SRC elixir
-  Repo.insert_all("artists",
-                 [%{name: "Max Roach"}, %{name: "Art Blakey"}],
-                 returning: [:id, :name])
+  Repo.insert_all(
+                  "artists",
+                  [%{name: "Max Roach"}, %{name: "Art Blakey"}],
+                  returning: [:id, :name]
+                )
   #=> {2, [%{id: 12, name: "Max Roach"}, %{id: 13, name: "Art Blakey"}]}
   #+END_SRC
+- ~delete_all~
+- ~update_all~
+  [[https://hexdocs.pm/ecto/Ecto.Query.html#update/3-operators][doc]]
+  + ~set~
+    #+BEGIN_SRC elixir
+    Repo.update_all("artists", set: [updated_at: DateTime.utc_now()])
+    #+END_SRC
+  + ~inc~
+    #+BEGIN_SRC elixir
+      Repo.update_all("tracks", inc: [number_of_plays: 9])
+      # UPDATE "tracks" AS t0 SET "number_of_plays" = t0."number_of_plays" + $1 [9]
+    #+END_SRC
+  + ~push~
+    * This works on columns containing an array, and pushes the given
+      value onto the end of the array
+  + ~pull~
+
 *** Executing raw queries
 - e.g.
   #+BEGIN_SRC elixir
@@ -4252,6 +4267,10 @@
       def using_postgres? do
         MusicDB.Repo.__adapter__() == Ecto.Adapters.Postgres
       end
+
+      # def init(_, opts) do
+      #   {:ok, Keyword.put(opts, :url, System.get_env("DATABASE_URL"))}
+      # end
 
       def count(table) do
         aggregate(table, :count, :id)
@@ -4595,6 +4614,7 @@
     q = from t in "tracks", where: t.title == "Autum Leaves"
     Repo.update_all(q, set: [title: "Autumn Leaves"])
   #+END_SRC
+
 ** Connecting Your Tables to Elixir Structs with Schemas
 - sample
   #+BEGIN_SRC elixir
