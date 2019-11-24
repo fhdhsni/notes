@@ -378,16 +378,16 @@ The JOINing is done on a related column between the tables
 |----+------------+--------+---------------+-------|
 |  1 |          1 |     99 | order 1 notes |     5 |
 |  2 |          1 |    212 | order 2 notes |     3 |
-|  4 |         12 |   1000 | order 4 notes |    11 |
 |  3 |          3 |   14.5 | order 3 notes |     3 |
+|  4 |         12 |   1000 | order 4 notes |    11 | # <- customerid doesn't exist
 |  5 |          1 |    199 | orde 5 notes  |     3 |
 
 *customer*
 | id | name             | notes        |
 |----+------------------+--------------|
-|  2 | Mark Grabanski   | mark's notes |
-|  1 | Mike North       | mike's notes |
-|  3 | Lisa Huang-North | lisa's notes |
+|  1 | Mike North       | mike's notes | # <- has 3 orders
+|  2 | Mark Grabanski   | mark's notes | # <- doesn't have any order
+|  3 | Lisa Huang-North | lisa's notes | # <- has 1 order
 
 incomplete matches:
 - order 4 has customerid of 12 but we don't have any customer with that id
@@ -1057,6 +1057,7 @@ that is not a primary key, it might change)
 - SET DEFAULT
   - changes it to default value.
 
+
 * Normalization
 When a database is organized in a way that it is completely free of
 duplicate information, we say that the database is =normalized=. The
@@ -1242,6 +1243,7 @@ through another column that depends on the PK.
       \lo_list
       \lo_unlink LOBOID      large object operations
   :END:
+- ~psql -U postgres -d ejabberd_v4 -a -f pg.sql~
 
 ** window functions
 - A window function performs a calculation across a set of table rows

@@ -617,9 +617,12 @@
     #+END_SRC
     * The ~subscription~ attribute is set based on the *presence*
       subscription status of the contact:
+      - ~none~: opposite of ~both~
       - ~both~: if there is a subscription in each direction
       - ~to~: if Elizabeth has a subscription but the other party does not
-      - ~from~: if Elizabeth is not subscribed to the contact’s presence but the other user has a subscription to her presence.
+      - ~from~: if Elizabeth is not subscribed to the contact’s
+        presence but the other user has a subscription to her
+        presence.
     * Generally, the user will only want to see contacts in the roster
       for which the subscription value is ~both~ or ~to~.
 - ~sendIQ~
@@ -1014,6 +1017,9 @@
     );
   #+END_SRC
 ** kicking out and banning
+- kick is temporary. the user is allowed to re-enter. A kicked is user has a role of ~none~
+-
+
    #+BEGIN_SRC js
      /* kick someone out of the room */
      conn.sendIQ(
@@ -1053,6 +1059,7 @@
        },
      );
    #+END_SRC
+
 ** make a jid admin
    #+BEGIN_SRC js
      connection.sendIQ(
@@ -2262,3 +2269,253 @@
     </query>
   </iq>
   #+END_EXPORT
+* RFC 6121
+- Ask Attribute of roster item
+  - The ~ask~ attribute of the ~<item/>~ element with a value of
+    "subscribe" is used to signal various subscription sub-states that
+    include a "Pending Out" aspect.
+  - A server SHOULD include the ~ask~ attribute to inform the client
+    of "Pending Out" sub-states. A client MUST NOT include the 'ask'
+    attribute in the roster sets it sends to the server, but instead
+    MUST use presence stanzas of type "subscribe" and "unsubscribe" to
+    manage such sub-states.
+
+- subscription attribute of roster item
+  - ~none~
+  - ~to~
+  - ~from~
+  - ~both~
+  - ~remove~
+    + in a roster set, the 'subscription' attribute MAY be included
+      with a value of "remove", which indicates that the item is to be
+      removed from the roster; in a roster set the server MUST ignore
+      all values of the 'subscription' attribute other than
+      "remove". Inclusion of the 'subscription' attribute is OPTIONAL.
+- roster push type is ~set~
+- Deleting a Roster Item
+  + At any time, a client can delete an item from his or her roster by
+    sending a roster set and specifying a value of "remove" for the
+    'subscription' attribute.
+
+    C:
+    #+BEGIN_SRC xml
+      <iq from='juliet@example.com/balcony'
+          id='hm4hs97y'
+          type='set'>
+          <query xmlns='jabber:iq:roster'>
+            <item jid='nurse@example.com'
+                  subscription='remove'/>
+          </query>
+        </iq>
+    #+END_SRC
+    Success Case:
+    + As with adding a roster item, if the server can successfully
+      process the roster set then it MUST update the item in the
+      user's roster, send a roster push to all of the user's
+      interested resources (with the 'subscription' attribute set to a
+      value of "remove"), and send an IQ result to the initiating
+      resource.
+    + In addition, the user's server might need to generate one or
+      more subscription-related presence stanzas, as follows:
+      * If the user has a presence subscription to the contact, then
+        the user's server MUST send a presence stanza of type
+        "unsubscribe" to the contact (in order to unsubscribe from the
+        contact's presence).
+      * If the contact has a presence subscription to the user, then
+        the user's server MUST send a presence stanza of type
+        "unsubscribed" to the contact (in order to cancel the
+        contact's subscription to the user).
+      * If the presence subscription is mutual, then the user's server
+        MUST send both a presence stanza of type "unsubscribe" and a
+        presence stanza of type "unsubscribed" to the contact.
+        S:
+        #+BEGIN_SRC xml
+          <presence from='juliet@example.com'
+                    id='lm3ba81g'
+                    to='nurse@example.com'
+                    type='unsubscribe'/>
+        #+END_SRC
+
+        S:
+        #+BEGIN_SRC xml
+          <presence from='juliet@example.com'
+                    id='xb2c1v4k'
+                    to='nurse@example.com'
+                    type='unsubscribed'/>
+        #+END_SRC
+
+- presence types
+  + ~unavailable~ -- Signals that the entity is no longer available
+    for communication.
+
+  + ~subscribe~ -- The sender wishes to subscribe to the recipient's
+    presence.
+
+  + ~subscribed~ -- The sender has allowed the recipient to receive
+    their presence.
+
+  + ~unsubscribe~ -- The sender is unsubscribing from another entity's
+    presence.
+
+  + ~unsubscribed~ -- The subscription request has been denied or a
+    previously-granted subscription has been cancelled.
+
+  + ~probe~ -- A request for an entity's current presence; SHOULD be
+    generated only by a server on behalf of a user.
+
+  + ~error~ -- An error has occurred regarding processing or delivery
+    of a previously-sent presence stanza.
+
+- interested resource and available resource
+  + Upon authenticating with a server and binding a resource (thus
+    becoming a connected resource), a client SHOULD request the roster
+    before sending initial presence (however, because receiving the
+    roster is not necessarily desirable for all resources, e.g., a
+    connection with limited bandwidth, the client's request for the
+    roster is not mandatory). After a connected resource sends initial
+    presence (see Section 4.2), it is referred to as an "available
+    resource". If a connected resource or available resource requests
+    the roster, it is referred to as an "interested resource". The
+    server MUST send roster pushes to all interested resources.
+
+* MUC XEP 0045 SPEC
+- *room JID*: Each room is identified as a "room JID" ~<room@service>~ (e.g. ~<jdev@conference.jabber.org>~),
+  where "room" is the name of the room and "service" is the hostname
+  at which the multi-user chat service is running.
+- room ID: the local part of room room JID
+
+- room name: A user-friendly, natural-language name for a room,
+  configured by the room owner and presented in Service Discovery
+  queries; contrast with Room ID.
+
+- Room Nickname: The resourcepart of an Occupant JID; this is the
+  "friendly name" by which an occupant is known in the room.
+
+- *occupant JID*: Each occupant in a room is identified as an "occupant JID"
+  ~<room@service/nick>~, where "nick" is the room nickname of the
+  occupant as specified on entering the room or subsequently changed
+  during the occupant's visit.
+
+- room types
+  + public vs. hidden
+  + persistent vs. temporary
+  + password-protected vs. unsecured
+  + members-only vs. open
+  + moderated vs. unmoderated
+  + non-anonymous vs. semi-anonymous
+
+- Roles are granted, revoked, and maintained based on the occupant's
+  room nickname or full JID rather than bare JID.
+- Affiliations are granted, revoked, and maintained based on the
+  user's bare JID, not the nick as with roles.
+
+- Order of Events
+  + In-room presence from other occupants
+  + In-room presence from the joining entity itself (so-called
+    "self-presence")
+  + Room history (if any)
+  + The room subject
+  + Live messages, presence updates, new user joins, etc.
+
+- that the room is non-anonymous
+  #+BEGIN_SRC xml
+  <status code='100'/>
+  #+END_SRC
+
+- it's self-presence
+  #+BEGIN_SRC xml
+  <status code='110'/>
+  #+END_SRC
+
+- room logging enabled
+  #+BEGIN_SRC xml
+  <status code='170'/>
+  #+END_SRC
+
+- room logging disabled
+  #+BEGIN_SRC xml
+  <status code='171'/>
+  #+END_SRC
+
+- room is know non-anonymous
+  #+BEGIN_SRC xml
+  <status code='172'/>
+  #+END_SRC
+
+- room is know semi-anonymous
+  #+BEGIN_SRC xml
+  <status code='172'/>
+  #+END_SRC
+
+- room config changed
+  #+BEGIN_SRC xml
+  <status code='104'/>
+  #+END_SRC
+
+- kick
+  #+BEGIN_SRC xml
+  <status code='307'/>
+  #+END_SRC
+
+- ban
+  #+BEGIN_SRC xml
+  <status code='301'/>
+  #+END_SRC
+
+- the user was removed because of an affiliation change
+  #+BEGIN_SRC xml
+  <status code='321'/>
+  #+END_SRC
+
+- the room is changed to members only, and you're not a member
+  #+BEGIN_SRC xml
+  <status code='322'/>
+  #+END_SRC
+
+- kick due to technical problems
+  #+BEGIN_SRC xml
+  <status code='333'/>
+  #+END_SRC
+
+- manual nick change
+  #+BEGIN_SRC xml
+  <status code='303'/>
+  #+END_SRC
+
+ - service changed nick of occupant
+  #+BEGIN_SRC xml
+  <status code='210'/>
+  #+END_SRC
+  If the service modifies the user's nickname in accordance with local
+  service policies, it MUST include a MUC status code of 210 in the
+  presence stanza sent to the user. An example follows (here the
+  service changes the nickname to all lowercase).
+
+  Example 52. Occupant Changes Nickname, Modified by Service
+  #+BEGIN_SRC xml
+    <presence
+        from='hag66@shakespeare.lit/pda'
+        id='nx6z2v5'
+        to='coven@chat.shakespeare.lit/OldHag'/>
+
+    <presence
+        from='coven@chat.shakespeare.lit/oldhag'
+        id='D0E2B666-3373-42C9-B726-D52C40A48383'
+        to='hag66@shakespeare.lit/pda'>
+      <x xmlns='http://jabber.org/protocol/muc#user'>
+        <item affiliation='member'
+              jid='hag66@shakespeare.lit/pda'
+              role='participant'/>
+        <status code='110'/>
+        <status code='210'/>
+      </x>
+    </presence>
+  #+END_SRC
+
+- In the context of a members-only room, the member list is
+  essentially a "whitelist" of people who are allowed to enter the
+  room. Anyone who is not a member is effectively banned from entering
+  the room, even if their affiliation is not "outcast".
+** creating a room
+- instant room: that is accepting default config
+- reserved room: needs config submission

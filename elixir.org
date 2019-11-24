@@ -4236,6 +4236,7 @@ file.
       node
       #+BEGIN_SRC
       $ iex --sname debugger@localhost --remsh todo_system@localhost --hidden
+      # e.g: iex --sname debugger@localhost --remsh ejabberd@localhost --hidden
       #+END_SRC
       you start the ~debugger~ node, but the shell is running in the
       context of ~todo_system~. Whatever function you call will be
