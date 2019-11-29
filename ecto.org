@@ -4486,7 +4486,23 @@
     our select, we’re grabbing the ~album_id~ (which we have to have if
     we want to include it in our ~group_by~ ), and we use the ~sum~
     function from ~Ecto.Query.API~ to add all the ~duration~ values
-    together. The result looks like this:
+    together.
++ e.g
+
+  Let’s say we wanted to get a list of all of the artists in our
+  database and the number of albums associated with each one.
+  #+BEGIN_SRC elixir
+    q = from a in "artists",
+            join: al in "albums",
+            on: a.id == al.artist_id,
+            group_by: a.name,
+            select: %{artist: a.name, number_of_albums: count(al.id)}
+
+    Repo.all(q)
+    #=> [%{artist: "Miles Davis", number_of_albums: 2},
+    #=> %{artist: "Bobby Hutcherson", number_of_albums: 1},
+    #=> %{artist: "Bill Evans", number_of_albums: 2}]
+  #+END_SRC
 **** having
 - Let’s say we wanted to refine this further and only return the
   albums whose total length is longer than one hour (3600 seconds). A
@@ -4522,11 +4538,11 @@
   #+END_SRC
 *** Composing Queries
 - we’ve always been using strings on the right side of the ~in~
-  expression (for example, ~from a in "albums"~). That string has
-  always represented the name of a table in our database. But the ~in~
-  expression is actually looking for something broader than that:
-  it’s looking for any data type that has implemented the
-  ~Ecto.Queryable~ protocol
+  expression (for example, ~from a in "albums"~).
+  That string has always represented the name of a table in our
+  database. But the ~in~ expression is actually looking for something
+  broader than that: it’s looking for any data type that has
+  implemented the ~Ecto.Queryable~ protocol
 - The ~Ecto.Queryable~ protocol specifies only one function that needs
   to be implemented: ~to_query~. So you can think of Queryable as "a
   thing that can be queried."
@@ -4555,7 +4571,8 @@
     )
   #+END_SRC
   As you can see The query bindings are still available, but they must
-  be referred to in the same order that they first appeared.
+  be referred to in the same order that they first appeared. (though
+  the binding names can be changed.)
 
 **** Working with Named Bindings
 - Ecto allows you to assign specific names to bindings that it saves
@@ -4585,6 +4602,9 @@
       from [artists: ar, albums: a] in albums_by_miles,
       select: [a.title, ar.name]
   #+END_SRC
+- The as: needs to come immediately after from and join: and you must
+  use atoms for binding names—strings are not allowed.
+
 - If you need to find out if a given query has a named binding, you
   can use the ~has_named_binding?~ function:
   #+BEGIN_SRC elixir
@@ -4598,6 +4618,40 @@
     #=> true
   #+END_SRC
 
+**** Composing Queries with Functions
+- example
+  #+BEGIN_SRC elixir
+      def by_artist(query, artist_name) do
+        from(a in query,
+          join: ar in "artists",
+          as: :artists,
+          on: a.artist_id == ar.id,
+          where: ar.name == ^artist_name
+        )
+      end
+
+      def with_tracks_longer_than(query, duration) do
+        from(a in query,
+          join: tr in "tracks",
+          as: :tracks,
+          on: tr.album_id == a.id,
+          where: tr.duration > ^duration,
+          distinct: true
+        )
+      end
+
+      def title_only(query) do
+        from(a in query, select: a.title)
+      end
+
+      def play do
+        "albums"
+        |> by_artist("Miles Davis")
+        |> with_tracks_longer_than(720)
+        |> title_only
+        |> Repo.all()
+      end
+  #+END_SRC
 **** Combining Queries with ~or_where~
 - By default, Ecto combines ~where~ clauses with ~AND~
   #+BEGIN_SRC elixir
@@ -4634,7 +4688,6 @@
     q = from t in "tracks", where: t.title == "Autum Leaves"
     Repo.update_all(q, set: [title: "Autumn Leaves"])
   #+END_SRC
-
 
 ** Connecting Your Tables to Elixir Structs with Schemas
 - sample
@@ -4676,14 +4729,17 @@
   | :utc_datetime         | DateTime      |
 
 - The ~:naive_datetime~ type is a datetime value that has no associated
-  time zone information. If you use ~utc_datetime~ the value must be a
-  ~DateTime~ struct with its time zone set to UTC. Ecto will raise an
-  error if you attempt to use a value with a different time zone.
+  time zone information.
+- If you use ~utc_datetime~ the value must be a ~DateTime~ struct with
+  its time zone set to UTC. Ecto will raise an error if you attempt to
+  use a value with a different time zone.
 - The ~time~, ~naive_datetime~, and ~utc_datetime~ types used to store
-  microsecond information in the columns that use them, but this is
-  no longer the case. If you do need microsecond precision, you should
-  use one of the corresponding types: ~time_usec~, ~naive_datetime_usec~,
-  or ~utc_datetime_usec~.
+  microsecond information in the columns that use them, but this is no
+  longer the case.
+
+- If you do need microsecond precision, you should use one of the
+  corresponding types: ~time_usec~, ~naive_datetime_usec~, or
+  ~utc_datetime_usec~.
 
 - The ~:map~ type allows you to store Elixir maps into the database. The
   storage strategy differs depending on the database. In MySQL, maps
@@ -4693,3 +4749,819 @@
   use string keys, rather than atoms. In some cases, storing a map
   with atom keys will work correctly but when retrieving, Ecto will
   always return maps with string keys
+
+- If you need a type that is not currently supported, it’s possible to
+  create your own custom type using an API provided by Ecto.
+  + https://hexdocs.pm/ecto/Ecto.Type.html
+** Writing Queries with Schemas
+- without schema
+  #+BEGIN_SRC elixir
+  track_id = "1"
+  q = from "tracks", where: [id: type(^track_id, :integer)], select: [:title, :duration, :index, :number_of_plays]
+  #+END_SRC
+- with schema
+  #+BEGIN_SRC elixir
+    track_id = "1"
+    q = from Track, where: [id: ^track_id]
+
+    # or
+    q = from Track, where: [id: ^track_id], select: [:title]
+
+    # or
+    q = from t in Track, where: t.id == ^track_id
+  #+END_SRC
+
+** Inserting and Deleting with Schemas
+*** Inserting with Schemas
+- e.g.
+  + without schema
+    #+BEGIN_SRC elixir
+    Repo.insert_all("artists", [[name: "John Coltrane"]])
+    #=> {1, nil}
+    #+END_SRC
+  + with schema
+    #+BEGIN_SRC elixir
+    Repo.insert(%Artist{name: "John Coltrane"})
+    #=> {:ok, %MusicDB.Artist{__meta__: #Ecto.Schema.Metadata<:loaded, "artists">,
+    #=> id: 4, name: "John Coltrane", ...}
+    #+END_SRC
+
+*** Deleting with Schemas
+- e.g.
+  + without schema
+    #+BEGIN_SRC elixir
+    Repo.delete_all("tracks")
+
+    # or
+    from(t in "tracks", where: t.title == "Autum Leaves")
+    |> Repo.delete_all
+    #+END_SRC
+  + with schema
+    We use Repo.delete when we have a single schema struct and want to delete
+    its corresponding record from the database. Just like insert, it can only handle
+    one record at a time:
+    #+BEGIN_SRC elixir
+    track = Repo.get_by(Track, title: "The Moontrane")
+    Repo.delete(track)
+    #=> {:ok, %MusicDB.Track{__meta__: #Ecto.Schema.Metadata<:deleted, "tracks">,
+    #=> id: 28, title: "The Moontrane", ...}
+    #+END_SRC
+*** update
+- ~update~ function available in ~Repo~, but it uses changesets rather
+  than schema structs to perform updates.
+** Adding Associations to Schemas
+*** One-to-Many and One-to-One Associations
+- In Ecto, we use associations to model these
+  relationships. Associations help reflect the connections between
+  database tables in our Elixir code.
+- e.g.
+  + tracks
+    #+BEGIN_SRC elixir
+      defmodule MusicDB.Track do
+        use Ecto.Schema
+        alias MusicDB.Album
+
+        schema "tracks" do
+          field(:title, :string)
+          field(:duration, :integer)
+          field(:number_of_plays, :integer)
+          timestamps()
+
+          belongs_to(:album, Album)
+        end
+      end
+    #+END_SRC
+  + albums
+    #+BEGIN_SRC elixir
+      defmodule MusicDB.Album do
+        use Ecto.Schema
+        alias MusicDB.{Artist, Track, Genre}
+
+        schema "albums" do
+          field(:title, :string)
+          timestamps()
+
+          has_many(:tracks, Track)
+        end
+      end
+    #+END_SRC
+  + Ecto will be looking for a column named ~album_id~ in the ~tracks~
+    table to connect the tracks to the albums.
+  + if you’re working with a legacy database that uses a different
+    naming scheme, you can still make the association work by
+    specifying the foreign key explicitly.For example, if the tracks
+    table used album_number rather than album_id for the foreign key,
+    we could create the association like this:
+    #+BEGIN_SRC elixir
+    has_many :tracks, MusicDB.Track, foreign_key: :album_number
+    #+END_SRC
+    This tells Ecto that it should look for a column named
+    ~album_number~ in the ~tracks~ table to find the foreign key that
+    points back to the ~albums~ table.
+- In addition to ~has_many~, Ecto also provides the ~has_one~
+  association. This works exactly like ~has_many~ but it limits the
+  number of associated records to zero or one. This association is
+  used much less often than has_many, but it can be useful in some
+  cases.
+*** Belongs-to Associations
+
+- Most of the time, you’ll want your associations to work in both
+  directions. Just as you want to refer to tracks from an album
+  record, you’ll often want to refer to an album from a track.
+- We can use the ~belongs_to~ association as the reverse of ~has_many~ and
+  ~has_one~.
+  #+BEGIN_SRC elixir
+    schema "tracks" do
+      field :title, :string
+      # other fields here...
+      belongs_to :album, MusicDB.Album
+    end
+  #+END_SRC
+  This establishes the association from a track back to its album. As
+  before, Ecto will assume that the ~tracks~ table will have a field
+  named ~album_id~ that provides the foreign key, but if the field has a
+  different name, we can use the ~foreign_key~: option to specify it.
+
+- Note taken on [2019-11-25 Mon 18:16] \\
+  Which schema gets has_many and which gets belongs_to?
+
+  When working with one-to-many or one-to-one relationships, ~belongs_to~ goes on the
+  schema with the foreign key. For example, tracks has the foreign key ~album_id~ which is
+  the basis of the association, so it gets the ~belongs_to~ call, and albums gets ~has_many~. By
+  the same token, albums has the foreign key ~artist_id~, so it gets a ~belongs_to~ call for ~%Artist{}~
+  and ~%Artist{}~ gets a ~has_many~ for albums.
+
+*** Nested Associations
+- we have
+  + ~has_many~ association from ~artist~ to ~albums~, and another ~has_many~
+    association from ~albums~ to ~tracks~.
+- we want
+  + refer to ~tracks~ directly from an ~artist~ record,
+- solution
+  + we’ll add another ~has_many~ call to the ~%Artist{}~ schema, but this
+    time we’ll add the through: option to spell out the path between
+    ~%Artist{}~ and ~%Track{}~:
+  #+BEGIN_SRC elixir
+    schema "artists" do
+      # field definitions here...
+      has_many :albums, MusicDB.Album
+      has_many :tracks, through: [:albums, :tracks]
+    end
+  #+END_SRC
+
+*** Many-to-Many Associations
+- These relationships are not as straightforward as belongs-to
+  relationships because you need an extra table to implement them.
+  #+BEGIN_SRC text
+    +---------------+          +---------------+         +---------------+
+    |               |          | albums_genres |         |               |
+    |               |        \ |               |/        |               |
+    |   albums      +---------->   album_id    <--------+     genres     |
+    |               |        / |   genre_id    |\        |               |
+    |               |          |               |         |               |
+    +---------------+          +---------------+         +---------------+
+  #+END_SRC
+  Here, the ~albums_genres~ table exists solely to hold the associations
+  between ~albums~ and ~genres~. It creates the link between the ~album~
+  record and the ~genre~ record by holding two foreign keys, one for
+  each table. This allows an ~album~ to be associated with any number of
+  ~genres~, and a ~genre~ can be associated with any number of ~albums~. We
+  can sever an association between an ~album~ and a ~genre~ by deleting a
+  record from this table.
+- snippet
+  #+BEGIN_SRC elixir
+    # in album.ex
+    schema "albums" do
+      # field definitions here...
+      many_to_many :genres, MusicDB.Genre, join_through: MusicDB.AlbumGenre
+    end
+
+    # in genre.ex
+    schema "genres" do
+      # field definitions here...
+      many_to_many :albums, MusicDB.Album, join_through: MusicDB.AlbumGenre
+    end
+
+    # in album_genre.ex
+    schema "albums_genres" do
+      # field definitions here...
+      belongs_to :albums, MusicDB.Album
+      belongs_to :genres, MusicDB.Genre
+    end
+  #+END_SRC
+
+*** Working with Associations in Queries
+- to avoid N+1 one problem, ecto doesn't support lazy loading
+- to load associated records ecto provides a few options
+  1. add ~preload~ option to your query
+     #+BEGIN_SRC elixir
+     albums = Repo.all(from a in Album, preload: :tracks)
+     #+END_SRC
+  2. f you’ve already loaded the parent records and want to fetch the
+     associations after the fact, you can use the ~Repo.preload~
+     function:
+     #+BEGIN_SRC elixir
+       albums =
+        Album
+        |> Repo.all
+        |> Repo.preload(:tracks)
+     #+END_SRC
+  3. In both of these cases, you end up with all of the album records,
+     with each album having its associated tracks. And in both cases,
+     only two database queries are executed: one to fetch all the
+     albums, and another to fetch all the ~tracks~
+- The ~preload~ statements can handle nested associations using keyword
+  list syntax (~[]~). If you were grabbing records from the ~artists~
+  table, and you wanted to get the associated ~albums~ and their ~tracks~,
+  you could do this:
+  #+BEGIN_SRC elixir
+  Repo.all(from a in Artist, preload: [albums: :tracks])
+  #+END_SRC
+
+- If you want to grab parent records and child records together in one
+  query, you can use ~preload~ in combination with ~join~.
+  #+BEGIN_SRC elixir
+    q = from a in Album,
+      join: t in assoc(a, :tracks),
+      where: t.title == "Freddie Freeloader",
+      preload: [tracks: t]
+
+  #  19:06:07.774 [debug] QUERY OK source="albums" db=2.3ms queue=0.7ms
+  #  SELECT a0."id", a0."title", a0."inserted_at", a0."updated_at", a0."artist_id", t1."id", t1."title", t1."duration", t1."index", t1."number_of_plays", t1."inserted_at", t1."updated_at", t1."album_id" FROM "albums" AS a0 INNER JOIN "tracks" AS t1 ON t1."album_id" = a0."id" WHERE (t1."title" = 'Freddie Freeloader') []
+  #+END_SRC
+  Here we use the ~Ecto.assoc/2~ function to specify that we want to
+  join on the ~:tracks~ association we defined in our ~Album~ schema. By
+  adding the reference to the query binding ~t~ in the ~preload~ option,
+  we’re telling Ecto to load the ~album~ and ~track~ records in the same
+  query.
+
+*** Optimizing Associations with Embedded Schemas
+- Ecto’s protection against N+1 queries helps prevent runaway
+  situations where our code is making huge numbers of queries for what
+  appears to be a simple operation. But even then, fetching associated
+  records always requires an extra round-trip to the database, and
+  there may be situations where you want to avoid it. You might be
+  working with associated records that always need to be loaded along
+  with the parents, or you may be in a performance-critical situation
+  where you need to eke out every last ounce of speed that you can. In
+  cases like these, Ecto provides embedded schemas. With embedded
+  schemas, associated records are stored in a single database column
+  along with the rest of the parent record’s values. When you load the
+  Prepared exclusively for Farhadparent record, the child records come
+  right along with it.
+- The implementation of this feature varies between databases. With
+  PostgreSQL, Ecto uses the jsonb column type to store the records as
+  an array of key/value pairs. For MySQL, Ecto converts the records
+  into a JSON string and stores them as text
+
+*** Deleting Records with Associations
+- An important thing to consider with associations is what should
+  happen to child records when a parent record is deleted. For
+  example, if we delete an album, what should we do with the
+  associated tracks?
+- Ecto provides the ~on_delete:~ option to specify the desired
+  behavior
+- One approach is to define the behavior when creating the
+  association. The ~has_many~, ~has_one~, and ~many_to_many~ functions
+  all support the ~on_delete:~ option, which can have one of three
+  values:
+  1. ~:nothing~
+     * This is the default behavior: Ecto won’t try to do anything to
+       the child records if the parent is deleted.
+  2. ~:nilify_all~
+     * Ecto updates all of the child records, setting the foreign key
+       referring to the parent record to null. At that point, the
+       child records are no longer associated with any parent record.
+  3. ~:delete_all~
+     * Ecto deletes all of the child records along with the parent
+       record.
+- Many databases, including Postgres, allow you to specify this
+  behavior in the database itself when you first create the table. In
+  those databases, the work of deleting or nilifying the child records
+  is handled by the database, rather than by Ecto. If that’s how your
+  database works, setting a value for ~:on_delete~ in the schema
+  definition will have no effect
+- You’ll need to check the database you’re using and find if it
+  supports this feature; if so, you’ll need to use ~on_delete~ in the
+  database migration rather than when declaring the association
+
+*** Using Schemas to Seed a Database
+- without schema
+  #+BEGIN_SRC elixir
+      Repo.insert_all("artists", [[name: "John Coltrane"]])
+      #=> {1, nil}
+
+      # only postgresql
+      Repo.insert_all("artists", [[name: "John Coltrane"]], returning: [:id])
+      #=> {1, [%{id: 8}]}
+  #+END_SRC
+  With ~insert_all~, we had to provide the table name, and a list of fields containing
+  the new record’s values. And if we wanted the ID of the new record, we had
+  to ask for it with the ~returning~ option (which is only available with Postgres).
+
+- with schema
+  #+BEGIN_SRC elixir
+  {:ok, artist} = Repo.insert(%Artist{name: "John Coltrane"})
+  #=> %MusicDB.Artist{__meta__: #Ecto.Schema.Metadata<:loaded, "artists">,
+  #=> albums: #Ecto.Association.NotLoaded<association :albums is not loaded>,
+  #=> id: 8, inserted_at: ~N[2017-07-14 06:35:05],
+  #=> name: "John Coltrane",
+  #=> tracks: #Ecto.Association.NotLoaded<association :tracks is not loaded>,
+  #=> updated_at: ~N[2017-07-14 06:35:05]}
+  #+END_SRC
+  + The return value is a two-element tuple. The first element will
+    either be ~:ok~ or ~:error~, indicating whether or not the insertion
+    was successful. If it’s ~:ok~ ,the second element will be the newly
+    inserted record
+
+  + If the first element is :error, the second element will be a
+    Changeset struct representing the values we tried to insert.
+
+- insert with association
+  + consider creating a new ~Album~ record for this artist. You
+    might think that you’d have to insert the artist record first, get
+    the id of the new record, then create the album record with
+    artist_id set to the id of the new artist. But thanks to the
+    association between our Artist and Album schema, we can insert the
+    two records at the same time:
+  #+BEGIN_SRC elixir
+    Repo.insert(
+      %Artist{
+        name: "John Coltrane",
+        albums: [
+          %Album{
+            title: "A Love Supreme"
+          }
+        ]
+      }
+    )
+  #+END_SRC
+ + Even deeply nested associations can be inserted in this way, and
+   you can insert multiple associations at once. Here we’ll create an
+   artist record for John Coltrane, an album, the tracks for the
+   album, and the album’s genre, all in one call to insert:
+   #+BEGIN_SRC elixir
+     Repo.insert(
+       %Artist{
+         name: "John Coltrane",
+         albums: [
+           %Album{
+             title: "A Love Supreme",
+             tracks: [
+               %Track{title: "Part 1: Acknowledgement", index: 1},
+               %Track{title: "Part 2: Resolution", index: 2},
+               %Track{title: "Part 3: Pursuance", index: 3},
+               %Track{title: "Part 4: Psalm", index: 4},
+             ],
+             genres: [
+               %Genre{name: "spiritual jazz"},
+             ]
+           }
+         ]
+       }
+     )
+
+
+    # 21:11:39.776 [debug] QUERY OK db=0.3ms
+    # INSERT INTO "artists" ("name","inserted_at","updated_at") VALUES ($1,$2,$3) RETURNING "id" ["John Coltrane", ~N[2019-11-27 17:41:39], ~N[2019-11-27 17:41:3$
+    # ]]
+    #
+    # 21:11:39.777 [debug] QUERY OK db=0.5ms
+    # INSERT INTO "albums" ("artist_id","title","inserted_at","updated_at") VALUES ($1,$2,$3,$4) RETURNING "id" [7, "A Love Supreme", ~N[2019-11-27 17:41:39], ~N$
+    # 2019-11-27 17:41:39]]
+    #
+    # 21:11:39.779 [debug] QUERY OK db=0.2ms
+    # INSERT INTO "genres" ("name","inserted_at","updated_at") VALUES ($1,$2,$3) RETURNING "id" ["spiritual jazz", ~N[2019-11-27 17:41:39], ~N[2019-11-27 17:41:3$
+    # ]]
+    #
+    # 21:11:39.780 [debug] QUERY OK db=0.5ms
+    # INSERT INTO "albums_genres" ("album_id","genre_id") VALUES ($1,$2) [7, 3]
+    #
+    # 21:11:39.781 [debug] QUERY OK db=0.4ms
+    # INSERT INTO "tracks" ("album_id","index","title","inserted_at","updated_at") VALUES ($1,$2,$3,$4,$5) RETURNING "id" [7, 1, "Part 1: Acknowledgement", ~N[20$
+    # 9-11-27 17:41:39], ~N[2019-11-27 17:41:39]]
+    #
+    # 21:11:39.781 [debug] QUERY OK db=0.1ms
+    # INSERT INTO "tracks" ("album_id","index","title","inserted_at","updated_at") VALUES ($1,$2,$3,$4,$5) RETURNING "id" [7, 2, "Part 2: Resolution", ~N[2019-11$
+    # 27 17:41:39], ~N[2019-11-27 17:41:39]]
+    #
+    # 21:11:39.781 [debug] QUERY OK db=0.1ms
+    # INSERT INTO "tracks" ("album_id","index","title","inserted_at","updated_at") VALUES ($1,$2,$3,$4,$5) RETURNING "id" [7, 3, "Part 3: Pursuance", ~N[2019-11-$
+    # 7 17:41:39], ~N[2019-11-27 17:41:39]]
+    #
+    # 21:11:39.782 [debug] QUERY OK db=0.2ms
+    # INSERT INTO "tracks" ("album_id","index","title","inserted_at","updated_at") VALUES ($1,$2,$3,$4,$5) RETURNING "id" [7, 4, "Part 4: Psalm", ~N[2019-11-27 1$
+    # :41:39], ~N[2019-11-27 17:41:39]]
+   #+END_SRC
+** Making Changes with Changesets
+- ~Ecto.Changeset~ module provides a rich data structure and a wide
+  array of functions that helps us manage making changes safely and
+  securely.
+  + casting and filtering user-provided data
+  + validating the data
+  + capturing errors
+  + working with associations and embeds
+*** Introducing Changesets
+- Changesets manage the update process by breaking it into three
+  distinct stages
+  1. casting and filtering user input
+  2. validating the input
+  3. then sending the input to the database and capturing the result
+-
+  #+BEGIN_SRC elixir
+    data
+    |> cast_and_filter_fields
+    |> validate_change
+    |> validate_another_change
+    |> send_to_database
+  #+END_SRC
+  e.g.
+  #+BEGIN_SRC elixir
+    import Ecto.Changeset
+
+    params = %{name: "Gene Harris"}
+
+    changeset =
+      %Artist{}
+      |> cast(params, [:name])
+      |> validate_required([:name])
+    case Repo.insert(changeset) do
+      {:ok, artist} -> IO.puts("Record for #{artist.name} was created.")
+      {:error, changeset} -> IO.inspect(changeset.errors)
+    end
+  #+END_SRC
+  As this example demonstrates, changesets help us with the entire
+  life cycle of making a change, starting with raw data, and ending
+  with the operation succeeding or failing at the database level.
+
+*** Casting and Filtering
+- The first step is to take the raw input data that you want to apply
+  to the database and generate an ~Ecto.Changeset~ struct. That is “casting and filtering”
+- we perform any needed type casting operations (for example, turning
+  a string into an integer), and we filter out any values we don’t
+  want to use
+**** Creating Changesets Using Internal Data
+- If the data is internal to the application (that is, you’re
+  generating the data yourself in your application code), you can
+  create a changeset using the ~Ecto.Changeset.change~ function.
+  #+BEGIN_SRC elixir
+  import Ecto.Changeset
+
+  changeset = change(%Artist{name: "Charlie Parker"})
+  #+END_SRC
+- To make changes to an existing record, the process is similar, but
+  instead of passing in a new struct, we use a record fetched from
+  Repo:
+  #+BEGIN_SRC elixir
+    artist = Repo.get_by(Artist, name: "Bobby Hutcherson")
+    changeset = change(artist)
+  #+END_SRC
+
+- We can add the data we’d like to change as optional arguments to the
+  ~change~ function. This is how we might change the name field to
+  something more formal:
+  #+BEGIN_SRC elixir
+    artist = Repo.get_by(Artist, name: "Bobby Hutcherson")
+    changeset = change(artist, name: "Robert Hutcherson")
+  #+END_SRC
+  * At this point, changeset is just a data structure in memory—no
+    communication with the database has happened yet. As we’ve seen
+    with the Repository pattern, nothing happens with the database
+    until we get Repo involved. If we wanted to commit the change,
+    we’d need to call ~Repo.update(changeset)~ and check the result to
+    see if it succeeded.
+
+  * The changes field of our changeset tells us what’s going to be updated:
+    #+BEGIN_SRC elixir
+      changeset.changes
+      #=> %{name: "Robert Hutcherson"}
+    #+END_SRC
+- it's possible to add more change to a changeset, we can pass a changeset to ~Ecto.Changeset.change~
+  #+BEGIN_SRC elixir
+   artist = Repo.get_by(Artist, name: "Bobby Hutcherson")
+
+   changeset = change(artist, name: "Robert Hutcherson")
+   changeset = change(changeset, birth_date: ~D[1941-01-27])
+
+
+   changeset.changes
+   #=> %{birth_date: ~D[1941-01-27], name: "Robert Hutcherson"}
+  #+END_SRC
+**** Creating Changesets Using External Data
+- The ~cast~ function plays a similar role to ~change~, as it’s used to
+  take raw data and return a ~Changeset~ struct, but it’s got a few
+  extra features to help make sure you’re getting only the data you
+  want.
+  + The ~cast~ function has three required arguments.
+    1. The first is the same as ~change~: it should be a data
+       structure representing the record you want to apply your
+       changes to. This could be a new schema struct (for example
+       ~%Artist{}~), a schema struct representing a record fetched from
+       the database, or another changeset.
+    2. The second argument is a map containing raw data that you want
+       to apply
+    3. The third is a list of the parameters that you’ll allow to be
+       added to the changeset. It acts like a filter: only parameters
+       specified in the list will be added to the changeset. The rest
+       will be discarded.
+  + e.g.
+    #+BEGIN_SRC elixir
+      # values provided by the user
+      params = %{"name" => "Charlie Parker", "birth_date" => "1920-08-29", "instrument" => "alto sax"}
+
+      changeset = cast(%Artist{}, params, [:name, :birth_date])
+
+      changeset.changes
+      #=> %{birth_date: ~D[1920-08-29], name: "Charlie Parker"}
+    #+END_SRC
+    note that the call to cast converted the ~birth_date~ value from
+    the string ~"1920-08-29"~ to an Elixir Date struct. As the name
+    suggests, cast will perform type casting when turning the raw
+    input into a changeset, whenever it can. In this case, our ~Artist~
+    schema defined birth_date as the ~:date~ type, so Ecto parsed the
+    string value into a ~Date~ when creating the changeset.
+- By default, the ~cast~ function will treat the empty string ~""~ as
+  ~nil~ when creating the changeset. But there may be times when you
+  want other values turned into ~nil~ as well.
+  for example we want to tell ecto to consider ~"NULL"~ as empty value
+  #+BEGIN_SRC elixir
+    params = %{"name" => "Charlie Parker", "birth_date" => "NULL"}
+    changeset = cast(%Artist{}, params, [:name, :birth_date], empty_values: ["", "NULL"])
+
+    changeset.changes #=> %{name: "Charlie Parker"}
+  #+END_SRC
+*** Validating Your Data
+- Ecto provides two tools to help us check the integrity of our data:
+  1. validations
+  2. constraints
+
+**** Working with Validations
+- Validations are utility functions provided by the ~Ecto.Changeset~
+  module to help check the integrity of your data.
+- They all take a changeset as teh first parameter
+  #+BEGIN_SRC elixir
+    params = %{"name" => "Thelonius Monk", "birth_date" => "1917-10-10"}
+    changeset =
+      %Artist{}
+      |> cast(params, [:name, :birth_date])
+      |> validate_required([:name, :birth_date])
+      |> validate_length(:name, min: 3)
+  #+END_SRC
+- if validation succeeds, the ~valid?~ field on the changeset will be ~true~;
+  if not, ~valid?~ will be false, and we can look at the errors field to
+  see what the problem is.
+  #+BEGIN_SRC elixir
+    params = %{"name" => "Thelonius Monk"}
+    changeset =
+    %Artist{}
+    |> cast(params, [:name, :birth_date])
+    |> validate_required([:name, :birth_date])
+    |> validate_length(:name, min: 3)
+
+    changeset.valid?
+    #=> false
+
+    changeset.errors
+    #=> [birth_date: {"can't be blank", [validation: :required]}]
+  #+END_SRC
+  + with more than one error
+    #+BEGIN_SRC elixir
+      params = %{"name" => "x"}
+      changeset =
+        %Artist{}
+        |> cast(params, [:name, :birth_date])
+        |> validate_required([:name, :birth_date])
+        |> validate_length(:name, min: 3)
+
+      changeset.errors
+      #=> [name: {"should be at least %{count} character(s)",
+      #=> [count: 3, validation: :length, min: 3]},
+      #=> birth_date: {"can't be blank", [validation: :required]}]
+    #+END_SRC
+    * The ~Ecto.Changeset.traverse_errors~ function lets you iterate
+      through each of the errors and transform it into any form you
+      like.
+      #+BEGIN_SRC elixir
+        traverse_errors(changeset, fn {msg, opts} ->
+          Enum.reduce(opts, msg, fn {key, value}, acc ->
+            String.replace(acc, "%{#{key}}", to_string(value))
+          end)
+        end)
+
+        #=> %{birth_date: ["can't be blank"],
+        #=> name: ["should be at least 3 character(s)"]}
+      #+END_SRC
+
+***** Creating Custom Validations
+ - Ecto provides two ways to create custom validations
+
+****** Validating with validate_change
+ - ~validate_change~
+   #+BEGIN_SRC elixir
+     params = %{"name" => "Thelonius Monk", "birth_date" => "2117-10-10"}
+
+     changeset =
+       %Artist{}
+       |> cast(params, [:name, :birth_date])
+       |> validate_change(:birth_date, fn :birth_date, birth_date ->
+       cond do
+         is_nil(birth_date) -> []
+         Date.compare(birth_date, Date.utc_today()) == :lt -> []
+         true -> [birth_date: "must be in the past"]
+       end
+     end)
+
+
+       changeset.errors
+       #=> [birth_date: {"must be in the past", []}]
+   #+END_SRC
+****** Validating with a Separate Function
+ -
+   #+BEGIN_SRC elixir
+     def validate_in_the_past(changeset, field) do
+       validate_change(changeset, field, fn _field, value ->
+         cond do
+           is_nil(value) -> []
+           Date.compare(value, Date.utc_today()) == :lt -> []
+           true -> [{field, "must be in the past"}]
+         end
+       end)
+     end
+
+     params = %{"name" => "Thelonius Monk", "birth_date" => "2117-10-10"}
+
+     changeset =
+       %Artist{}
+       |> cast(params, [:name, :birth_date])
+       |> validate_required(:name)
+       |> validate_in_the_past(:birth_date)
+   #+END_SRC
+**** Working with Constraints
+- We want to be sure that each of the ~genre~ records has a unique
+  name—we wouldn’t want two records both called “jazz,” for
+  example. One approach would be to enforce this in our Elixir code:
+  we could just check the database for a duplicate record before we
+  try to insert a new one. That would work most of the time, but
+  there’s always the possibility of a race condition: another process
+  could insert the duplicate record between the time that we looked
+  for it and the time that we inserted our new record.
+
+- The only way we can be absolutely sure that we won’t introduce
+  duplicate records is if we add a unique index in the database
+  itself. In this case, we’d want to add an index to the ~name~ column
+  of the ~genre~ database table
+
+- With that index in place, we can be sure that the database will
+  prevent the creation of duplicate records. If we attempt to do so,
+  the database will block it, and Ecto will raise an error.
+  #+BEGIN_SRC elixir
+    Repo.insert(%Genre{name: "speed polka"})
+    Repo.insert(%Genre{name: "speed polka"})
+    #=>
+    #=> ** (Ecto.ConstraintError) constraint error when attempting to insert
+    #=> struct:
+    #=>
+    #=> * unique: genres_name_index
+    #=>
+    #=> If you would like to convert this constraint into an error, please
+    #=> call unique_constraint/3 in your changeset and define the proper
+    #=> constraint name. The changeset has not defined any constraint.
+  #+END_SRC
+
+- If we add a constraint to our changeset, the error will be captured
+  in the ~changeset.errors~ field and won’t cause an exception.
+
+- Like validations, constraints are functions provided by the
+  ~Ecto.Changeset~ module, but they end with ~_constraint~:
+  ~unique_constraint~, ~foreign_key_constraint~, and so on.
+
+- the following example illustrates the fact that constraints,
+  unlike validations, are enforced by the database, not by our Elixir
+  code.
+  #+BEGIN_SRC elixir
+    Repo.insert!(%Genre{ name: "bebop" })
+
+    params = %{"name" => "bebop"}
+
+    changeset =
+      %Genre{}
+      |> cast(params, [:name])
+      |> validate_required(:name)
+      |> validate_length(:name, min: 3)
+      |> unique_constraint(:name)
+    changeset.errors
+    #=> []
+  #+END_SRC
+  We haven’t yet handed our ~changeset~ off to ~Repo~, so the database has
+  no idea what we’re up to. It’s only when we try to insert the record
+  that the constraint will kick in:
+  #+BEGIN_SRC elixir
+    params = %{"name" => "bebop"}
+
+    changeset =
+      %Genre{}
+      |> cast(params, [:name])
+      |> validate_required(:name)
+      |> validate_length(:name, min: 3)
+      |> unique_constraint(:name)
+    case Repo.insert(changeset) do
+      {:ok, _genre} -> IO.puts "Success!"
+      {:error, changeset} -> IO.inspect changeset.errors
+    end
+    #=> [name: {"has already been taken", []}]
+  #+END_SRC
+- Ecto will always run all validations for a given changeset—even if
+  one fails, the rest are still checked. This is not true about
+  constraints. If you have more than one, and one of them fails, the
+  others won’t be checked. Similarly, if any validations fail, the
+  constraints are not checked at all.
+  + Ecto provides a workaround for this situation. The
+    ~unsafe_validate_unique~ function is a hybrid between a validation
+    and a constraint. Like a constraint, it checks the database to see
+    if the value already exists, but it’s evaluated along with the
+    rest of the validations, so the user will see all of the
+    validation errors together
+  + The ~unsafe~ part of the function name indicates that you don’t want
+    to rely on this completely. There’s still a chance that someone
+    else could insert a duplicate value between the time that the
+    function runs and Ecto tries to insert the record. But this allows
+    you to give early feedback to the users that they need to pick a
+    new username. It’s rare that you’ll run into the race condition
+    that unique_constraint protects against, but you’ll want to have
+    it there anyway, just in case.
+**** Capturing Errors
+-
+  #+BEGIN_SRC elixir
+    params = %{name: "Gene Harris"}
+    changeset =
+      %Artist{}
+      |> cast(params, [:name])
+      |> validate_required([:name])
+
+    case Repo.insert(changeset) do  # at this point if the changeset has any error, Repo doesn't send to to the DB
+      {:ok, artist} -> IO.puts("Record for #{artist.name} was created.")
+      {:error, changeset} -> IO.inspect(changeset.errors)
+    end
+  #+END_SRC
+**** Using Changesets Without Schemas
+- Let's imagine that we have an advanced search. The first step is to
+  set up a map that defines the shape of the data that we want to
+  process. The keys should be the field names, and the values should
+  be the data types for each field. You can use any of the data types
+  supported by the ~Ecto.Schema~ module.
+  #+BEGIN_SRC elixir
+    form = %{
+      artist_name: :string,
+      album_title: :string,
+      artist_birth_date: :date,
+      album_release_date: :date,
+      genre: :string
+    }
+
+    # user data - they only provided one value
+    params = %{
+      "artist_name" => "Ella Fitzgerald",
+      "album_title" => "",
+      "artist_birth_date" => "",
+      "album_release_date" => "",
+      "genre" => ""
+    }
+    changeset =
+    {%{}, form}
+    |> cast(params, Map.keys(form))
+    |> validate_in_the_past(:artist_birth_date)
+    |> validate_in_the_past(:album_release_date)
+
+    if changeset.valid? do
+      # execute the advanced search
+    else
+      # show changeset.errors to the user
+    end
+  #+END_SRC
+*** Working with Associations
+
+**** Updating a Single Associated Record
+- When making changes to child records, the first question to ask
+  yourself is if you want to make changes to an individual child
+  record, or if you want to change the entire collection of associated
+  records at once
+  1. If you want to work with individual records, it’s usually best
+    to make changes outside of a changeset.
+    #+BEGIN_SRC elixir
+    artist = Repo.get_by(Artist, name: "Miles Davis")
+
+    new_album = Ecto.build_assoc(artist, :albums)
+    #=> %MusicDB.Album{artist_id: 1, ...}
+    #+END_SRC
+    or even
+    #+BEGIN_SRC elixir
+      artist = Repo.get_by(Artist, name: "Miles Davis")
+      new_album = Ecto.build_assoc(artist, :albums)
+      #=> %MusicDB.Album{artist_id: 1, ...}
+    #+END_SRC
+- For changing associated records, you only need to use changesets if
+  you want to update the entire collection at once.
+
+***** Associations Using Internal Data
+- for internal data we use ~Ecto.Changeset.put_assoc~
+- for work with external data we use ~Ecto.Changeset.cast_assoc~
