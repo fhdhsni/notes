@@ -5539,7 +5539,6 @@
     end
   #+END_SRC
 *** Working with Associations
-
 **** Updating a Single Associated Record
 - When making changes to child records, the first question to ask
   yourself is if you want to make changes to an individual child
@@ -5565,3 +5564,183 @@
 ***** Associations Using Internal Data
 - for internal data we use ~Ecto.Changeset.put_assoc~
 - for work with external data we use ~Ecto.Changeset.cast_assoc~
+
+- ~put_assoc~
+  + with put_assoc you have to decide what to do with the records
+    you’re not keeping
+  + The functions used to add associations to schemas (~has_many~,
+    ~belongs_to~, and the like) all take an optional argument called
+    ~:on_replace~. This is used to tell Ecto how to handle any existing
+    associated records when we’re doing a replacement, as we’re doing
+    now. This option can be set to one of five different values:
+    - ~:raise~
+    - ~:marks_as_invalid~
+      * This will tell Ecto to add a validation error to the
+        changeset’s ~errors~ field.
+    - ~:nilify~
+    - ~:update~
+    - ~:delete~
+  + In our case, we just wanted to add a new album to the existing
+    group of albums by Miles Davis, so ~put_assoc~ was not a good fit:
+    ~build_assoc~ would have been a better choice. If we really wanted
+    to use ~put_assoc~, we’d have to pass a list of all the existing
+    albums, plus our new one—this is a little convoluted, but it would
+    work:
+    #+BEGIN_SRC elixir
+      artist =
+        Repo.get_by(Artist, name: "Miles Davis")
+        |> Repo.preload(:albums)
+
+      artist
+      |> change
+      |> put_assoc(:albums, [%Album{title: "Miles Ahead"} | artist.albums])
+      |> Repo.update
+    #+END_SRC
+  + When inserting new parent records and child records together,
+    working with ~put_assoc~ is more straightforward:
+    #+BEGIN_SRC elixir
+      %Artist{name: "Eliane Elias"}
+      |> change
+      |> put_assoc(:albums, [%Album{title: "Made In Brazil"}])
+      |> Repo.insert
+    #+END_SRC
+    * Because we’re inserting a new Artist record, there are no
+      preexisting child records to worry about, and the ~on_replace~
+      behavior won’t be a factor.
+  + With ~put_assoc~, you can present the records as structs, maps, or
+    keyword lists, whichever is most convenient
+    #+BEGIN_SRC elixir
+      # adding an album with a map
+      %Artist{name: "Eliane Elias"}
+      |> change
+      |> put_assoc(:albums, [%{title: "Made In Brazil"}])
+      |> Repo.insert
+
+      # adding an album with a keyword list
+      %Artist{name: "Eliane Elias"}
+      |> change
+      |> put_assoc(:albums, [[title: "Made In Brazil"]])
+      |> Repo.insert
+    #+END_SRC
+***** Associations Using External Data
+-
+  #+BEGIN_SRC elixir
+    # add this to lib/music_db/album.ex
+    def changeset(album, params) do
+      album
+      |> cast(params, [:title])
+      |> validate_required([:title])
+    end
+
+
+
+    # now we can use cast_assoc
+    params = %{"name" => "Esperanza Spalding", "albums" => [%{"title" => "Junjo"}]}
+    changeset =
+        %Artist{}
+        |> cast(params, [:name])
+        |> cast_assoc(:albums)
+    changeset.changes
+    #=> %{albums: [#Ecto.Changeset<action: :insert,
+    #=> changes: %{title: "Junjo"}, errors: [],
+    #=> data: #MusicDB.Album<>, valid?: true>],
+    #=> name: "Esperanza Spalding"}
+  #+END_SRC
+  as we look more closely at the output, we can see that our changes
+  include an embedded changeset for our album child record: a
+  changeset within a changeset!
+****** Updating Records with Associations
+- e.g.
+  #+BEGIN_SRC elixir
+    portrait = Repo.get_by(Album, title: "Portrait In Jazz")
+    kind_of_blue = Repo.get_by(Album, title: "Kind Of Blue")
+
+    params = %{"albums" =>
+                [
+                  %{"title" => "Explorations"},
+                  %{"title" => "Portrait In Jazz (remastered)", "id" => portrait.id},
+                  %{"title" => "Kind Of Blue", "id" => kind_of_blue.id}
+                ]
+              }
+
+    artist = Repo.get_by(Artist, name: "Bill Evans") |> Repo.preload(:albums)
+
+    {:ok, artist} =
+      artist
+      |> cast(params, [])
+      |> cast_assoc(:albums)
+      |> Repo.update
+
+    Enum.map(artist.albums, &({&1.id, &1.title}))
+    #=> [{6, "Explorations"}, {4, "Portrait In Jazz (remastered)"},
+    #=> {7, "Kind Of Blue"}]
+  #+END_SRC
+  + we have an odd case. There’s already an album record for “Kind Of
+    Blue,” as indicated by the id value, but this album is currently
+    associated with Miles Davis, not Bill Evans. In this case, Ecto
+    will treat this as a new record. It will ignore the given id and
+    create a new record, using any other values provided in the given
+    map.
+  + We created a new “Explorations” album, associated with Bill Evans
+  + The “Portrait In Jazz” record was updated in place with a new
+    title (compare the id to the one we got earlier—they should be the
+    same)
+  + We created a new record with the title “Kind Of Blue”—even though
+    we passed the id of the record associated with Miles Davis, Ecto
+    created a new record
+  + “You Must Believe In Spring” is no longer a part of the albums
+    collection for Bill Evans
+  +
+    #+BEGIN_SRC elixir
+    Repo.all(from a in Album, where: a.title == "Kind Of Blue")
+        |> Enum.map(&({&1.id, &1.title}))
+    #=> [{1, "Kind Of Blue"}, {7, "Kind Of Blue"}]
+
+    # and that “You Must Believe In Spring” is still in the database:
+    Repo.all(from a in Album, where: a.title == "You Must Believe In Spring")
+        |> Enum.map(&({&1.id, &1.title, &1.artist_id}))
+    #=> [{3, "You Must Believe In Spring", nil}]
+    #+END_SRC
+    * Our ~:nilify~ setting for ~on_replace~ did the trick, and the
+      record is no longer associated with any Artist record.
+**** Best Practices for Associations
+1. The first thing to ask yourself is whether you want to work with
+   individual child records, or if you want to work with the collection
+   as a whole.
+2. If you’re working with individual records (for example, inserting
+     or deleting a single child record), it’s usually easiest to work
+     with the child record separate from the parent record. ~build_assoc~
+     can help you create new child records for a given parent record,
+     and you can perform updates and deletes by loading the child
+     record and using the update and delete functions provided by ~Repo~
+3. If you want to work with the collection as a whole, you’ll need to
+     think about what you want to do with records that are removed or
+     replaced when the collection is updated. Review the documentation
+     about your options, then set the ~on_replace~ option for the
+     association in your schema definition
+4. Then you need to consider where the data is coming from. If the
+   data is coming from an external source, then you’ll want to use
+   ~cast_assoc~. Behind the scenes, ~cast_assoc~ uses changesets you
+   supply to cast and validate the data, giving you a lot of control
+   over how the data is imported and checked for errors.
+5. If the data is being generated by you in your application code, you
+   can use ~put_assoc~ to add data structures directly. And don’t forget
+   that if you’re inserting new records of internally generated data,
+   you can bypass changesets altogether and use ~Repo.insert~ to add
+   parent and child records all at once.
+6. ~put_assoc~ is also a good choice when you’re managing parent and
+   child records separately, even when working with external data. You
+   could, for example, use changesets to create/update/delete the
+   child records on their own, then use ~put_assoc~ in a separate
+   changeset to update the collection on the parent record. This is
+   often a great way to work with many-to-many associations.
+** Multi
+- Ecto supports transactions through the ~Repo.transaction~
+  function. You can execute this function in two ways. The first way
+  is to provide another function that contains the operations you’d
+  like to execute. The second way is to use ~Ecto.Multi~, a data
+  structure consisting of a queue of operations to be run within a
+  transaction.
+*** Running Transactions with Functions
+- The first way to run ~Repo.transaction~ is by passing in a function
+  containing the operations you’d like to run within the transaction.
