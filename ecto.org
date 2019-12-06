@@ -5744,3 +5744,436 @@
 *** Running Transactions with Functions
 - The first way to run ~Repo.transaction~ is by passing in a function
   containing the operations you’d like to run within the transaction.
+
+  #+BEGIN_SRC elixir
+    artist = %Artist{name: "Johnny Hodges"}
+
+    Repo.transaction(fn ->
+      Repo.insert!(artist)
+      Repo.insert!(Log.changeset_for_insert(artist))
+    end)
+    #=> {:ok, %MusicDB.Log{ ...}}
+  #+END_SRC
+  with error:
+  #+BEGIN_SRC elixir
+    artist = %Artist{name: "Ben Webster"}
+
+    Repo.transaction(fn ->
+        Repo.insert!(artist)
+        Repo.insert!(nil) # <-- this will fail
+    end)
+    #=> ** (FunctionClauseError) no function clause matching in
+    #=> Ecto.Repo.Schema.insert/4
+
+    Repo.get_by(Artist, name: "Ben Webster")
+    # => nil
+  #+END_SRC
+  You have to use ~insert!~ (with a bang) to make it throw in case of
+  error, or you have call ~Repo.rollback~, manually. Calling this
+  function will abort the transaction and roll back any changes made
+  so far, just as if an error had occurred.
+  #+BEGIN_SRC elixir
+    cs = Ecto.Changeset.change(%Artist{name: nil})
+    |> Ecto.Changeset.validate_required([:name])
+
+    Repo.transaction(fn ->
+      case Repo.insert(cs) do
+        {:ok, _artist} -> IO.puts("Artist insert succeeded")
+        {:error, _value} -> Repo.rollback("Artist insert failed")
+      end
+
+      case Repo.insert(Log.changeset_for_insert(cs)) do
+        {:ok, _log} -> IO.puts("Log insert succeeded")
+        {:error, _value} -> Repo.rollback("Log insert failed")
+      end
+    end)
+
+    # => {:error, "Artist insert failed"}
+  #+END_SRC
+*** Executing Non-Database Operations Within a Transaction
+- e.g.
+  #+BEGIN_SRC elixir
+    artist = %Artist{name: "Johnny Hodges"}
+
+    Repo.transaction(fn ->
+      artist_record = Repo.insert!(artist)
+      Repo.insert!(Log.changeset_for_insert(artist_record))
+      SearchEngine.update!(artist_record)
+    end)
+  #+END_SRC
+  Of course, Ecto has no knowledge of how our search engine works, so
+  it would be impossible for it to roll back changes to the search
+  engine. This means that you should run all of your database
+  operations first, then run any non-database operations: you don’t
+  want those to run until you’re sure the database operations
+  succeeded.
+
+*** Running Transactions with Ecto.Multi
+- The other way to use ~Repo.transaction~ is pass in an ~Ecto.Multi~
+  struct, rather than a function. ~Ecto.Multi~ allows you to group your
+  database operations into a data structure. When handed to the
+  transaction function, the Multi’s operations run in order, and if
+  any of them fail, all of the others are rolled back.
+- e.g.
+  #+BEGIN_SRC elixir
+    artist = %Artist{name: "Johnny Hodges"}
+    Repo.transaction(fn ->
+      Repo.insert!(artist)
+      Repo.insert!(Log.changeset_for_insert(artist))
+    end)
+  #+END_SRC
+  Here’s how we can rewrite it using ~Multi~:
+  #+BEGIN_SRC elixir
+    alias Ecto.Multi
+
+    artist = %Artist{name: "Johnny Hodges"}
+
+    multi =
+      Multi.new
+      |> Multi.insert(:artist, artist)
+      |> Multi.insert(:log, Log.changeset_for_insert(artist))
+
+    Repo.transaction(multi)
+
+
+    # {:ok,
+    #  %{
+    #    artist: %MusicDB.Artist{...},
+    #    log: %MusicDB.Log{...}
+    #  }
+    # }
+
+  #+END_SRC
+  We start by creating a new ~Multi~ with the ~new~ function. The Ecto
+  team recommends using this approach rather than trying to create
+  the struct directly; that is, don’t try to write something like
+  ~multi = %Multi{}~. The exact structure of ~Ecto.Multi~ is subject to
+  future change. Calling new ensures that the struct will come back to
+  you properly initialized. If you create the struct directly, you’re
+  on your own.
+**** Capturing Errors with Multi
+- e.g.
+  #+BEGIN_SRC elixir
+    artist = Repo.get_by(Artist, name: "Johnny Hodges")
+    artist_changeset = Artist.changeset(artist,
+      %{name: "John Cornelius Hodges"})
+
+    invalid_changeset = Artist.changeset(%Artist{},
+      %{name: nil})
+
+    multi =
+      Multi.new
+      |> Multi.update(:artist, artist_changeset)
+      |> Multi.insert(:invalid, invalid_changeset)
+    Repo.transaction(multi)
+
+    #=> {
+    #=>  :error,
+    #=>  :invalid,
+    #=>  #Ecto.Changeset<action: :insert, changes: %{}, errors: [name: {"can't be blank", [validation: :required]}], data: #MusicDB.Artist<>, valid?: false>,
+    #=>  %{}
+    #=> }
+  #+END_SRC
+  We got an empty map. The return value told us that the second
+  operation in the ~Multi~ failed, so we would expect to see the
+  result of the first operation in the list of changes so far.  If the
+  Multi contains operations that use changesets, Ecto first checks to
+  make sure all the changesets are valid. If any are not, Ecto won’t
+  bother running the transaction at all. It just flags the invalid
+  changeset and sends it back to us in the return value. There’s no
+  need to trouble the database with an invalid changeset.
+- e.g.
+  #+BEGIN_SRC elixir
+    artist = Repo.get_by(Artist, name: "Johnny Hodges")
+    artist_changeset = Artist.changeset(artist,
+      %{name: "John Cornelius Hodges"})
+    genre_changeset =
+      %Genre{}
+      |> Ecto.Changeset.cast(%{name: "jazz"}, [:name])
+      |> Ecto.Changeset.unique_constraint(:name)
+    multi =
+      Multi.new
+      |> Multi.update(:artist, artist_changeset)
+      |> Multi.insert(:bad_genre, genre_changeset)
+    Repo.transaction(multi)
+    #=> {:error, :bad_genre, #Ecto.Changeset< ... >,
+    #=>   %{
+    #=>       artist: %MusicDB.Artist{
+    #=>           __meta__: #Ecto.Schema.Metadata<:loaded, "artists">,
+    #=>           albums: #Ecto.Association.NotLoaded<association
+    #=>           :albums is not loaded>,
+    #=>           birth_date: nil,
+    #=>           death_date: nil,
+    #=>           id: 4,
+    #=>           inserted_at: ~N[2018-03-23 14:02:28],
+    #=>           name: "John Cornelius Hodges",
+    #=>           tracks: #Ecto.Association.NotLoaded<association
+    #=>           :tracks is not loaded>,
+    #=>           updated_at: ~N[2018-03-23 14:02:28]
+    #=>       }
+    #=>   }
+    #=> }
+  #+END_SRC
+  The keys in the map correspond to our named ~Multi~ functions that
+  have already been run. In this example, we just had the one ~:artist~
+  update so that’s all this map contains.  The value of the
+  item is the result of the operation. Here we can see that our “Johnny Hodges”
+  record was updated to “John Cornelius Hodges” as we expected. But because
+  the Multi failed (thanks to the addition of our bad_genre operation), the database
+  rolled back the change. We can confirm that by looking at the database again:
+  #+BEGIN_SRC elixir
+    Repo.get_by(Artist, name: "John Cornelius Hodges")
+    #=> nil
+  #+END_SRC
+
+***** Optimizing Multi with Changesets
+- e.g.
+  #+BEGIN_SRC elixir
+    multi =
+      Multi.new
+      |> Multi.insert(:artist, %Artist{})
+
+    Repo.transaction(multi)
+
+    #=> ** (Postgrex.Error) ERROR 23502 (not_null_violation): null value
+    #=> in column "name" violates not-null constraint
+  #+END_SRC
+  Instead of passing a changeset to ~insert~ we passed in an empty
+  Artist struct. Our database requires that all records in artists
+  have a non-null name field, so the insert operation fails. This
+  results in transaction raising an error, rather than returning the
+  nicely arranged tuple we saw in the last example. Given this
+  behavior, it’s best to use changesets with ~Multi~ whenever
+  possible.
+**** Executing Non-Database Operations with Multi
+- e.g.
+  #+BEGIN_SRC elixir
+    artist = %Artist{name: "Toshiko Akiyoshi"}
+
+    multi =
+      Multi.new()
+      |> Multi.insert(:artist, artist)
+      |> Multi.insert(:log, Log.changeset_for_insert(artist))
+      |> Multi.run(:search, fn _repo, changes ->
+      SearchEngine.update(changes[:artist])
+    end)
+
+      Repo.transaction(multi)
+  #+END_SRC
+  In this example, we used an anonymous function for the run
+  operation. The function accepts two arguments, our current ~Repo~ and
+  a map of the changes made in the ~Multi~ so far. We need the ~Artist~
+  record that we inserted, so we grab the ~:artist~ item from the
+  changes map. Ecto expects our function to return ~{:ok, value}~ if the
+  function succeeded or ~{:error, value}~ if it failed. In that case,
+  value can be any value of our choosing.
+  + we can also use MFA form with ~Multi.run/5~
+    #+BEGIN_SRC elixir
+      multi =
+      Multi.new()
+      |> Multi.insert(:artist, artist)
+      |> Multi.insert(:log, Log.changeset_for_insert(artist))
+      |> Multi.run(:search, SearchEngine, :update, ["extra argument"])
+    #+END_SRC
+    With this form of ~run~, Ecto will still pass in the ~Repo~ and the
+    list of changes to the specified function—these will be the first
+    arguments passed to the function, with the arguments you specify
+    immediately following. The last line in the preceding code will
+    result in ~SearchEngine.update~ being called like this:
+    ~SearchEngine.update(repo, changes, "extra argument")~.
+
+**** Introspection with Multi
+- Given that ~Multi~ is a data structure, you can use the ~to_list~
+  function to see the all of the operations currently queued within a
+  ~Multi~:
+  #+BEGIN_SRC elixir
+      multi =
+    Multi.new()
+    |> Multi.insert(:artist, artist)
+    |> Multi.insert(:log, Log.changeset_for_insert(artist))
+    |> Multi.run(:search, SearchEngine, :update, ["extra argument"])
+    Multi.to_list(multi)
+    #=> [
+    #=>  artist: {:insert, #Ecto.Changeset<action: :insert, changes: %{}, errors: [], data: #MusicDB.Artist<>, valid?: true>, []},
+    #=>  log: {:insert, #Ecto.Changeset<action: :insert, changes: %{}, errors: [], data: #MusicDB.Log<>, valid?: true>, []},
+    #=>  search: {:run, {SearchEngine, :update, ["extra argument"]}}
+    #=> ]
+  #+END_SRC
+** Making Changes to Your Database
+- ~mix ecto.gen.migration~
+  + e.g. ~mix ecto.gen.migration add_compositions_table~
+  + to specify the repo
+    ~mix ecto.gen.migration AddCompositionsTable -r MusicDB.Repo~
+- sample
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.Repo.Migrations.AddCompositionsTable do
+      use Ecto.Migration
+      def change do
+        create table("compositions") do
+          add :title, :string, null: false
+          add :year, :integer, null: false
+          add :artist_id, references("artists"), null: false
+          timestamps()
+        end
+      end
+    end
+  #+END_SRC
+  + The ~table~ function creates a new ~Ecto.Migration.Table~ struct with
+    the name we provide (~compositions~ in this case).
+  + You have two options when specifying the type. You can use the
+    Ecto types and Ecto will translate those into the corresponding
+    database-specific types. Or, you can provide the actual database
+    type yourself, provided that it’s one that Ecto knows about.
+  + For example, Ecto translates the ~:string~ type to ~character varying(255)~
+    in PostgreSQL. If you were creating a column that
+    needed to handle long strings of text, you might define the column
+    using ~:text~. Ecto will still use Elixir’s String type for these
+    values in your Elixir code, but using ~:text~ ensures that the
+    database column will be able to hold as much text as you need.
+  + For the ~artist_id~ column, we didn’t provide an atom for the type,
+    and instead called the ~references~ function. This tells Ecto that
+    we’d like ~artist_id~ to be a foreign key for the ~artists~ table.
+  + The add function will also accept a ~default:~ option that allows
+    you to provide a fallback value if the user doesn’t provide one.
+  + ~timestamps~ is a convenience function that adds two datetime
+    columns: ~inserted_at~ and ~updated_at~.
+    * By default, Ecto uses Elixir’s ~NaiveDateTime~ and does not
+      preserve microsecond information (it will discard it when
+      running ~Changeset.cast~ and raise an error if you try to set the
+      value in a schema struct). If you need time zones or
+      microseconds in your timestamps, you can change the default
+      timestamp type.
++ to run the migration: ~mix ecto.migrate~
+  and it will create the following table
+  #+BEGIN_SRC
+    music_db=# \d composition
+                                              Table "public.composition"
+       Column    |              Type              | Collation | Nullable |                 Default
+    -------------+--------------------------------+-----------+----------+-----------------------------------------
+     id          | bigint                         |           | not null | nextval('composition_id_seq'::regclass)
+     title       | character varying(255)         |           | not null |
+     year        | integer                        |           | not null |
+     artist_id   | bigint                         |           | not null |
+     inserted_at | timestamp(0) without time zone |           | not null |
+     updated_at  | timestamp(0) without time zone |           | not null |
+    Indexes:
+        "composition_pkey" PRIMARY KEY, btree (id)
+    Foreign-key constraints:
+        "composition_artist_id_fkey" FOREIGN KEY (artist_id) REFERENCES artists(id)
+  #+END_SRC
+
+*** Rolling Back Migrations
+- By default, ~mix ecto.migrate~ will run all the migrations that
+  haven’t been run yet, and ~mix ecto.rollback~ will roll back only
+  the most recent migration. But both of these commands accept options
+  that change this behavior.
+  + ~mix ecto.migrate -n 3~
+    * will run the first three pending migrations
+  + ~mix ecto.rollback -n 3~
+    * will roll back the three most recent migrations
+  + ~mix ecto.migrate -v 20080906120000~
+    * will run all of the pending migrations up to and including the
+      given version number
+  + ~mix ecto.rollback -v 20080906120000~
+    * will roll back all of the most recent migrations down to and
+      including the version.
+  + To see all of the options available in these commands
+    * ~mix help ecto.migrate~ and ~mix help ecto.rollback~
+
+*** Adding Indexes
+- This change brings up an interesting question: should we generate a
+  new migration to add these indexes, or should we just edit the
+  migration that we already made?
+  + As a general rule, it’s OK to edit an existing migration provided
+    that you haven’t already committed your migration to source
+    control. Once your migration is available to other developers on
+    your team, you shouldn’t make any edits to it — you should instead
+    create a new migration with the changes you want to make.
+  + The reason is a practical one. Once a migration is committed, you
+    can’t be certain that other developers haven’t already pulled it
+    down and run it on their machine. Ecto can’t detect changes to a
+    migration that’s already been run, so your teammates won’t be able
+    to apply your new changes just by running ~mix ecto.migrate~. You
+    would need to go to them directly and tell them to roll back that
+    migration, pull down your changes, and run the migration
+    again. If you instead create a new migration, they just need
+    to sync their codebase, run the new migration, and they’re back on
+    track.
+- sample
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.Repo.Migrations.AddIndexesToCompositions do
+      use Ecto.Migration
+
+      def change do
+        create(index("compositions", :title))
+        create(index("compositions", :year))
+      end
+    end
+  #+END_SRC
+  now we should run ~mix ecto.migrate~ and to make sure that ecto can
+  rollback, we should run ~mix ecto.rollback~ as well.
+  +
+    #+BEGIN_SRC elixir
+        $ mix ecto.migrate
+
+        06:00:23.187 [info] ==
+        Running MusicDB.Repo.Migrations.AddIndexesToCompositions.change/0 forward
+        06:00:23.187 [info]
+         create index compositions_title_index
+        06:00:23.190 [info]
+         create index compositions_year_index
+        06:00:23.193 [info]
+         == Migrated in 0.0s
+
+        $ mix ecto.rollback
+
+        06:00:30.298 [info] ==
+        Running MusicDB.Repo.Migrations.AddIndexesToCompositions.change/0 backward
+        06:00:30.298 [info]
+         drop index compositions_year_index
+        06:00:30.299 [info]
+         drop index compositions_title_index
+        06:00:30.300 [info]
+         == Migrated in 0.0s
+    #+END_SRC
+    The ~drop index~ lines that appear in the output assure us that Ecto
+    has inferred how to roll back our migration for us.
+
+
+*** Adding Options to an Index
+- unique indexing
+  +
+    #+BEGIN_SRC elixir
+    create index("genres", :name, unique: true)
+    #+END_SRC
+    or
+    #+BEGIN_SRC elixir
+    create unique_index("genres", :name)
+    #+END_SRC
+- Database indexes must have a name, and Ecto provides one for you by
+  default by combining the table and column names of the index
+  (~compositions_year_index~ for example). Most of the time this
+  convention works fine, but if you’re creating a multi-column index
+  and some of the column names are long, it’s possible that the name
+  Ecto generates will be longer than your database allows. If that
+  happens, you can use the name option to provide a name the database
+  can use: ~create index("compositions", :title, name: "title_index")~
+  Other options support things like the index type, partial indexes,
+  and so.
+*** Changing Data and Table Structure Together
+- e.g.
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.Repo.Migrations.AddCompositionArtistsTable do
+      use Ecto.Migration
+
+      def change do
+        create table("compositions_artists") do
+          add :composition_id, references("compositions"), null: false
+          add :artist_id, references("artists"), null: false
+          add :role, :string, null: false
+        end
+        create index("compositions_artists", :composition_id)
+        create index("compositions_artists", :artist_id)
+      end
+    end
+  #+END_SRC
