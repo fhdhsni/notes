@@ -6168,12 +6168,355 @@
 
       def change do
         create table("compositions_artists") do
-          add :composition_id, references("compositions"), null: false
-          add :artist_id, references("artists"), null: false
-          add :role, :string, null: false
+          add(:composition_id, references("compositions"), null: false)
+          add(:artist_id, references("artists"), null: false)
+          add(:role, :string, null: fasle)
         end
-        create index("compositions_artists", :composition_id)
-        create index("compositions_artists", :artist_id)
+
+        create(index("compositions_artists", :composition_id))
+        create(index("compositions_artists", :artist_id))
+
+        flush()
+
+        from(c in "compositions", select: [:id, :artist_id])
+        |> Repo.all()
+        |> Enum.each(fn row ->
+          Repo.insert_all("compositions_artists", [
+            [composition_id: row.id, artist_id: row.artist_id, role: "composer"]
+          ])
+        end)
+
+        alter table("compositions") do
+          remove(:artist_id)
+        end
       end
     end
   #+END_SRC
+
+*** Specifying Up and Down Operations
+- e.g.
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.Repo.Migrations.AddCompositionArtistsTable do
+      use Ecto.Migration
+      import Ecto.Query
+      alias MusicDB.Repo
+
+      def up do
+        create table("compositions_artists") do
+          add(:composition_id, references("compositions"), null: false)
+          add(:artist_id, references("artists"), null: false)
+          add(:role, :string, null: fasle)
+        end
+
+        create(index("compositions_artists", :composition_id))
+        create(index("compositions_artists", :artist_id))
+
+        flush()
+
+        from(c in "compositions", select: [:id, :artist_id])
+        |> Repo.all()
+        |> Enum.each(fn row ->
+          Repo.insert_all("compositions_artists", [
+            [composition_id: row.id, artist_id: row.artist_id, role: "composer"]
+          ])
+        end)
+
+        alter table("compositions") do
+          remove(:artist_id)
+        end
+      end
+
+      def down do
+        alter table("compositions") do
+          add(:artist_id, references("artists"))
+        end
+
+        flush()
+
+        from(ca in "compositions_artist",
+          where: ca.role == "composer",
+          select: [:artist_id, :composition_id]
+        )
+        |> Repo.all()
+        |> Enum.each(fn row ->
+          Repo.update_all(
+            from(c in "compositions",
+              where: c.id == ^row.composition_id,
+              set: [artist_id: row.artist_id]
+            )
+          )
+        end)
+
+        drop(table("compositions_artists"))
+      end
+    end
+  #+END_SRC
+  First, we put ~artist_id~ back into the ~compositions~ table. Then
+  we call ~flush~ so that the new column is available for us to move
+  data into it. Now we need to move the ~artist_id~ from
+  ~compositions_artists~ back into the ~compositions~ table. If we’ve
+  added any new records where there’s more than one artist associated
+  with a composition, we’re going to lose some of that
+  data—unfortunately, we have no choice there. We get all the
+  ~compositions_artists~ records with the role of ~composer~, then
+  update the associated compositions record with the ~artist_id~. If
+  any composition had more than one composer associated with it, the
+  last one will win. We can’t do much about that, except hope that we
+  never have to roll this migration back. Finally, we drop the
+  ~compositions_artists~ table, and we’re back to where we were.
+
+*** Changing Default Behaviors
+**** Setting Primary and Foreign Key Names
+- Ecto automatically creates a primary key called ~id~ with type
+  ~:bigserial~ when you create a new table. If you’d like Ecto to use
+  a different name and/or type when creating primary keys, you can set
+  this as a global configuration option in your ~Repo~ config in
+  ~config/config.exs~. Here’s how you could use ~code~ instead of ~id~ as
+  the column name, and ~:string~ as the type:
+  #+BEGIN_SRC elixir
+    config :music_db, MusicDB.Repo,
+      migration_primary_key: [id: :code, type: :string]
+  #+END_SRC
+  Making this change affects the default behavior whenever you create
+  a new table with Ecto.
+
+- you can change the behavior on a per-table basis as well. Anytime
+  you don’t want Ecto to create a primary key for you, add the
+  ~primary_key: false~ option when creating the table:
+  #+BEGIN_SRC elixir
+    create table("compositions", primary_key: false) do
+      add :title, :string, null: false
+      #...
+    end
+  #+END_SRC
+  You could then add a primary key to the table manually when calling
+  add:
+  #+BEGIN_SRC elixir
+    create table("compositions", primary_key: false) do
+      add :code, :string, primary_key: true
+      #...
+    end
+  #+END_SRC
+- When creating foreign keys with the references function, Ecto again
+  assumes that the primary key of the referenced table is called ~id~
+  and is a ~:bigserial~. But you can pass options to ~references~ to
+  specify something different:
+  #+BEGIN_SRC elixir
+    create table("compositions_artists") do
+      add :composition_id, references("compositions",
+        column: "code", type: "string")
+      #...
+    end
+  #+END_SRC
+**** Changing Timestamps
+- ~timestamps~ method automatically adds ~inserted_at~ and
+  ~updated_at~ columns to your tables. By default, these will always
+  use Elixir’s ~NaiveDateTime~ type, but you can change this globally
+  in your ~Repo~ config. Here’s how you could change it to use a UTC
+  timestamp:
+  #+BEGIN_SRC elixir
+  config :music_db, MusicDB.Repo, migration_timestamps: [type: :utc_datetime]
+  #+END_SRC
+- The ~:time~, ~:naive_datetime~, and ~:utc_datetime~ types don’t allow you
+  to save microsecond information in your timestamps. If you need
+  microseconds, you can use the more precise counterparts: ~:time_usec~,
+  ~:naive_datetime_usec~, or ~:utc_datetime_usec~
+- change in table level
+  #+BEGIN_SRC elixir
+    create table("compositions") do
+      timestamps(inserted_at: :created_at, updated_at: :changed_at,
+        type: :utc_datetime)
+      #...
+    end
+  #+END_SRC
+  Note if you’re using schemas, changing the timestamp type in the
+  migration or the ~Repo~ config isn’t enough to guarantee your
+  timestamps will be stored correctly. You’ll also need to set the
+  type in the ~Ecto.Schema.timestamps/1~ call when you define the
+  Schema.
+  + You can also set the ~inserted_at~ or ~updated_at~ options to ~false~ if
+    you don’t want to include that column. This will add ~inserted_at~,
+    but not ~updated_at~:
+    #+BEGIN_SRC elixir
+      create table("compositions") do
+        timestamps updated_at: false
+        #...
+      end
+    #+END_SRC
+**** Running Migrations Outside of a Transaction
+- By default, migrations are run within a database transaction. This
+  is a good thing: if any part of your migration has an error, you can
+  be assured that the database will be restored back to the way it
+  was.
+  + to disable the transactional behavior
+    #+BEGIN_SRC elixir
+      defmodule MusicDB.Repo.Migrations.AddCompositionsIndex do
+        use Ecto.Migration
+
+        @disable_ddl_transaction true
+
+        def change do
+          #...
+        end
+      end
+    #+END_SRC
+    One situation where you need to do this is when changing indexes
+    concurrently. Databases usually prevent tables from accepting new
+    writes while adding or dropping indexes, but PostgreSQL has an
+    option that removes this limitation. This is useful if you need to
+    alter an index on a large table, and don’t want it unavailable for
+    writes during the process. You can take advantage of this feature
+    by setting the ~concurrently~ option to ~true~ while creating the
+    index, but you must run the migration outside of a transaction
+    by settings ~@disable_ddl_transaction~ to ~true~.
+    + For creating indexes concurrently, there’s one more change we
+      need to make. We need to set the ~migration_lock~ configuration
+      option for our ~Repo~ to ~nil~. By default, Ecto will lock the
+      ~schema_migrations~ table when running migrations. This lets
+      multiple nodes run migrations, but only allows one of them to
+      succeed. Normally, that’s a good thing, but it interferes with
+      our ability to create the index concurrently. So we need to
+      disable the lock in our ~Repo~ configuration:
+    #+BEGIN_SRC elixir
+    config :music_db, MusicDB.Repo, migration_lock: nil
+    #+END_SRC
+    and the migration
+    #+BEGIN_SRC elixir
+      defmodule MusicDB.Repo.Migrations.AddCompositionsIndex do
+        use Ecto.Migration
+        @disable_ddl_transaction true
+        def change do
+          create index("compositions", :title, concurrently: true)
+        end
+      end
+    #+END_SRC
+** adding ecto to an elixir application without phoenix
+1.
+       #+BEGIN_SRC
+       mix new my_app --sup
+       #+END_SRC
+2. Adding Ecto’s Dependencies
+
+   mix.exs
+   #+BEGIN_SRC elixir
+     defp deps do
+       [
+         {:postgrex, ">= 0.0.0"},
+         {:ecto_sql, "~> 3.0"}
+       ]
+     end
+   #+END_SRC
+3. Creating Your Repo Module
+   ~/lib/my_app/repo.ex~
+   #+BEGIN_SRC elixir
+     defmodule MyApp.Repo do
+       use Ecto.Repo,
+         otp_app: :my_app,
+         adapter: Ecto.Adapters.Postgres
+     end
+   #+END_SRC
+   + all of Ecto’s repository functions will be defined and made
+     available on this module.
+
+   + The ~otp_app: :my_app~ option tells Ecto where to find the
+     repository configuration. So far, our project only has the ~my_app~
+     application, so we’re using that value here. If we had multiple
+     applications in this project, you could store the Repo
+     configuration in any one of them, and provide the name of that
+     application rather than ~:my_app~
+
+   + To set up the repository configuration, open ~config/config.exs~
+     and add the following lines. Make sure that the ~hostname~,
+     ~username~, and ~password~ values will work for the database you’re
+     using.
+
+     config/config.exs
+     #+BEGIN_SRC elixir
+       config :my_app, MyApp.Repo,
+         database: "my_database",
+         username: "postgres",
+         password: "postgres",
+         hostname: "localhost"
+     #+END_SRC
+     * The first argument of the call to ~config/3~ should match the
+       OTP application name we set when defining the repository. The
+       second argument is the name of the repository module. The
+       options ~:database~, ~:username~, ~:password~ and ~:hostname~
+       define how to connect to the database.
+     * They can be replaced with a single ~:url~ option that provides
+       all of these values in a URL. The URL should follow this
+       format: ~ecto://USERNAME:PASSWORD@HOSTNAME/DATABASE~. Using the
+       preceding values, the URL would look like this:
+       ~ecto://postgres:postgres@localhost/my_database~.
+     * You may also want to the set ~pool_size~. This specifies how
+       many database connections the repo will keep open. By default,
+       Ecto sets this value to 10, but you can increase this number if
+       you’re getting timeout errors when checking out
+       connections—this can be an indication that you do not have
+       enough open connections to handle your application’s load.
+     * For Ecto’s mix tasks to be able to find the repository, we also
+       need to add the following line to ~config/config.exs~:
+       #+BEGIN_SRC elixir
+       config :my_app, :ecto_repos, [MyApp.Repo]
+       #+END_SRC
+4. Adding Ecto to the Supervision Tree
+- so far we’ve added the dependencies, defined our repository, and
+  configured it. The last step is to ensure the repository is started
+  when the application starts. To do this, we need to add the
+  repository to the application supervision tree.
+- If your project was generated with ~mix new --sup~ you should have a file ~lib/my_app/application.ex~ with the following function:
+  #+BEGIN_SRC elixir
+    def start(_type, _args) do
+      # List all child processes to be supervised
+      children = [
+        # Starts a worker by calling: MyApp.Worker.start_link(arg)
+        # {MyApp.Worker, arg},
+      ]
+      # See https://hexdocs.pm/elixir/Supervisor.html
+      # for other strategies and supported options
+      opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+      Supervisor.start_link(children, opts)
+    end
+  #+END_SRC
+- To ensure the repository is started with the application, we just
+  need to add it to the list of our project’s children:
+  #+BEGIN_SRC elixir
+    # List all child processes to be supervised
+    children = [
+      MyApp.Repo
+    ]
+  #+END_SRC
+
+*** Using Multiple Ecto Repos
+- sometimes you’ll need to connect to multiple databases, and in those
+  cases, you’ll need to set up a separate repo for each database.
+1. First, you need to create the new repo:
+   #+BEGIN_SRC elixir
+     defmodule MyApp.OtherRepo do
+       use Ecto.Repo, otp_app: :my_app, adapter: Ecto.Adapter.Postgres
+     end
+   #+END_SRC
+2. Then you need to configure it, just like you did with the first
+   repo:
+   #+BEGIN_SRC elixir
+     config :my_app, MyApp.OtherRepo, ...
+     config :my_app, :ecto_repos, [MyApp.Repo, MyApp.OtherRepo]
+   #+END_SRC
+3. Finally, add the new repo to your application’s supervision tree:
+   #+BEGIN_SRC elixir
+     children = [
+       MyApp.Repo,
+       MyApp.OtherRepo
+     ]
+   #+END_SRC
+4. If don’t have a database yet, you can create it using the
+   ~ecto.create~ mix task:
+   #+BEGIN_SRC elixir
+   > mix ecto.create
+   #+END_SRC
+   The database for ~MyApp.Repo~ has been created. If that succeeds,
+   then your configuration is working and Ecto is able to communicate
+   with your database.
+** Working with Changesets and Phoenix Forms
+- We’ll focus specifically on how it allows you to use Ecto changesets
+  with Phoenix forms.
