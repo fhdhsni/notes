@@ -6518,5 +6518,679 @@
    then your configuration is working and Ecto is able to communicate
    with your database.
 ** Working with Changesets and Phoenix Forms
+- [[https://hexdocs.pm/phoenix_html/Phoenix.HTML.Form.html][Phoenix.HTML.Forms]]
+- [[http://blog.plataformatec.com.br/2015/08/working-with-ecto-associations-and-embeds/][Working With Ecto Associations And Embeds]]
+
 - We’ll focus specifically on how it allows you to use Ecto changesets
   with Phoenix forms.
+  + schema
+    #+BEGIN_SRC elixir
+      defmodule MyApp.User do
+        import Ecto.Changeset
+        use Ecto.Schema
+        schema "users" do
+          field :name, :string
+          field :age, :integer
+        end
+        def changeset(user, params) do
+          user
+          |> cast(params, [:name, :age])
+          |> validate_required(:name)
+          |> validate_number(:age, greater_than: 0,
+          message: "you are not yet born")
+        end
+      end
+    #+END_SRC
+  + controller
+    #+BEGIN_SRC elixir
+      def new(conn, _params) do
+        changeset = User.changeset(%User{}, %{})
+        render(conn, changeset: changeset)
+      end
+    #+END_SRC
+  + Now we’re ready to set up the form. To build forms from
+    changesets, we use the ~form_for/4~ function from ~Phoenix.HTML.Form~:
+    #+BEGIN_SRC elixir
+      <%= form_for @changeset, user_path(@conn, :create), fn f -> %>
+          Name: <%= text_input f, :name %>
+          Age: <%= number_input f, :age %>
+      <%= submit "Submit" %>
+      <% end %>
+    #+END_SRC
+    * Notice how we can pass our changeset directly into ~form_for~ as
+      the first argument. If you looked at the documentation, you’d
+      see that form_for expects ~Phoenix.HTML.FormData~ as its first
+      argument. This is the power of Elixir protocols at work. Phoenix
+      defined a behavior that it expects in ~Phoenix.HTML.FormData~,
+      and the ~phoenix_html~ package provides an implementation of
+      that behavior that makes changesets act like ~FormData~.
+    * The second argument of ~form_for/4~ is the action URL. This is
+      where the request will be sent when the form is
+      submitted. ~user_path(@conn, :create)~ points to the ~:create~
+      action in the ~UserController~ so let’s implement that now:
+      #+BEGIN_SRC elixir
+        def create(conn, %{"user" => user_params}) do
+          case Accounts.create_user(user_params) do
+            {:ok, user} ->
+              conn
+              |> put_flash(:info, "User created successfully.")
+              |> redirect(to: Routes.user_path(conn, :show, user))
+
+            {:error, %Ecto.Changeset{} = changeset} ->
+              render(conn, "new.html", changeset: changeset)
+          end
+        end
+      #+END_SRC
+    * ~Accounts.create_user~ is
+      #+BEGIN_SRC elixir
+        def create_user(attrs \\ %{}) do
+          %User{}
+          |> User.changeset(attrs)
+          |> Repo.insert()
+        end
+      #+END_SRC
+    * showing errors
+      #+BEGIN_SRC elixir
+        <%= form_for @changeset, user_path(@conn, :create), fn f -> %>
+            Name: <%= text_input f, :name %>
+            <%= error_tag f, :name %>
+
+            Age: <%= number_input f, :age %>
+            <%= error_tag f, :age %>
+
+            <%= submit "Submit" %>
+        <% end %>
+      #+END_SRC
+      helpers implementation
+      #+BEGIN_SRC elixir
+        def error_tag(form, field) do
+          if error = form.errors[field] do
+            content_tag(:span, translate_error(error))
+          end
+        end
+
+        defp translate_error({msg, opts}) do
+          Enum.reduce(opts, msg, fn {key, value}, msg ->
+            String.replace(msg, "%{#{key}}", to_string(value))
+          end)
+        end
+      #+END_SRC
+      The function renders a ~<span>~ tag with an error message, but
+      only if the given field actually has an error; if it doesn’t,
+      the function returns nothing.
+
+      We also defined a ~translate_error/1~ function. We need this
+      because Ecto stores validation errors in the format ~{String.t, [Keyword.t]}~;
+      for example, ~{"must be greater than %{number}", [number: 0]}~.
+      This may seem unnecessarily complex, but it makes
+      it easier to translate error messages into other languages.
+*** Creating a Form with an Association
+- we’ll use an embedded schema representing the user’s address.
+- create an embedded schema for the user’s address
+  #+BEGIN_SRC elixir
+    defmodule MyApp.Address do
+      import Ecto.Changeset
+      use Ecto.Schema
+      embedded_schema do
+        field :street, :string
+        field :city, :string
+      end
+      def changeset(address, params) do
+        cast(address, params, [:street, :city])
+      end
+    end
+  #+END_SRC
+- add the association to your ~%User{}~ schema.
+  #+BEGIN_SRC elixir
+    schema "users" do
+      field :name, :string
+      field :age, :integer
+      embeds_one :address, MyApp.Address
+    end
+
+    # and modify the changeset
+    def changeset(user, params) do
+      user
+      |> cast(params, [:name, :age])
+      |> cast_embed(:address)
+      |> validate_required(:name)
+      |> validate_number(:age, greater_than: 0, message: "You are not yet born")
+    end
+  #+END_SRC
+  the ~cast~ function takes the user params and generates a changeset
+  for a ~%User{}~. ~cast_embed~ is similar—it starts with the user
+  changeset, finds the params that belong to the ~:address~ schema, then
+  creates a changeset for ~%Address{}~ within the ~%User{}~ changeset.
+
+- Now we need to add the address inputs to our form. We’ll use the
+  ~inputs_for/4~ function to create a sub-form for the embedded address
+  association:
+  #+BEGIN_SRC elixir
+    <%= form_for @changeset, user_path(@conn, :create), fn f -> %>
+        Name: <%= text_input f, :name %> <%= error_tag f, :name %>
+        Age: <%= number_input f, :age %> <%= error_tag f, :age %>
+
+    <%= inputs_for f, :address, fn fa -> %>
+          Street: <%= text_input fa, :street %> <%= error_tag fa, :street %>
+          City: <%= text_input fa, :city %> <%= error_tag fa, :city %>
+      <% end %>
+
+    <%= submit "Submit" %>
+    <% end %>
+  #+END_SRC
+  + ~inputs_for~ works a lot like ~form_for~ — it acts as a kind of wrapper
+    around the individual form inputs. But instead of passing in a
+    changeset, we pass in the parent form, plus the name of the
+    association and an anonymous function that contains the ~text_input~
+    function calls. There’s no visual indication to the user that this
+    sub-form is any different from the rest of the form, but code
+    makes it clear that we’re working with an associated schema.
+*** Creating a Form with Multiple Associations
+- In the last example, we were working with a single address via the
+  ~embeds_one~ association. Let’s try adding support for multiple
+  addresses (~embeds_many~).
+- The process is similar to having just a single address. The
+  ~inputs_for~ function is smart enough to handle associations with one
+  record or with many records; it will always generate as many
+  sub-forms as needed. So if, for example, we had two addresses
+  associated with the user record, inputs_for would create two
+  sub-forms, one for each address.
+- There’s just one problem: we don’t have a way for users to add a new
+  address.
+- Think about how things work with just one address. When users first
+  fill out the form, the address fields are blank. When users complete
+  the form successfully and come back to it later, the form fields
+  contain the data they entered before, and they can make edits if
+  they wish. But with multiple addresses, we have to consider two
+  possibilities: editing an existing address and creating a new one.
+- If we want to allow the user to add a new address, we have a few
+  options. We could send the user to a separate page with an empty
+  address form, or we could use JavaScript to add a form
+  dynamically. But Phoenix has an even simpler option for us: we can
+  use the ~:prepend~ or ~:append~ options to add an empty ~%Address{}~ to
+  the list of associated addresses. Assuming we chose :append, the
+  code would look like this:
+  #+BEGIN_SRC elixir
+    <%= inputs_for f, :address, append: [%Address{}], fn fa -> %>
+        Street: <%= text_input fa, :street %> <%= error_tag fa, :street %>
+        City: <%= text_input fa, :city %> <%= error_tag fa, :city %>
+    <% end %>
+  #+END_SRC
+
+- If we had two addresses already saved with our user record, this
+  code would display sub-forms for those two addresses; then, since
+  we’re using the ~append:~ option, it would add a sub-form for a new,
+  empty address after the two other addresses (if we used ~prepend:~ the
+  new form would appear at the top). This ensures that users will
+  always have a blank form they can use to add a new address.
+
+- Bear in mind that these options only take effect when the changeset
+  has no parameters—when rendering a form with validation errors,
+  Phoenix will not add the extra empty sub-form.
+** Testing with Sandboxes
+- Sandboxes allow you to run your database tests concurrently, while
+  still keeping the database state of each test isolated from the
+  others.
+- The secret sauce underlying this feature is a special pool of
+  database connections with an ownership mechanism that allows you to
+  control how connections are used and shared between processes.
+*** Setting Up an Async Test
+- To use the sandbox, change your ~Repo~ configuration to use the
+  sandbox pool. We only want to do this when we’re in our test
+  environment, so make the following change in ~config/test.exs~ and
+  only there:
+  #+BEGIN_SRC elixir
+    config :music_db, MusicDB.Repo,
+      pool: Ecto.Adapters.SQL.Sandbox
+      # other settings here
+  #+END_SRC
+  By changing the ~pool:~ setting, we’re telling Ecto that we will not
+  be using the default connection pool and instead give the sandbox
+  full control over how connections are checked out and used by
+  processes.
+- Next, we need to set our sandbox to the correct ownership mode.
+  add this line to ~test/test_helper.exs~:
+  #+BEGIN_SRC elixir
+  Ecto.Adapters.SQL.Sandbox.mode(MusicDB.Repo, :manual)
+  #+END_SRC
+- Now we’re ready to write our test case.
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.AlbumTest do
+      use ExUnit.Case, async: true
+      setup do
+        :ok = Ecto.Adapters.SQL.Sandbox.checkout(MusicDB.Repo)
+      end
+      test "insert album" do
+        album = MusicDB.Repo.insert!(%MusicDB.Album{title: "Giant Steps"})
+        new_album = MusicDB.Repo.get!(MusicDB.Album, album.id)
+        assert new_album.title == "Giant Steps"
+      end
+    end
+  #+END_SRC
+  + we set ~async: true~ on the first line of the test. This tells
+    Elixir that it’s safe to run this test concurrently with other
+    tests.
+  + We also added a setup block that calls the checkout function on
+    the sandbox. This is how we obtain the database connection that
+    we’ll be using throughout our test. We need to make this call
+    because we set the ownership mode to ~:manual~ in our test helper,
+    but that’s not the case for all of the ownership modes.
+
+*** Changing the Ownership Mode
+- Th e ownership mode affects the way the sandbox interacts with
+  different processes. You can use three different modes: ~:auto~,
+  ~:manual~, and ~:shared~.
+  + With ~:auto~ the sandbox functions like a normal pool: each
+    process gets its own connection from the pool and has exclusive
+    access to the connection while it is checked out. And, like a
+    normal pool, the connections are checked out automatically when
+    your code needs to run a database operation, and checked back in
+    when the operation completes. The connection is still in a
+    sandboxed transaction that is rolled back when the connection is
+    checked in, but you can’t be sure that you’ll get the same
+    connection each time you access the database. This means that
+    there’s no guarantee that our calls to insert! and get! in our
+    test case will use the same connection; if they use different
+    connec- tions, the get! call will fail when it can’t find the
+    album we inserted in the other connection.
+    * Use ~:auto~ when you don’t need to retain the state of your
+      database throughout your test case. For example, if you’re only
+      making one database call in the test, or the result of a
+      database call isn’t dependent on the result of previous database
+      calls, ~:auto~ is a good choice. This will likely be rare,
+      however.
+  + In ~:manual~ mode, which we used in the previous example, the
+    connection is explicitly checked out in the setup block; and is
+    not checked back in until the test exits. In this mode we can be
+    sure that we’re only using a single connection through our whole
+    test. Any changes we make in one part of the test will be
+    available to all the other parts, and everything will get rolled
+    back at the end of the test.
+    * Use ~:manual~ when you’re making multiple database calls in your
+      test case, and later calls are dependent on the result of
+      earlier calls. It’s also important that the database calls are
+      run from the same Elixir process.
+  + For tests that use multiple processes, Ecto has ~:shared~ mode. So
+    far, our examples have only used one process, but consider an
+    example like this:
+    #+BEGIN_SRC elixir
+      test "insert album" do
+        task = Task.async(fn ->
+          album = MusicDB.Repo.insert!(%MusicDB.Album{title: "Giant Steps"})
+          album.id
+        end)
+        album_id = Task.await(task)
+        assert MusicDB.Repo.get(MusicDB.Album, album_id).title == "Giant Steps"
+      end
+    #+END_SRC
+    In this somewhat contrived example, we’re running a database
+    operation in a separate process using ~Task.async~. If we tried to
+    run this test in *manual* or *auto* mode, it would crash with the
+    error:
+    #+BEGIN_SRC
+      ** (DBConnection.OwnershipError) cannot find ownership process
+      for #PID<0.165.0>.
+    #+END_SRC
+    This is because the process that’s trying to connect to the
+    database (which we initiated with Task.async) was not the process
+    that checked out the connec- tion. With manual or auto, only the
+    process that checked out the connection can use it.
+    * We can work around this limitation with ~:shared~ mode. In this
+      mode, the connection is checked out explicitly like in manual
+      mode but the connection is available to all processes. So if
+      you have a test that uses multiple processes, shared mode
+      allows a single checked-out connection to be used by all of
+      them, and you can be sure the database state is consistent
+      throughout the test.
+    * When working with shared mode, the setup in ~test/album_test.exs~
+      is a little different:
+      #+BEGIN_SRC elixir
+        setup do
+          :ok = Ecto.Adapters.SQL.Sandbox.checkout(MusicDB.Repo)
+          Ecto.Adapters.SQL.Sandbox.mode(MusicDB.Repo, {:shared, self()})
+        end
+      #+END_SRC
+      In addition to setting the mode as ~:shared~, we need to provide
+      the process that’s checking out the connection, so we pass in
+      ~self()~ along with ~:shared~ as a tuple.
+    * This seems like a good solution, but it comes at a cost: tests
+      that use shared mode cannot be safely run concurrently. The
+      connection is shared among all processes, so any test running
+      concurrently could pollute the database state and cause other
+      tests to fail. As a result, if you’re using shared mode, you
+      need to disable concurrency by removing ~async: true~ from use
+      ~ExUnit.Case, async: true~.
+    * This is a reasonable trade-off if you don’t have a large test
+      suite. It’s relatively easy to set up shared mode and not
+      running a few tests concurrently won’t be a huge time hit. But
+      if you have a large test suite and need to run much of it in
+      shared mode, this could be a significant setback. Fortunately,
+      Ecto provides us with a way out. In the next section, we’ll see
+      how to get the best of both worlds: connections shared between
+      multiple processes, and fast, concurrent tests.
+*** Safely Sharing Connections with Allowances
+- To work around the limitations of shared mode, Ecto provides a
+  mechanism called allowances. This allows us to pick and choose which
+  processes we share our database connection with. We can keep a
+  single database connection for all processes needed for our
+  and be sure that the database state is isolated from any other tests
+  running concurrently.
+  Let’s go back to the test we looked at in the last section:
+
+  #+BEGIN_SRC elixir
+    test "insert album" do
+      task = Task.async(fn ->
+        album = MusicDB.Repo.insert!(%MusicDB.Album{title: "Giant Steps"})
+        album.id
+      end)
+      album_id = Task.await(task)
+      assert MusicDB.Repo.get(MusicDB.Album, album_id).title == "Giant Steps"
+    end
+  #+END_SRC
+  As we mentioned earlier, running this test in manual or auto mode
+  will cause a crash, because the process in ~Task.async~ does not
+  have access to the connection checked out by the test process. We
+  need to “allow” the task to use the test process as the ownership
+  process. We can do that with ~Ecto.Adapters.SQL.Sandbox.allow/4~:
+  #+BEGIN_SRC elixir
+    test "insert album" do
+      parent = self()
+      task = Task.async(fn ->
+        Ecto.Adapters.SQL.Sandbox.allow(MusicDB.Repo, parent, self())
+        album = MusicDB.Repo.insert!(%MusicDB.Album{title: "Giant Steps"})
+        album.id
+      end)
+      album_id = Task.await(task)
+      assert MusicDB.Repo.get(MusicDB.Album, album_id).title == "Giant Steps"
+    end
+  #+END_SRC
+  The call to allow ensures that the test and task processes share the
+  same connection.
+  * It would also be possible to call ~allow/4~ from the test process,
+    rather than the async process, but this would introduce a race
+    condition: it’s possible that the async process would call
+    ~MusicDB.Repo.insert!~ before allow has finished executing. To
+    prevent this, we would have to synchronize the start of the async
+    process and the call to allow. The synchronization could look
+    something like this:
+    #+BEGIN_SRC elixir
+      test "insert album" do
+        task = Task.async(fn ->
+          receive do
+            :continue -> :ok
+          end
+          album = MusicDB.Repo.insert!(%MusicDB.Album{title: "Giant Steps"})
+          album.id
+        end)
+        Ecto.Adapters.SQL.Sandbox.allow(MusicDB.Repo, self(), task.pid)
+        send(task.pid, :continue)
+        album_id = Task.await(task)
+        assert MusicDB.Repo.get(MusicDB.Album, album_id).title == "Giant Steps"
+      end
+    #+END_SRC
+** Creating and Using Custom Types
+- By implementing just a few functions, you can add support for
+  storing any data type in your database.
+- two different approaches for implementing custom types:
+  1. leverage one of the built-in types that Ecto provides to create
+     new types
+  2. support for a data type that Ecto knows nothing about
+*** Building on Top of Ecto’s Types
+**** example 1
+- When we talked about schemas, we had a table that showed how Ecto’s
+  types map to an Elixir type. If you use ~:string~, for example, when
+  defining a field, Ecto treats the value as a ~String~ on the Elixir
+  side, then uses whatever column definition your database uses to
+  store string values.
+- But if you think about it, a number of different kinds of data can
+  be stored as a string: a date, a UUID, a list of values, even a
+  complex collection of data in JSON. All of these can be stored as a
+  string, but then parsed into a more meaningful type when brought
+  into Elixir. Our first look at creating custom types handles this
+  exact case: taking a value stored as a simple type in the database,
+  and turning it into a different type when it’s brought into Elixir.
+- Let’s say we’d like to add support for working with dates and times
+  in the Unix time format. We know that Ecto’s datetime type can store
+  and retrieve timestamps to and from the database, but, as of this
+  writing, this type cannot handle the Unix format. You can cast
+  strings in ISO-8601 format (2017-11-05T20:49:41Z), but if you tried
+  to give it something like Date(1509914981) it wouldn’t work.
+  + To make this work, we can create a custom type built on Ecto’s
+    ~datetime~ type and create a slightly smarter version.
+  + To add our custom type, we need to create a module that
+    implements the ~Ecto.Type~ behavior, which looks like this:
+    #+BEGIN_SRC elixir
+      defmodule Ecto.Type do
+        @callback type() :: Ecto.Type.t()
+        @callback cast(term) :: {:ok, term} | {:error, keyword()} | :error
+        @callback load(term) :: {:ok, term} | :error
+        @callback dump(term) :: {:ok, term} | :error
+        @callback equal?(term, term) :: boolean
+      end
+    #+END_SRC
+    (equal is optional)
+    * ~type~
+      #+BEGIN_SRC elixir
+        defmodule MusicDB.DateTimeUnix do
+          @behaviour Ecto.Type
+
+          def type(), do: :datetime
+        end
+      #+END_SRC
+      The ~type~ function needs to return the data type we want to use
+      to store our custom value at the database level. This must be a
+      type Ecto already supports. In this case, we’re working with a
+      timestamp, so we can use the ~:datetime~ type.
+
+    * Next, we’ll look at ~dump~ and ~load~. These two functions are
+      responsible for converting values to and from the database and
+      application layer. Specifically, ~dump~ takes our Elixir value and
+      converts it into a value that the database recognizes, and load
+      converts the raw value pulled from the database into our Elixir
+      value. Our ~DateTimeUnix~ type is just a friendly layer on top of
+      Ecto’s existing ~datetime~ type, so we can use some built-in Ecto
+      functions to do this work for us:
+      #+BEGIN_SRC elixir
+        defmodule MusicDB.DateTimeUnix do
+          @behaviour Ecto.Type
+          def type(), do: :datetime
+          def dump(term), do: Ecto.Type.dump(:datetime, term)
+          def load(term), do: Ecto.Type.load(:datetime, term)
+        end
+      #+END_SRC
+    * Finally, we need to implement the ~cast~ function. Casting is when
+      we take a value from an external source (for example, user
+      input) and convert it into a format that Ecto can work with.
+      + ~Ecto.Changeset.cast~ (which we used whenever we needed to
+        create a new ~Changeset~ from a batch of raw external data)
+        calls the ~cast~ function defined on each of Ecto’s data types
+        to perform the necessary type conversion
+      + For our ~DateTimeUnix~ type, we’ll need to implement ~cast~ so
+        that it takes a string like ~Date(1509914981)~ and converts it
+        into a ~DateTime~ struct:
+        #+BEGIN_SRC elixir
+          defmodule MusicDB.DateTimeUnix do
+            @behaviour Ecto.Type
+            def type(), do: :datetime
+            def dump(term), do: Ecto.Type.dump(:datetime, term)
+            def load(term), do: Ecto.Type.load(:datetime, term)
+            def cast("Date(" <> rest) do
+              with {unix, ")"} <- Integer.parse(rest),
+                   {:ok, datetime} <- DateTime.from_unix(unix)
+                do
+                {:ok, datetime}
+                else
+                  _ -> :error
+              end
+            end
+            def cast(%DateTime{} = datetime), do: {:ok, datetime}
+            def cast(_other), do: :error
+          end
+        #+END_SRC
+        and to use it
+        #+BEGIN_SRC elixir
+          defmodule MusicDB.Album do
+            use Ecto.Schema
+            schema "albums" do
+              field :last_viewed, MusicDB.DateTimeUnix
+              #...
+            end
+          end
+        #+END_SRC
+        In schemas we defined earlier, the second argument to field
+        was always an atom representing the Ecto type we wanted to
+        use. When working with a custom type, you instead provide the
+        full name of the module that implements your type.
+**** example 2
+- Say that we’re storing data related to releases of software, and
+  we’d like to track version numbers. Elixir has a built-in ~Version~
+  module that works with strings that follow semantic versioning
+  conventions. You can give it a string like “2.1.2” and it can return
+  things like the major version, minor version, patch level, and so
+  on.
+- If we implement a custom type, we can store our versions as strings
+  in the database, but have them appear as ~Version~ structs in our
+  Elixir code.
+- here's the full implementation
+  #+BEGIN_SRC elixir
+    defmodule EctoVersion do
+      @behaviour Ecto.Type
+      def type(), do: :string
+
+      def dump(%Version{} = version), do: {:ok, to_string(version)}
+      def dump(_), do: :error
+
+      def load(string) when is_binary(string), do: Version.parse(string)
+      def load(_), do: :error
+
+      def cast(string) when is_binary(string), do: Version.parse(string)
+      def cast(_other), do: :error
+    end
+  #+END_SRC
+*** Adding Custom Types Without the Built-In Types
+- let’s take a closer look at how data moves from your Elixir code to
+  the database and back:
+  #+BEGIN_SRC text
+                                       |------------------|
+                                       | ecto             |
+                                       |                  |
+    |----|      |----------|           |    |----------|  |             |----------|
+    | db |<---->|  driver  |<----------|--->|  adapter |  |<----------->| your app |
+    |----|      |----------|           |    |----------|  |             |----------|
+                                       |                  |
+                                       |------------------|
+
+  #+END_SRC
+  * We start at the database, where the raw data is stored. Next, we
+    have the driver, which handles converting values from the database
+    into Elixir. Drivers are database-specific: there’s an Elixir
+    driver for Postgres, another for MySQL, and so on.
+
+  * Then we get into Ecto itself. Ecto sits on top of the database
+    drivers and implements adapters for each of the database
+    drivers. The adapters create a uniform interface across the
+    different databases. The API for postgrex (the Postgres driver) is
+    very different than the API for mariaex (the driver for MySQL and
+    MariaDB). Ecto’s adapters smooth over these differences, allowing
+    your application to use the same API, regardless of the database
+    it’s using.
+
+- If we want to use a database type that’s not supported by Ecto,
+  we’ll need to drop down into the driver layer and add our
+  customization there.
+  + we’ll create a small extension for Postgres that handles time
+    intervals. (Postgrex already supports this but we'll do it anyway)
+    #+BEGIN_SRC elixir
+      defmodule IntervalExtension do
+
+        @behaviour Postgrex.Extension
+        def init(_opts), do: nil
+        def matching(_state), do: [send: "interval_send"]
+        def format(_state), do: :binary
+        def encode(_state) do
+          quote do
+            {months, days, seconds} ->
+              microseconds = seconds * 1_000_000
+              <<16::32, microseconds::64, days::32, months::32>>
+          end
+        end
+        def decode(_state) do
+          quote do
+            <<16::32, microseconds::64, days :: int32, months :: int32>> ->
+              seconds = div(microseconds, 1_000_000)
+              {months, days, seconds}
+          end
+        end
+      end
+    #+END_SRC
+    * ~init~: The ~init~ function takes any options supplied by the user, and
+      returns a state value that will be passed to the other behavior
+      functions when they’re called. This value can be of any
+      type—it’s only used within the extension module, so the exact
+      details are up to the implementer of the extension. Our
+      ~IntervalExtension~ doesn’t need any state data, so we can just
+      return ~nil~.
+
+    * ~matching~: The matching function tells postgrex what type we want to use
+      the extension for. We can match directly on the type name by
+      returning ~[type: "interval"]~ or we can match on the function
+      PostgreSQL uses for encoding a value for the wire protocol with
+      ~[send: "interval_send"]~. It’s usually more convenient to match
+      on the function name, as PostgreSQL can have a generic encoder
+      function for many different types. As long as our extension is
+      equivalent to PostgreSQL’s function we can support multiple
+      similar types with the same extension.
+
+    * ~format~: The format function specifies if we want to use binary
+      or text format for our extension. The binary format is usually
+      more efficient and it can be used inside super types, such as
+      arrays and records. On the other hand, the text format can be
+      more flexible in the values it accepts, and is better documented
+      by PostgreSQL. Trade-offs exist with either approach, so you may
+      have to experiment to see which works better for you.
+
+    * Finally we have the encode and decode functions. Unless you’re
+      familiar with Elixir meta-programming, our implementation may
+      look a little odd. We’ve wrapped the logic inside a quote block,
+      which puts the code within the block into a data structure,
+      instead of executing the code immediately. This data structure
+      is called an Abstract Syntax Tree or AST for short. In effect,
+      these two functions do not actually encode and decode data
+      directly, but rather return an AST that can do the encoding or
+      decoding when called. The reason for this is so that the encoder
+      and decoder logic for all of the extensions in use can be
+      injected into a single code block instead of being spread out
+      over multiple modules. When the code is in a single block it is
+      easier for the compiler to optimize it, since it can see all the
+      code at once. Fortunately you don’t have to know about
+      meta-programming or compiler optimization to implement an
+      extension—you just need to return the logic as an AST with the
+      help of ~quote~.
+    * We’ll use the tuple ~{months, days, seconds}~ to represent
+      PostgreSQL time intervals in Elixir. For the ~encode/1~ function
+      we match on that exact tuple and then create a binary in the
+      same format that PostgreSQL does for its ~interval_send~
+      function. The formats are not always well-documented, so you
+      might need to find the appropriate function in the PostgreSQL
+      source code and see how it’s implemented. For the ~decode/1~ we do
+      the reverse: we match on the binary format and return our
+      interval tuple.
+- To use the new extension, we need to define a new module with
+  ~Postgrex.Types.define~ and include the extension we want to use. You
+  should put this code in its own file, anywhere in your project:
+  #+BEGIN_SRC elixir
+    Postgrex.Types.define(
+      MyApp.PostgrexTypes,
+      [IntervalExtension] ++ Ecto.Adapters.Postgres.extensions(),
+      json: Jason
+    )
+  #+END_SRC
+  + Then add the ~types~ option to your ~Repo~ configuration, referencing
+    the module you created using ~define~ in the preceding snippet:
+    #+BEGIN_SRC elixir
+      config :my_app, MyApp.Repo,
+        types: MyApp.PostgrexTypes,
+        #...
+    #+END_SRC
+
+** Inserting and Updating with Upserts
