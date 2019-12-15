@@ -7194,3 +7194,368 @@
     #+END_SRC
 
 ** Inserting and Updating with Upserts
+- upserts rely on a column with a unique index, either the primary key
+  or some other value guaranteed to be unique. When upserting a
+  record, the system checks to see if a record with a matching unique
+  value exists. If it does, it updates the current record; if not, it
+  inserts a new one. This all happens atomically at the database
+  level, avoiding potential race conditions.
+
+- Upserts are a great option when you have a data loading process,
+  like inserting the contents of CSV file, that you want to be safely
+  repeatable. However, your data source must have at least one column
+  with a unique index. If your only unique column is the primary key,
+  upserts may not be the right option.
+
+
+*** Performing Upserts Without Schemas
+- example
+  1.
+       #+BEGIN_SRC elixir
+       Repo.insert_all("genres", [[name: "ska", wiki_tag: "Ska_music"]])
+       # => {1, nil}
+       #+END_SRC
+  2.
+       #+BEGIN_SRC elixir
+       Repo.insert_all("genres", [[name: "ska", wiki_tag: "Ska_music"]])
+       # => ** (Postgrex.Error) ERROR 23505 (unique_violation): duplicate key
+       # => value violates unique constraint "genres_name_index
+       #+END_SRC
+  3.
+       #+BEGIN_SRC elixir
+         Repo.insert_all("genres", [[name: "ska", wiki_tag: "Ska_music"]],
+         on_conflict: :nothing)
+         # => {0, nil}
+       #+END_SRC
+  4.
+       #+BEGIN_SRC elixir
+         Repo.insert_all("genres", [[name: "ska", wiki_tag: "Ska"]],
+                                   on_conflict: {:replace, [:wiki_tag]},
+                                   returning: [:wiki_tag])
+         #=> ** (ArgumentError) :conflict_target option is required
+         #=> when :on_conflict is replace
+       #+END_SRC
+       The problem is that when we use the ~:replace~ option, Ecto wants
+       us to be explicit and specify which column we want to check for
+       uniqueness. We can fix this by adding the ~:conflict_target~
+       option:
+       #+BEGIN_SRC elixir
+         Repo.insert_all("genres", [[name: "ska", wiki_tag: "Ska"]],
+                                   on_conflict: {:replace, [:wiki_tag]},
+                                   conflict_target: :name,
+                                   returning: [:wiki_tag])
+         # => {1, [%{wiki_tag: "Ska"}]}
+       #+END_SRC
+  5. Let’s try running this exact code again, but with a new genre:
+     #+BEGIN_SRC elixir
+     Repo.insert_all("genres", [[name: "ambient", wiki_tag: "Ambient_music"]],
+     on_conflict: {:replace, [:wiki_tag]}, conflict_target: :name,
+     returning: [:wiki_tag])
+     # => {1, [%{wiki_tag: "Ambient_music"}]}
+     #+END_SRC
+     We get the same behavior and a similar return value, but under
+     the hood, we’ve inserted a new record rather than updated an
+     existing one.
+  6. Another way to handle the update is to give ~on_conflict:~ a
+     keyword list of update instructions, using the same format that
+     the ~update_all~ function uses.
+     #+BEGIN_SRC elixir
+       Repo.insert_all("genres", [[name: "ambient", wiki_tag: "Ambient_music"]],
+                                 on_conflict: [set: [wiki_tag: "Ambient_music"]],
+                                 conflict_target: :name, returning: [:wiki_tag])
+     #+END_SRC
+     ~on_conflict:~ will also accept an ~Ecto.Query~ struct. This is
+     useful if you need some extra logic to determine how you want
+     records updated.
+
+*** Performing Upserts with Schemas
+- Just like ~insert_all~, the ~insert~ function supports the ~on_conflict~
+  option for performing upserts. However, insert works with schema
+  structs and the return value is different, so we’ll have some extra
+  considerations.
+- example
+  1.
+         #+BEGIN_SRC elixir
+           genre = %Genre{name: "funk", wiki_tag: "Funk"}
+
+           Repo.insert(genre)
+           #=> {:ok,
+           #=> %MusicDB.Genre{__meta__: #Ecto.Schema.Metadata<:loaded, "genres">,
+           #=> albums: #Ecto.Association.NotLoaded<association :albums is not loaded>,
+           #=> id: 3, inserted_at: ~N[2018-03-05 14:26:13], name: "funk",
+           #=> updated_at: ~N[2018-03-05 14:26:13], wiki_tag: "Funk"}}
+         #+END_SRC
+
+  2. use ~conflict_target:~ to specify which field contains the unique index:
+     #+BEGIN_SRC elixir
+       Repo.insert(genre, on_conflict: [set: [wiki_tag: "Funk_music"]],
+       conflict_target: :name)
+       #=> {:ok,
+       #=> %MusicDB.Genre{__meta__: #Ecto.Schema.Metadata<:loaded, "genres">,
+       #=> albums: #Ecto.Association.NotLoaded<association :albums is not loaded>,
+       #=> id: 3,inserted_at: ~N[2018-03-05 14:27:14], name: "funk",
+       #=> updated_at: ~N[2018-03-05 14:27:14], wiki_tag: "Funk"}}
+     #+END_SRC
+     Even though Ecto returned ~:ok~ it looks like our ~wiki_tag~ value
+     hasn’t changed. Moreover, the ~inserted_at~ and ~updated_at~ values
+     have changed, even though they weren’t included in our
+     ~on_conflict:~ statement.
+
+     Let’s refetch the record from the database
+     #+BEGIN_SRC elixir
+       Repo.get(Genre, 3)
+       #=> %MusicDB.Genre{__meta__: #Ecto.Schema.Metadata<:loaded, "genres">,
+       #=> albums: #Ecto.Association.NotLoaded<association :albums is not loaded>,
+       #=> id: 3,inserted_at: ~N[2018-03-05 14:26:13], name: "funk",
+       #=> updated_at: ~N[2018-03-05 14:26:13], wiki_tag: "Funk_music"}
+     #+END_SRC
+     * the ~wiki_tag~ value was in fact updated, and the ~inserted_at~ and
+       ~updated_at~ values were unchanged. The database record was
+       correct, but the return value of insert didn’t reflect that.
+
+     * solutions:
+       The reason for this seemingly odd behavior is that when we use
+       the keyword list form of ~on_conflict:~ Ecto does not reread
+       the entire record after performing an upsert. If there’s a
+       mismatch between the values that we’re updating and the values
+       that we’ve asked Ecto to return, the returned struct may not
+       accurately reflect what’s in the database.
+
+       1. The simplest approach is to use ~:replace_all~ or
+          ~:replace_all_except_primary_key~ for ~on_conflict~. These
+          will cause all the values in the record to be replaced by
+          the values in the struct you provide, so you need to be
+          certain your struct is set up exactly the way you
+          want. These options only work with schemas, and, depending
+          on your database, will most likely require ~conflict_target:~
+          #+BEGIN_SRC elixir
+            genre = %Genre{name: "funk", wiki_tag: "Funky_stuff"}
+
+            Repo.insert(genre, on_conflict: :replace_all_except_primary_key, conflict_target: :name)
+            #=> {:ok,
+            #=> %MusicDB.Genre{
+            #=> __meta__: #Ecto.Schema.Metadata<:loaded, "genres">,
+            #=> albums: #Ecto.Association.NotLoaded<association :albums is not loaded>,
+            #=> id: 3, inserted_at: ~N[2018-03-05 23:01:28], name: "funk",
+            #=> updated_at: ~N[2018-03-05 23:01:28], wiki_tag: "Funky_stuff" }}
+          #+END_SRC
+       2. If doing a replace_all on the values doesn’t work, you have
+          a few other options to ensure that the returned data matches
+          what’s in the database:
+          1. Use the returning option to specify a list of the fields
+             you would like to have read back. You can also provide
+             true rather than a list if you’d like all of the fields
+             read.
+
+          2. When defining your schema with the field function, you
+             can add ~read_after_writes:~ true for any fields you’d like
+             read back. Note that this will affect every operation,
+             not just upsert.
+
+          3. You can fetch the record from the database using a
+             separate query, as we did in the preceding code.
+** Optimizing Your Application Design
+*** Separating the Pure from the Impure
+- instead of
+  #+BEGIN_SRC elixir
+    test "valid changeset" do
+      params = %{"title" => "Dark Side of the Moon"}
+      changeset = Album.changeset(%Album{}, params)
+      album = Repo.insert!(changeset)
+      assert album.title == "Dark Side of the Moon"
+    end
+  #+END_SRC
+  we can do
+  #+BEGIN_SRC elixir
+    test "valid changeset without insert" do
+      params = %{"title" => "Dark Side of the Moon"}
+      changeset = Album.changeset(%Album{}, params)
+      album = Ecto.Changeset.apply_changes(changeset)
+      assert album.title == "Dark Side of the Moon"
+    end
+  #+END_SRC
+  This a small adjustment but it’s a significant one. By eliminating
+  the call to ~Repo~ we’re keeping the test focused on our own code,
+  and avoiding an expensive round-trip to the database
+
+- As a general rule, we recommend putting the pure functions that
+  manipulate queries, changesets, and multis into their associated
+  schema modules. For example, functions that generate changesets for
+  ~Album~ structs would go into the module where we define the ~Album~
+  schema. The impure code should go in context modules.
+
+*** Working with Contexts
+- With contexts, we can group related functionality. A context
+  consists of a single main module, usually referred to as the context
+  module, and, optionally, a directory with more modules that help
+  implement the functionality of the context. A context may have many
+  modules or just one, but in either case, the context module contains
+  the external interface of the context.
+
+**** Organizing Your Code with Ecto and Context
+- For our own apps that use Ecto, contexts help us divide the pure
+  code from the impure. We recommend putting all impure code (that is,
+  code that uses ~Repo~) into the context module, and putting the pure
+  code (manipulations of changesets, queries, and the like) into
+  schema modules that live in the context’s namespace.
+
+  Music context
+  ~lib/music_db/music.ex~
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.Music do
+      alias MusicDB.Music.{Repo, Album, Artist}
+
+      def get_artist(name) do
+        MusicDB.Repo.get_by(Artist, name: name)
+      end
+
+      def all_albums_by_artist(artist) do
+        Ecto.assoc(artist, :albums)
+        |> MusicDB.Repo.all()
+      end
+
+      def search_albums(string) do
+        string
+        |> Album.search()
+        |> MusicDB.Repo.all()
+      end
+    end
+  #+END_SRC
+  We’ve created a top-level context module called ~MusicDb.Music~ and
+  provided a few functions we think we might need: ~get_artist~,
+  ~all_albums_by_artist~, and so on. We then move the schema modules (in
+  this case, ~Album~ and ~Artist~) into the ~MusicDb.Music~ namespace, and
+  add any supporting functions needed by the context module:
+
+  lib/music_db/music/artist.ex
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.Music.Artist do
+      use Ecto.Schema
+      schema "artists" do
+        field :name, :string
+        has_many :albums, MusicDB.Music.Album
+      end
+    end
+  #+END_SRC
+
+  # lib/music_db/music/album.ex
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.Music.Album do
+      use Ecto.Schema
+      import Ecto.Query
+      alias MusicDB.Music.{Album, Artist}
+
+      schema "albums" do
+        field :title, :string
+        belongs_to :artist, Artist
+      end
+
+      def search(string) do
+        from album in Album,
+          where: ilike(album.title, ^"%#{string}%")
+      end
+    end
+  #+END_SRC
+  This helps us in two ways. First, it gives us a clear and consistent
+  method for separating pure code from impure—we always know which
+  parts of our code hit the database and which don’t. Second, it
+  allows clients of our context (that is, other parts of our code) to
+  be agnostic about how our data is stored. We could swap out Ecto for
+  some other data access library and the rest of our code would still
+  work. Provided our API delivers as advertised, the rest of the
+  codebase doesn’t need to know how we’re storing the data.
+**** Best Practices for Contexts
+- As much as possible, treat the context module as the external API of
+  the context, and consider the supporting modules private. You have,
+  of course, no way to enforce this, and it’s likely that the context
+  will return structs defined in the supporting modules (especially if
+  your context contains Ecto schemas). But from outside of the
+  context, we should try to call the functions on the context module
+  exclusively, and leave the other modules alone.
+
+- Contexts are a grouping mechanism so we should not put all our
+  modules into the same context unless our application is very
+  small. Say we decided to extend our ~MusicDb~ application to include a
+  forum where users could comment on albums they like (or don’t). In
+  that case, we would add new contexts to support these features. The
+  forum logic with ~Post~ and ~Comment~ schemas could go into a ~Forum~
+  context, and the user account logic with ~User~ and authentication
+  code could go into an ~Accounts~ context. Anytime you start adding new
+  modules to your codebase, you should consider whether it might be
+  time to add a new context.
+
+- We all know that naming things is hard, and it’s the same for
+  contexts. If you are unable to find a good name for your context,
+  you can try taking the most prominent module in the context and
+  pluralizing it. As an example, the main module in an ~Accounts~
+  context would probably be the ~User~ module, so we could also name the
+  context ~Users~.
+
+- Contexts are supposed to group related concerns into distinct
+  sections of your application, but you will inevitably get
+  dependencies between the contexts you have defined, where modules
+  reference each other. This is a particular concern as we start
+  adding associations between our schemas. Cross-context dependencies
+  indicate that the contexts are coupled, which we want to avoid as
+  much as possible. If you have a high number of dependencies across
+  contexts, it may suggest that your contexts have the wrong
+  boundaries.
+
+- It can sometimes be hard to know which context a module belongs
+  to. We try to keep our contexts small, so if you are creating a new
+  module and don’t find a context where it fits, you should probably
+  create a new context for it. You may not get it exactly right the
+  first time, and when your application grows, the contexts may not
+  fit as well as they used to. As with all software, it is an ongoing
+  effort to refactor your code as the app evolves, so you will likely
+  need to restructure your contexts to make sure they follow these
+  principles.
+
+*** Working with Umbrella Applications
+- Contexts can help you determine how to break your app into more
+  manageable parts. But as your app continues to grow, you may find
+  that you want a greater degree of separation between the
+  components. This can happen if individual contexts start to grow too
+  large, or if you just want to be able to deploy different parts of
+  your app separately. Umbrellas allow you to easily group multiple
+  applications into the same mix project and source code
+  repository. Instead of bundling all of our code into a single
+  application, we can split it up into multiple applications. Elixir’s
+  ~mix new~ and Phoenix’s ~mix phx.new~ generators support creating
+  umbrella projects by passing the ~--umbrella~ flag.
+**** Understanding Umbrellas
+- An umbrella project consists of a top-level mix project (usually
+  called the umbrella project) and several sub-projects inside the
+  ~apps/~ directory (usually called child applications).
+
+- The umbrella project is what we use to configure and organize our
+  application, through the ~mix.exs~ and ~config/~ files. All of the logic
+  and code that makes the app work reside in the child applications.
+
+- Usually a mix project is also an OTP application, but that’s not the
+  case for the top-level umbrella project—only projects inside the
+  ~apps/~ directory are actual OTP applications. This means the umbrella
+  project should only be used for configuring the other applications,
+  and no application code should live inside it.
+
+- One way to use umbrellas is to split the front-end and back-end logic into separate applications:
+  #+BEGIN_SRC
+  music_umbrella/ (Mix project)
+    - mix.exs
+    - ...
+    - apps/
+        - music/ (Mix project / OTP application)
+            - mix.exs
+            - ...
+        - music_web/ (Mix project / OTP application)
+            - mix.exs
+            - ...
+  #+END_SRC
+  + Since the front-end application ~music_web~ depends on the back-end
+    application music, we declare it as a dependency inside
+    ~apps/music_web/mix.exs~:
+    #+BEGIN_SRC elixir
+      def deps() do
+        [{:music, in_umbrella: true}]
+      end
+    #+END_SRC
