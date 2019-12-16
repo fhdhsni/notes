@@ -7559,3 +7559,278 @@
         [{:music, in_umbrella: true}]
       end
     #+END_SRC
+** Working with Embedded Schemas
+- Embedded schemas are an alternative to using associations. Unlike
+  regular associations, embedded schemas are stored on the same record
+  as the parent schema, rather than a separate table. They are
+  “embedded” in the parent schema.
+*** Creating Embedded Schemas
+- We’re going to create an ~Album~ schema. We use embeds, rather than
+  associations, to handle the child records for ~Artist~ and
+  ~Track~. The relationships will be (albums will have have one
+  artist, and have many tracks) but we’ll model these relationships
+  using embeds.
+
+- track_embed.ex
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.TrackEmbed do
+      import Ecto.Changeset
+      use Ecto.Schema
+
+      embedded_schema do
+        field(:title, :string)
+        field(:duration, :integer)
+      end
+
+      def changeset(track_embed, params) do
+        track_embed
+        |> cast(params, [:title, :duration])
+        |> validate_required([:title])
+      end
+    end
+  #+END_SRC
+  + the default type for the primary key is ~binary_id~ instead of
+    ~id~. ~binary_id~’s are represented by an automatically generated
+    UUID, rather than auto-incrementing integers. This is because
+    auto-incrementing integers can only be declared on the column
+    level, not for data inside a column.
+
+- artist_embed.ex
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.ArtistEmbed do
+      import Ecto.Changeset
+      use Ecto.Schema
+
+      embedded_schema do
+        field(:name)
+      end
+
+      def changeset(artist_embed, params) do
+        artist_embed
+        |> cast(params, [:name])
+        |> validate_required([:name])
+      end
+    end
+  #+END_SRC
+
+*** Adding Embeds to Another Schema
+-
+      #+BEGIN_SRC elixir
+        defmodule MusicDB.Repo.Migrations.AddAlbumsWithEmbeds do
+          use Ecto.Migration
+
+          def change do
+            create table("albums_with_embeds") do
+              add(:title, :string)
+
+              if MusicDB.Repo.using_postgres?() do
+                add(:artist, :jsonb)
+                add(:tracks, {:array, :jsonb}, default: [])
+              end
+            end
+          end
+        end
+      #+END_SRC
+  + The Ecto types for embeds are ~:map~ (for has-one relationships)
+    and ~{:array, :map}~ (for has-many). At the database level, we
+    use ~json~ (or possibly ~jsonb~ for PostgreSQL) when storing
+    maps, so that’s the type we specified in our migration.
+
+  + we set the default for tracks to ~[]~. This is so that even if we
+    have no tracks when creating the album, we will store an empty
+    list. Ecto will translate ~NULL~ values to an empty list to keep the
+    behavior the same as has_many, but we still recommend keeping the
+    database and application data as close as possible, so we use a
+    default.
+
+- finally
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.AlbumWithEmbeds do
+      use Ecto.Schema
+      alias MusicDB.{ArtistEmbed, TrackEmbed}
+
+      schema "albums_with_embeds" do
+        field(:title, :string)
+        embeds_one(:artist, ArtistEmbed, on_replace: :update)
+        embeds_many(:tracks, TrackEmbed, on_replace: :delete)
+      end
+    end
+
+
+    # in psql:
+    #
+    # music_db=# \d albums_with_embeds
+    #                                     Table "public.albums_with_embeds"
+    #  Column |          Type          | Collation | Nullable |                    Default
+    # --------+------------------------+-----------+----------+------------------------------------------------
+    #  id     | bigint                 |           | not null | nextval('albums_with_embeds_id_seq'::regclass)
+    #  title  | character varying(255) |           |          |
+    #  artist | jsonb                  |           |          |
+    #  tracks | jsonb[]                |           |          | ARRAY[]::jsonb[]
+    # Indexes:
+    #     "albums_with_embeds_pkey" PRIMARY KEY, btree (id)
+  #+END_SRC
+  + To add embeds to another schema you use ~embeds_one/3~ or
+    ~embeds_many/3~. ~embeds_one~ is the counterpart to ~has_one~ for
+    associations, as is ~embeds_many~ to ~has_many~. There is no
+    equivalent function for ~belongs_to~. Because embeds reside in the
+    same database records as their parent, we don’t use the foreign
+    keys that are a critical component of ~belongs_to~.
+  + Interestingly, you can put embeds inside other embeds; if we
+    changed ~schema "albums"~ to ~embedded_schema~ in the preceding
+    example it would work just as well.
+
+  + now we get the embedded ~ArtistEmbed~ and ~TrackEmbed~ records
+    without having to call ~preload~.  The database stores the parent
+    and child records in the same row, so fetching the parent record
+    pulls them all in at once.
+    #+BEGIN_SRC elixir
+      Repo.get_by(AlbumWithEmbeds, title: "Moanin'")
+      #=> %MusicDB.AlbumWithEmbeds{
+      #=> __meta__: #Ecto.Schema.Metadata<:loaded, "albums_with_embeds">,
+      #=> artist: %MusicDB.ArtistEmbed{
+      #=>     id: "cab33f94-ecfb-461e-83a8-5ace0e02b9ca",
+      #=>     name: "Art Blakey"
+      #=> },
+      #=> id: 1,
+      #=> title: "Moanin'",
+      #=> tracks: [
+      #=>    %MusicDB.TrackEmbed{
+      #=>     duration: 575,
+      #=>     id: "7a8ae464-68fc-4320-a1a1-f555b3be74ba",
+      #=>     title: "Moanin'"
+      #=>   },
+      #=>    %MusicDB.TrackEmbed{
+      #=>        duration: 290,
+      #=>        id: "551a4623-a1eb-4bbc-9d30-024e3fce10e2",
+      #=>        title: "Are You Real"
+      #=>   },
+      #=> ...
+    #+END_SRC
+*** Making Changes
+- You must always use changesets when working with embeds, and work
+  with the specialized functions that Ecto provides: ~put_embed/4~ and
+  ~cast_embed/3~.
+- In the database, the child records are stored in a column, but in
+  our Elixir code, it’s more accurate to think of embeds like
+  associations.
+- ~put_embed/4~ and ~cast_embed/3~ work just like their counterparts
+  ~put_assoc/4~ and ~cast_assoc/3~ so we need to give some thought to the
+  ~:on_replace~ option when setting up our embeds. The values available
+  for ~:on_replace~ are ~:raise~ (the default), ~:mark_as_invalid~, ~:update~,
+  ~:delete~.
+
+*** Working with ~put_embed~
+- Just like ~put_assoc~, ~put_embed~ is the best choice when working with
+  internal data. ~put_embed~ accepts a struct for the embedded schema, a
+  keyword list, map, or changeset.
+  #+BEGIN_SRC elixir
+    album = Repo.get_by(AlbumWithEmbeds, title: "Moanin'")
+    changeset = change(album)
+    changeset = put_embed(changeset, :artist, %{name: "Arthur Blakey"})
+    changeset = put_embed(changeset, :tracks, [%TrackEmbed{title: "Moanin'"}])
+  #+END_SRC
+
+- only changesets can be used to update embeds. This is still true
+  even though we’re passing maps and structs.
+  #+BEGIN_SRC elixir
+    album = Repo.get_by(AlbumWithEmbeds, title: "Moanin'")
+    changeset = change(album)
+    changeset = put_embed(changeset, :artist, %{name: "Arthur Blakey"})
+    #=> #Ecto.Changeset<
+    #=>  action: nil,
+    #=>  changes: %{
+    #=>   artist: #Ecto.Changeset<
+    #=>       action: :insert,
+    #=>       changes: %{name: "Arthur Blakey"},
+    #=>       errors: [],
+    #=>       data: #MusicDB.ArtistEmbed<>,
+    #=>       valid?: true
+    #=>      >
+    #=>  },
+    #=>  errors: [],
+    #=>  data: #MusicDB.AlbumWithEmbeds<>,
+    #=>  valid?: true
+    #=> >
+  #+END_SRC
+  If you look at the artist value under changes, you’ll see that Ecto
+  has converted our map into a changeset.
+
+*** Working with ~cast_embed~
+- ~cast_embed~, similar to ~cast_assoc~, works on the basis that the
+  changes to the embed are stored in the params of the parent record’s
+  changeset. This is useful when you don’t want to separately build a
+  changeset and use ~put_embed~ to put it on the parent changeset. The
+  ~cast_embed~ function accepts the same options as ~cast_assoc~ and they
+  work the same way:
+  #+BEGIN_SRC elixir
+    album = Repo.get_by(AlbumWithEmbeds, title: "Moanin'")
+
+    params = %{
+      "artist" => %{"name" => "Arthur Blakey"},
+      "tracks" => [%{"title" => "Moanin'"}]
+    }
+
+    changeset = cast(album, params, [])
+    changeset = cast_embed(changeset, :artist)
+    changeset = cast_embed(changeset, :tracks)
+
+
+    # #Ecto.Changeset<
+    #   action: nil,
+    #   changes: %{
+    #     artist: #Ecto.Changeset<
+    #       action: :update,
+    #       changes: %{name: "Arthur Blakey"},
+    #       errors: [],
+    #       data: #MusicDB.ArtistEmbed<>,
+    #       valid?: true
+    #     >,
+    #     tracks: [
+    #       #Ecto.Changeset<action: :replace, changes: %{}, errors: [], data: #MusicDB.TrackEmbed<>, valid?: true>,
+    #       #Ecto.Changeset<action: :replace, changes: %{}, errors: [], data: #MusicDB.TrackEmbed<>, valid?: true>,
+    #       #Ecto.Changeset<action: :replace, changes: %{}, errors: [], data: #MusicDB.TrackEmbed<>, valid?: true>,
+    #       #Ecto.Changeset<action: :replace, changes: %{}, errors: [], data: #MusicDB.TrackEmbed<>, valid?: true>,
+    #       #Ecto.Changeset<action: :replace, changes: %{}, errors: [], data: #MusicDB.TrackEmbed<>, valid?: true>,
+    #       #Ecto.Changeset<action: :replace, changes: %{}, errors: [], data: #MusicDB.TrackEmbed<>, valid?: true>,
+    #       #Ecto.Changeset<
+    #         action: :insert,
+    #         changes: %{title: "Moanin'"},
+    #         errors: [],
+    #         data: #MusicDB.TrackEmbed<>,
+    #         valid?: true
+    #       >
+    #     ]
+    #   },
+    #   errors: [],
+    #   data: #MusicDB.AlbumWithEmbeds<>,
+    #   valid?: true
+    # >
+  #+END_SRC
+  we had to add a ~changeset/2~ function to the schema modules
+  we were casting into associations. The same goes for embeds. If you
+  look in ~artist_embed.ex~ and ~track_embed.ex~ you’ll see that we added
+  rudimentary ~changeset~ functions so that this example would run. Just
+  as with associations, Ecto looks to your code to find out how to
+  cast params from external sources into schema structs.
+*** Considerations When Skipping Primary Keys
+- By default, ~embedded_schema~ will add a primary key to your
+  embed. This is useful when you want to update or remove individual
+  items from an ~embeds_many~ association, as you have a reliable id to
+  distinguish the records in the collection. Primary keys are
+  optional, however, and you don’t have to use them if you don’t want
+  to, but a few caveats exist that you should bear in mind.
+  + When using ~embeds_many~, ~:on_replace~ must be set to ~:delete~ if the
+    embedded schema has no primary key and you wish to update the list
+    of embeds. This is because Ecto uses the primary key to track
+    which embeds in the list are being updated in place, or if they
+    are being replaced by new records.
+  + Similarly for ~embeds_one~, if there is no primary key you have to
+    decide if the record should be updated or replaced, by setting the
+    value to ~:update~ or ~:delete~, respectively. Again, this is because
+    Ecto needs the primary key to track if the embed is being updated
+    or replaced.
+  + Because of these peculiarities, the Ecto teams recommends always
+    using a primary key—this is Ecto’s default behavior.
+*** Choosing Between Embedded Schemas and Associations
+** Creating Polymorphic Associations
