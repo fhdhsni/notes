@@ -7834,3 +7834,679 @@
     using a primary key—this is Ecto’s default behavior.
 *** Choosing Between Embedded Schemas and Associations
 ** Creating Polymorphic Associations
+- Let’s say we wanted to add a new feature to our MusicDB app that
+  would allow us to add notes to our album records. These notes could
+  be anything like metadata about the album (producer, engineer, and
+  so on), or maybe even our own personal comments.
+
+- Our first instinct might be to add a “notes” column to the ~albums~
+  table. But after some consideration, we realize that we’d like to
+  allow each record to have multiple notes, perhaps written by
+  different users. So instead of just adding a column, we decide to
+  create a new ~notes~ table, and create a ~has_many/belongs_to~
+  relationship between ~albums~ and ~notes~. So far, so good.
+
+- But as we think a little further, we realize that we’d like to add
+  notes not just to ~albums~ but to ~artists~ and ~tracks~ as well. So we
+  want to keep our ~notes~ table, but we want to be able create
+  associations with more than one table.
+
+- This is a case for polymorphic associations. This is a special type
+  of association that allows a single record type to have a “belongs to”
+  relationship with more than one type of record.
+
+*** Polymorphism in Other Frameworks
+- Say that our notes table started with just these two columns:
+
+  | Field  | Type   |
+  |--------+--------|
+  | notes  | text   |
+  | author | string |
+
+- To support polymorphism, we would add two more columns that would
+  indicate the table name and ID of the record we want to attach the
+  note to.
+- When naming these columns, the convention is to use an adjective
+  that’s descriptive of the relationship, then add ~_type~ for the
+  column that holds the table name, and ~_id~ for the ID. In our case,
+  it might look like this
+
+    | Field        | Type   |
+    |--------------+--------|
+    | notes        | text   |
+    | author       | string |
+    | notable_type | string |
+    | notable_id   | id     |
+
+  + With this in place, we could add a note to the album “Kind Of
+    Blue” (which has the ID 1), by adding this record to the notes
+    table:
+
+        | Field        | Value              |
+        |--------------+--------------------|
+        | notes        | "Love this album!" |
+        | author       | "darin"            |
+        | notable_type | "albums"           |
+        | notable_id   | 1                  |
+  + The frameworks that support this convention allow you to define
+    the “has-many” relationship as polymorphic, and they
+    automatically combine the ~notable_type~ and ~notable_id~ values to
+    load the correct record when needed.
+
+**** problems with this approach
+1. breaks foreign key integrity constraints
+2. performance suffers
+
+*** Approach #1: Multiple Foreign Keys
+- let’s remind ourselves of the task at hand. We want to able to add
+  notes to any artist, album, or track. Each of those records needs to
+  be able to have any number of notes by any number of authors, which
+  is why we elected to store the notes in a separate table, rather
+  than add a ~notes~ column to each of the three tables.
+
+- One way to achieve this is to have a single notes table, then add
+  separate foreign key columns for each of the tables we want to
+  attach notes to. Our migration would look something like this:
+  #+BEGIN_SRC elixir
+    create table(:notes_with_fk_fields) do
+      add :note, :text, null: false
+      add :author, :string, null: false
+      add :artist_id, references(:artists)
+      add :album_id, references(:albums)
+      add :track_id, references(:tracks)
+      timestamps()
+    end
+  #+END_SRC
+  And our schema definition might look like this:
+  #+BEGIN_SRC elixir
+    schema "notes_with_fk_fields" do
+      field(:note, :string)
+      field(:author, :string)
+      timestamps()
+      belongs_to(:artist, MusicDB.Artist)
+      belongs_to(:album, MusicDB.Album)
+      belongs_to(:track, MusicDB.Track)
+    end
+  #+END_SRC
+  Finally, we create the ~has_many~ side of the association by adding
+  the following line to each of the ~Artist~, ~Album~, and ~Track~ schemas:
+  #+BEGIN_SRC elixir
+  has_many :notes, MusicDB.Note
+  #+END_SRC
+  + usage
+    #+BEGIN_SRC elixir
+      artist = Repo.get_by(Artist, name: "Bobby Hutcherson")
+      note = Ecto.build_assoc(artist, :notes, note: "My fave vibes player", author: "darin")
+      Repo.insert!(note)
+      artist = Repo.preload(artist, :notes)
+      artist.notes
+      # => [
+      # %MusicDB.Note{
+      # ...
+      # }
+      #]
+    #+END_SRC
+**** Advantages
+- This is probably the simplest approach, and the easiest for someone
+  reading your code to understand.
+
+**** Disadvantages
+- First, you end up with unused foreign key columns. The ~notes~ table
+  needs to have a foreign key field for each of the different tables
+  it can attach to. But a single note record can only be attached to
+  one other record, so for any given ~notes~ record, only one foreign
+  key column will have a value. If you had a large number of tables
+  that you were attaching notes to, this could get unwieldy.
+- You would also need to give some thought to data integrity. The
+  foreign key fields in your notes table have to allow ~null~ values, as
+  any note can be attached to any type of record. But it would be
+  incorrect if they were all ~null~ or if two or more of the fields were
+  non-~null~.
+
+- We can address this by adding a custom validation to our ~Note~ schema
+  that checks to make sure that one and only one of the fields is
+  populated. And if you’re using a database that supports check
+  constraints, you can add a constraint when you create the table to
+  ensure that the database will enforce this logic as well.
+  + Using Postgres, we could add this to our migration:
+    #+BEGIN_SRC elixir
+      fk_check = """
+          (CASE WHEN artist_id IS NULL THEN 0 ELSE 1 END) +
+          (CASE WHEN album_id IS NULL THEN 0 ELSE 1 END) +
+          (CASE WHEN track_id IS NULL THEN 0 ELSE 1 END) = 1
+      """
+      create constraint(:notes_with_fk_fields, :only_one_fk, check: fk_check)
+    #+END_SRC
+    This will ensure that one and only one of the foreign key fields
+    is set to a non-~null~ value.
+
+*** Approach #2: Using an Abstract Schema
+- With this approach, we’ll create separate ~notes~ tables for each of
+  the other tables we’re associating with. So we’ll have one notes
+  table for artists, another for albums, and so on. Here’s how we
+  might write the migration:
+  #+BEGIN_SRC elixir
+    create table(:notes_for_artists) do
+      add :note, :text, null: false
+      add :author, :string, null: false
+      add :assoc_id, references(:artists)
+      timestamps()
+    end
+
+    create table(:notes_for_albums) do
+      add :note, :text, null: false
+      add :author, :string, null: false
+      add :assoc_id, references(:albums)
+      timestamps()
+    end
+
+    create table(:notes_for_tracks) do
+      add :note, :text, null: false
+      add :author, :string, null: false
+      add :assoc_id, references(:tracks)
+      timestamps()
+    end
+  #+END_SRC
+- Notice we used ~assoc_id~ for the foreign key. We deliberately chose a
+  more abstract name, and used it in each of the tables. We did this
+  so all of the tables have the same column names. This allows us to
+  create a single schema struct we’ll share across the three different
+  notes tables. Our schema will look like this:
+  #+BEGIN_SRC elixir
+    schema "abstract table: notes" do
+      field :note, :string
+      field :author, :string
+      field :assoc_id, :integer
+      timestamps()
+    end
+  #+END_SRC
+  + We broke convention here, and did not provide a real table name
+    with this schema. Instead, we just added a string indicating that
+    we’re using an “abstract” schema. We could have written anything
+    here—we just need to make it clear that we’re not intending to
+    specify a database table. Instead, we’ll create the connection
+    between the schema and the database table when we define each
+    association. For example, here’s what we’ll add to our ~Artist~
+    schema definition:
+    #+BEGIN_SRC elixir
+      has_many :notes, {"notes_for_artists", MusicDB.Note}, foreign_key: :assoc_id
+    #+END_SRC
+  + In previous examples of ~has_many~, we’ve always provided a schema
+    module as the second argument. But if you look at the
+    documentation for ~has_many~ you’ll see that Ecto is not
+    necessarily looking for a schema, but rather our old friend
+    ~Queryable~. Ecto provides ~Queryable~ implementations for several
+    different types, one of which is a tuple. We’re taking advantage
+    of this implementation to make this association work.
+  + The tuple we’re passing in contains the table name, and a schema
+    module. This tells Ecto that we want to take our new ~Note~ schema
+    and apply it to the ~notes_for_artists~ table. It’s kind of like
+    late binding for schemas and tables!
+  + Our Album and Track schemas will follow the same pattern:
+    #+BEGIN_SRC elixir
+    # lib/music_db/album.ex
+    has_many :notes, {"notes_for_albums", MusicDB.Note}, foreign_key: :assoc_id
+    #+END_SRC
+
+    #+BEGIN_SRC elixir
+    # lib/music_db/track.ex
+    has_many :notes, {"notes_for_tracks", MusicDB.Note}, foreign_key: :assoc_id
+    #+END_SRC
+  + Once we’ve done this, we can use the association just as we did
+    with our previous approach:
+    #+BEGIN_SRC elixir
+      artist = Repo.get_by(Artist, name: "Bobby Hutcherson")
+      note = Ecto.build_assoc(artist, :notes,
+        note: "My fave vibes player", author: "darin")
+      Repo.insert!(note)
+
+      artist = Repo.preload(artist, :notes)
+      artist.notes
+      # => [
+      # %MusicDB.Note{
+      # ...
+      # }
+      #]
+    #+END_SRC
+**** Advantage
+- Having separate tables prevents having lots of unused columns like
+  we did in the first approach. Here all the data is kept separate, so
+  the table design is much cleaner.
+**** Disadvantages
+- The columns for ~Note~ have to be repeated in each of the association
+  tables. If we decide to add or remove a column, we have to make sure
+  we change all of the tables together. This could be painful if we
+  had a large number of tables to manage.
+- Something else to consider with this approach is that you can’t
+  create ~Note~ records directly. This, for example, won’t work:
+  #+BEGIN_SRC elixir
+  Repo.insert!(%Note{})
+  #+END_SRC
+  We can’t use a ~Queryable~ here— ~insert!~ expects a struct, so
+  there’s no way for us to do our “late binding” trick and associate
+  our ~Note~ struct with the correct database table. We have to start
+  with the parent record and use ~build_assoc~, ~cast_assoc~, or
+  ~put_assoc~ to create the child record.
+
+*** Approach #3: Using many_to_many
+- The final approach for creating polymorphic associations is to use
+  ~many_to_many~. With this approach, we create a single ~notes~ table,
+  then add separate join tables for each of the different associations
+  we want to use with ~notes~.
+- First, we add a migration to create a single notes table:
+  #+BEGIN_SRC elixir
+    create table(:notes_with_joins) do
+      add :note, :text, null: false
+      add :author, :string, null: false
+      timestamps()
+    end
+  #+END_SRC
+- And also add migrations to create the join tables:
+  #+BEGIN_SRC elixir
+    create table(:artists_notes) do
+      add :artist_id, references(:artists)
+      add :note_id, references(:notes_with_joins)
+    end
+    create index(:artists_notes, :artist_id)
+    create index(:artists_notes, :note_id)
+
+
+    create table(:albums_notes) do
+      add :album_id, references(:albums)
+      add :note_id, references(:notes_with_joins)
+    end
+    create index(:albums_notes, :album_id)
+    create index(:albums_notes, :note_id)
+
+
+    create table(:tracks_notes) do
+      add :track_id, references(:tracks)
+      add :note_id, references(:notes_with_joins)
+    end
+    create index(:tracks_notes, :track_id)
+    create index(:tracks_notes, :note_id)
+  #+END_SRC
++ Then we set up the ~Note~ schema:
+  #+BEGIN_SRC elixir
+    schema "notes_with_joins" do
+      field :note, :string
+      field :author, :string
+      many_to_many :artists, MusicDB.Artist, join_through: "artists_notes"
+      many_to_many :albums, MusicDB.Album, join_through: "albums_notes"
+      many_to_many :tracks, MusicDB.Track, join_through: "tracks_notes"
+      timestamps()
+    end
+  #+END_SRC
++ Finally, we add the association to our ~Artist~, ~Album~, and ~Track~ schemas:
+  #+BEGIN_SRC elixir
+    # lib/music_db/artist.ex
+    many_to_many :notes, MusicDB.Note, join_through: "artists_notes"
+
+    # lib/music_db/album.ex
+    many_to_many :notes, MusicDB.Note, join_through: "albums_notes"
+
+    # lib/music_db/track.ex
+    many_to_many :notes, MusicDB.Note, join_through: "tracks_notes"
+  #+END_SRC
++ ~many_to_many~ works a little differently than ~has_many~ and
+  specifically, we can’t use ~build_assoc~ to create new associated
+  records.
+  #+BEGIN_SRC elixir
+    album = Repo.get_by(Album, title: "Kind Of Blue")
+    note = Repo.insert!(%Note{note: "Love this album!", author: "darin"})
+
+    album
+    |> Repo.preload(:notes)
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.put_assoc(:notes, [note])
+    |> Repo.update!
+
+    album = Repo.preload(album, :notes)
+
+    album.notes
+  #+END_SRC
+**** Advantage
+-  This works around some of the disadvantages of the first two
+  approaches. We get the benefit of having the association defined in
+  separate tables, but we only need one notes table so we don’t have
+  to worry about duplicating our column definitions across several
+  different tables.
+
+**** Disadvantages
+- ~many_to_many~ is a misnomer in this context. A single note can’t
+  (or at least shouldn’t) be associated with more than record, but
+  using ~many_to_many~ means that would be possible. We’d have to take
+  care to make sure our code doesn’t accidentally associate a single
+  note with more than one record. We also can’t work with the
+  association in the most intuitive way, due to the differences
+  between ~has_many~ and ~many_to_many~.
+
+** Optimizing IEx for Ecto
+- modify your ~.iex.exs~ file
+- read https://hexdocs.pm/iex/IEx.html
+-
+  #+BEGIN_SRC elixir
+    defmodule H do
+      def update(schema, changes) do
+        schema
+        |> Ecto.Changeset.change(changes)
+        |> Repo.update
+      end
+
+      def load_album(title) when is_binary(title) do
+        Repo.get_by(Album, title: title) |> Repo.preload(:tracks)
+      end
+      def load_album(id) do
+        Repo.get(Album, id) |> Repo.preload(:tracks)
+      end
+    end
+  #+END_SRC
+  + usage
+    #+BEGIN_SRC elixir
+      artist = Repo.get_by(Artist, name: "Miles Davis")
+      H.update(artist, name: "Miles Dewey Davis III", birth_date: ~D[1926-05-26])
+      #=> {:ok,
+      #=> %MusicDB.Artist{
+      #=> __meta__: #Ecto.Schema.Metadata<:loaded, "artists">,
+      #=> albums: #Ecto.Association.NotLoaded<association :albums is not loaded>,
+      #=> birth_date: ~D[1926-05-26],
+      #=> ...
+      #=> name: "Miles Dewey Davis III",
+      #=> ...
+      #=> }}
+    #+END_SRC
+** Using Schemas Without Tables
+- Some database libraries automatically map database tables to the
+  data structures you use in your application code.
+- We create our schema structs manually by specifying each of the
+  fields and their types.
+*** Creating Table-less Schemas
+- We’ll use these schemas and changesets to present forms to the
+  user. We’ll validate the submitted data, and present any errors to
+  the user just as we would with the database-backed schemas we’ve
+  used before.
+
+-
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.SoloArtist do
+      use Ecto.Schema
+      import Ecto.Changeset
+      embedded_schema do
+        field :name1, :string
+        field :name2, :string
+        field :name3, :string
+        field :birth_date, :date
+        field :death_date, :date
+      end
+      def changeset(solo_artist, params) do
+        solo_artist
+        |> cast(params, [:name1, :name2, :name3, :birth_date, :death_date])
+        |> validate_required([:name1, :birth_date])
+        # custom validation
+        |> validate_date_order(:birth_date, :death_date)
+      end
+    end
+  #+END_SRC
+-
+  #+BEGIN_SRC elixir
+    defmodule MusicDB.Band do
+      import Ecto.Changeset
+      use Ecto.Schema
+      embedded_schema do
+        field :name, :string
+        field :year_started, :integer
+        field :year_ended, :integer
+      end
+
+      def changeset(band, params) do
+        band
+        |> cast(params, [:name, :year_started, :year_ended])
+        |> validate_required([:name, :year_started])
+        # custom validation
+        |> validate_year_order(:year_started, :year_ended)
+      end
+    end
+  #+END_SRC
+
+*** Saving the Table-less Structs
+- To save the data from these schemas into the ~artists~ table, we have
+  a couple of options. One way would be to add extra changeset
+  functions to our Artist schema that take a ~Band~ or ~SoloArtist~ struct
+  as input:
+  #+BEGIN_SRC elixir
+    def changeset(%MusicDB.Band{} = band) do
+      {:ok, birth_date} = Date.new(band.year_started, 1, 1)
+      {:ok, death_date} = Date.new(band.year_ended, 12, 31)
+      changeset(%Artist{name: band.name, birth_date: birth_date, death_date: death_date}, %{})
+    end
+
+    def changeset(%MusicDB.SoloArtist{} = solo_artist) do
+      name =
+        "#{solo_artist.name1} #{solo_artist.name2} #{solo_artist.name3}"
+        |> String.trim()
+
+        changeset(%Artist{name: name, birth_date: solo_artist.birth_date, death_date: solo_artist.death_date}, %{})
+    end
+  #+END_SRC
+  + With this approach, we would validate our ~Band~ or ~SoloArtist~
+    changeset and use ~apply_changes~ to get the underlying schema
+    struct with the changes added to it. We could then pass that
+    directly to our new ~Artist.changeset~ function:
+
+    #+BEGIN_SRC elixir
+      params = %{name: "580 West", year_started: 1991, year_ended: 1995}
+      band_changeset = Band.changeset(%Band{}, params)
+      if band_changeset.valid? do
+        band_changeset
+        |> apply_changes()
+        |> Artist.changeset()
+        |> Repo.insert!()
+      else
+        # handle validation error
+      end
+
+    #+END_SRC
+
+- Another approach would be to bypass the ~Artist~ struct and create
+  maps or keyword lists that we could pass directly to
+  ~Repo.insert_all~. We could add ~to_artist~ functions to ~Band~ and
+  ~SoloArtist~ to perform the conversion:
+  #+BEGIN_SRC elixir
+    def to_artist(band) do
+      {:ok, birth_date} = Date.new(band.year_started, 1, 1)
+      {:ok, death_date} = Date.new(band.year_ended, 12, 31)
+
+      %{name: band.name, birth_date: birth_date, death_date: death_date}
+    end
+  #+END_SRC
+  #+BEGIN_SRC elixir
+    def to_artist(solo_artist) do
+      name =
+        "#{solo_artist.name1} #{solo_artist.name2} #{solo_artist.name3}"
+        |> String.trim()
+
+      %{name: name, birth_date: solo_artist.birth_date,
+        death_date: solo_artist.death_date}
+    end
+  #+END_SRC
+  These two functions generate maps containing names and values of the
+  fields we want to insert into the ~artists~ table. We would then take
+  the output of these functions and pass them directly to
+  ~Repo.insert_all~:
+  #+BEGIN_SRC elixir
+    params = %{name: "580 West", year_started: 1991, year_ended: 1995}
+    band =
+      %Band{}
+      |> Band.changeset(params)
+      |> apply_changes()
+
+    Repo.insert_all("artists", [Band.to_artist(band)])
+
+    params = %{name1: "John", name2: "Cougar", name3: "Mellencamp",
+               birth_date: ~D[1951-10-07]}
+    solo_artist =
+      %SoloArtist{}
+      |> SoloArtist.changeset(params)
+      |> apply_changes()
+
+    Repo.insert_all("artists", [SoloArtist.to_artist(solo_artist)])
+  #+END_SRC
+- see http://blog.plataformatec.com.br/2016/05/ectos-insert_all-and-schemaless-queries
+** Tuning for Performance
+*** Optimizing Queries
+- One way to optimize your application is to change how it queries for
+  data. As a first step, we have two factors we can consider:
+  bandwidth and latency.
+- If we optimize for bandwidth, we reduce the amount of data sent from
+  the database to the application. This clears up network congestion,
+  and gives our app less to decode from the database’s wire format to
+  Elixir (which also eases the load on the CPU).
+- If we optimize for latency, we try to reduce the number of queries
+  needed to get the data we want. This can be critical in cloud
+  environments where the round-trip time to the database can be
+  several milliseconds longer than when you have the application and
+  database physically close together.
+- e.g.
+  #+BEGIN_SRC elixir
+    from a in Album,
+      join: t in assoc(a, :tracks),
+      join: ar in assoc(a, :artist),
+      preload: [tracks: t, artist: ar]
+  #+END_SRC
+  + When we use join statements in conjunction with preload , Ecto
+    will perform a single query against the database to fetch all of
+    the records at once. This optimizes for latency, but requires more
+    data to be sent from the database. In this approach we get some
+    duplicated data (like each album has the artist)
+  + If we want to optimize for bandwidth instead of latency, Ecto
+    provides us a few ways to fetch associations with multiple queries
+    rather than a single query with joins. Let’s look at a few
+    examples:
+    #+BEGIN_SRC elixir
+      # Preload with atoms or keyword
+      from a in Album, preload: [:tracks]
+
+      # Preload with anonymous functions
+      track_fun = fn album_ids ->
+        Repo.all(from(t in Track, where: t.album_id in ^album_ids))
+      end
+      Repo.all(from(a in Album, preload: [tracks: ^track_fun]))
+
+      # Using Repo.preload
+      albums = Repo.all(Album)
+      Repo.preload(albums, [:tracks])
+    #+END_SRC
+    When using preload without joins, Ecto fetches the associated
+    records with separate queries. This eliminates the duplicate data
+    problem we saw earlier, but adds extra round-trips to the
+    database.
+  + Which approach you should take depends on where your bottleneck
+    lies. It’s easy to think that it would be better to have fewer
+    queries, but if your slow performance is due to bandwidth
+    limitations, switching to preload in combination with join could
+    actually make your problem worse.
+- Another possibility to consider when working with associations is
+  to switch to embedded schemas.
+-  keep in mind that with any of these options, you can reduce the
+  amount of data Ecto needs to process by only selecting the columns
+  that you need. If you’re using schemas, Ecto’s default behavior is
+  to select all the fields you defined. If you have a large schema,
+  this could result in a lot of extra data that you may not be
+  using. But you can always use the select option in your queries to
+  fetch only the columns you want:
+
+  #+BEGIN_SRC elixir
+  q = from t in Track, select: [:title, :duration]
+  Repo.all(q)
+  #+END_SRC
+  This will load all of the ~tracks~ records in the database, but it
+  will only fetch the ~title~ and ~duration~ columns of each record. The
+  ~Track~ structs in the result set will still have the other fields,
+  but their values will be set to ~nil~.
+*** Executing Bulk Operations
+- The ~Repo.update_all~ and ~Repo.insert_all~ operations, allow you to
+  update and insert large groups of records with a single
+  query. Although they’re less commonly used than their counterparts
+  ~update~ and ~insert~, they can be very efficient for certain use
+  cases.
+- When using ~Repo.update~, you need to perform one query for each
+  record you want to update. Let’s look at how we might reset the
+  ~number_of_plays~ counter on our ~Track~ records back to ~0~:
+  #+BEGIN_SRC elixir
+    tracks = Repo.all(Track)
+    Enum.each(tracks, fn track ->
+      track
+      |> Ecto.Changeset.change(%{number_of_plays: 0})
+      |> Repo.update!()
+    end)
+  #+END_SRC
+  If our database had 1000 tracks, we’d need to run 1000 queries to
+  reset them all. But by using ~Repo.update_all~ we can accomplish the
+  same result with a single query:
+  #+BEGIN_SRC elixir
+  Repo.update_all(Track, set: [number_of_plays: 0])
+  #+END_SRC
+  + Apart from ~:set~ we can also use ~:inc~ to increase a number (you can
+    provide a negative number to decrease the number), ~:push~ to add to
+    the end of an array, and ~:pull~ to remove from an array. These are
+    atomic operations and they help you avoid having to query for a
+    value, change it, then put it back into the database.
+  + But you do give up some control in return. You cannot, for
+    example, guarantee that the arrays you’re manipulating contain
+    only unique values. In that case, you would want to use ~Changeset~
+    or ~Multi~ to coordinate the operation.
+- With ~Repo.insert_all~ we can perform bulk inserts. Let’s say that
+  we’re inserting a large number of ~Artist~ records. For the following
+  example, we’ll assume that ~artist_records~ contains a map of raw data
+  that we loaded from a CSV file, or a third-party API:
+  #+BEGIN_SRC elixir
+    artists =
+      Enum.map(artist_records, fn artist ->
+        %{name: artist["name"],
+          birth_date: artist["birth_date"],
+          death_date: artist["death_date"]}
+      end)
+    Repo.insert_all(Artist, artists)
+  #+END_SRC
+  + One thing to consider with ~insert_all~ is the amount of records
+    you’re inserting per query. Ecto uses parameterized queries, and
+    most databases have a limit on the number of parameters you can
+    have in a single query. As of this writing, PostgreSQL has a limit
+    of 32,767 and MySQL 65,535. If you’re inserting thousands of
+    records, there’s a chance that you could run into this limitation.
+
+    solution:
+    #+BEGIN_SRC elixir
+      chunks = Enum.chunk_every(artist_records, 1000)
+      Enum.each(chunks, fn chunk ->
+        artists_chunk =
+          Enum.map(chunk, fn artist ->
+            %{name: artist["name"],
+              birth_date: artist["birth_date"],
+              death_date: artist["death_date"]}
+          end)
+        Repo.insert_all(Artist, artists_chunk)
+      end)
+    #+END_SRC
+*** Fetching Large Datasets with Streams
+-
+  #+BEGIN_SRC elixir
+    stream =
+      Artist
+      |> Repo.stream()
+      |> Task.async_stream(fn artist ->
+      save_artist_record(artist)
+    end)
+
+    Repo.transaction(fn ->
+      Stream.run(stream)
+    end)
+  #+END_SRC
+  Note the use of ~Repo.transaction~ around the ~Stream.run~ call. We say
+  that a stream is “realized” when we start traversing it using any of
+  the ~Enum~ functions or ~Stream.run~. Any stream we create with
+  ~Repo.stream~ must be realized inside a transaction. For long-running
+  streams, you may need to increase the transaction timeout by
+  passing the ~:timeout~ option to ~Repo.transaction~. The default timeout
+  is 15 seconds, but you can use this option to set the timeout to any
+  value you like, including ~:infinity~.
