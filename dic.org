@@ -1,0 +1,8 @@
+- disjoint set
+  + In mathematics, two sets are said to be disjoint sets if they have
+    no element in common. Equivalently, two disjoint sets are sets
+    whose intersection is the empty
+- Euclidean Plane
+  + Two intersecting planes in three-dimensional space In mathematics,
+    a plane is a flat, two-dimensional surface that extends infinitely
+    far.

@@ -1,0 +1,316 @@
+- from https://d3gt.com
+
+- *Order*: of a graph is the number of vertices in the graph.
+
+- *Size*: of a graph is the number of edges in the graph.
+  + max size is ~(n*(n-1))/2~
+
+- Degree of a Vertex
+  + Degree of a vertex is the number of edges falling on it. It tells
+    us how many other vertices are adjacent to that vertex.
+
+- The minimum degree in a graph ~G~ is symbolized by ~δ(G)~. And the
+  maximum one by ~Δ(G)~. To avoid confusion between them, remember that
+  ~δ~ is the "small delta" and ~Δ~ is the "big delta".
+
+- Degree Sequence of a Graph
+  + Degree sequence of a graph is the list of degree of all the
+    vertices of the graph. Usually we list the degrees in
+    nonincreasing order, that is from largest degree to smallest
+    degree.
+  + sum of degree sequence is always twice the size of graph
+  + Theorem: The sum of degree of all vertices of a graph is twice the size of graph. Mathematically,
+    #+BEGIN_SRC
+    ∑deg(vi)=2|E|
+    #+END_SRC
+    where, ~|E|~ stands for the number of edges in the graph (size of graph).
+
+** Graphic Sequence
+- A sequence of numbers is said to be a graphic sequence if we can
+  construct a graph having the sequence as its degree sequence.
+
+- Let's say you have a list of numbers. Assign each number to an
+  isolated vertex. Now, can you connect these vertices in a way that
+  each vertex is adjacent to as many vertices as the number assigned
+  to it? If yes, then the list of numbers is graphic. Otherwise not.
+** Havel-Hakimi Algorithm
+- It is a difficult task to determine whether a sequence is graphic or
+  not. The Havel-Hakimi Theorem makes the task a lot easier.
+  #+BEGIN_SRC typescript
+    function graph_exist(vs: number[]) {
+      while (true) {
+        // sort the list in non-decreasing order
+        vs.sort().reverse();
+
+        // check if all the elements are equal to 0
+        if (vs[0] === 0 && vs[vs.length - 1] === 0) {
+          return true;
+        }
+
+        // store the first element in a variable and delete it from the list
+        let v = vs.shift();
+
+        if (v) {
+          if (v > vs.length) {
+            return false;
+          }
+
+          // subtract first element from next v elements
+          for (let i = 0; i < v; i += 1) {
+            vs[i] -= 1;
+
+            // check if negative element is encountered after subtraction
+            if (vs[i] < 0) {
+              return false;
+            }
+          }
+        } else {
+          console.log("fuck IDK, false maybe?");
+          return false;
+        }
+      }
+    }
+  #+END_SRC
+** Pigeonhole Principle
+- If we put n pigeons in less than n pigeonholes, then at least one
+  pigeonhole contains more than one pigeons.
+- In any graph having more than one vertex, there is at least one pair
+  of vertices having same degree. This means you can't have a graph of
+  ~order≥2~ with all distinct degrees. Some degree will repeat for
+  sure.
+  + explanation: Assume our graph has ~order=n~. A vertex can be
+    connected to a maximum of ~n−1~ other vertices. So ~0≤deg(vi)≤n−1~.
+
+    It appears that for our n vertices, there are n choices for degree
+    (from 0 to n−1). So, if we treat distinct degrees as pigeonholes
+    and the vertices as pigeons, shouldn't n disctinct degrees should
+    be possible then? No. Our further observations reveal why. Notice
+    that in a graph of order n, vertices with degrees 0 and n−1 cannot
+    exist simultaneously. If there exists a vertex with degree 0, it
+    means that this vertex is not connected to any other
+    vertex. Hence, a vertex cannot be connected to all the n−1 other
+    vertices. So we get ~0≤deg(vi)≤n−2~ in this case. If there does
+    not exist a vertex with degree 0, then we get ~1≤deg(vi)≤n−1~ in
+    this case. In both the above cases, we have n vertices (pigeons)
+    but only n−1 possible degrees (pigeonholes). So we're assured to
+    have a pigeonhole (degree) with more than one pigeon (vertex).
+** Regular Graph
+- A graph in which all the vertices have same degree is called a
+  regular graph.
+- A regular graph where degree of each vertex is k is called as
+  k-regular.
+- Find the number of edges in a k-regular graph of order n
+  ~|E|=(nk)/2~
+  This is derived from the fact that sum of degrees is twice the number of edges.
+  ~∑deg(vi)=2|E|~
+- We also see that the sum of degrees (nk) will be an odd number when
+  both n and k are odd. We cannot have number of edges as a fractional
+  number, and therefore a regular graph with both n and k odd cannot
+  exist.
+** Complete Graph
+- A graph in which each vertex is connected to every other vertex is
+  called a complete graph.
+
+- Note that degree of each vertex will be n−1, where n is the order of
+  graph.
+
+- So we can say that a complete graph of order n is nothing but a
+  (n−1)-regular graph of order n.
+
+- A complete graph of order n is denoted by Kn
+- the number of edges in a complete graph is ~(n(n−1))/2~. This is the
+  maximum achievable size for a graph of order n.
+
+** Bipartite Graph
+- A graph is said to be bipartite if we can divide the set of vertices
+  in two disjoint sets such that there is no edge between vertices
+  belonging to same set.
+- In a bipartite graph, the sum of degrees of vertices of each set is
+  equal to the number of edges.
+  [[file:bipartite.png][number_of_edges_in_bipartite_graph.png]]
+
+** Complete Bipartite Graph
+- Complete bipartite graph is a special type of bipartite graph where
+  every vertex of one set is connected to every vertex of other set.
+- If the two sets have p and q number of vertices, then we denote the
+  complete bipartite graph by Kp,q.
+- Properties: The following results hold true for a complete bipartite graph Kp,q.
+  + The order of graph is ~|V|=p+q~.
+  + The size of graph is ~|E|=pq~.
+  + This can be used to check if a bipartite graph is complete
+    bipartite or not.
+  + The degree sequence is ~(p,p,...,p,q,...,q)~ where p is repeated q
+    times and q is repeated p times. It is assumed here that p>q.
+** Walk
+- Walk is sequence of adjacent vertices (or edges) in a graph.
+- You can think of the vertices as cities and the edges as highways
+  connecting them. You start at a city and start travelling to other
+  cities. Then the route you travelled through can be called as a
+  "walk".
+- To describe the route uniquely, you have to list down the cities and
+  highways you travelled in that order. That's the idea of a walk.
+- While travelling the cities, you might have revisited some cities
+  and might have travelled through the same highway multiple
+  times. Similarly, in a walk you can repeat the vertices and edges.
+- The number of edges in the walk is called as the *length* of the
+  walk. It is one less than the number of vertices in the
+  walk. Repeated edges (or vertices) are counted each time they appear
+  in the walk.
+*** Open vs Closed Walks
+- A walk is said to be open if the first and the last vertices are
+  different i.e. the terminal vertices are different.
+- A walk is said to be closed if the first and last vertices are the
+  same. That means you start walking at a vertex and end up at the
+  same
+
+- *Trail* is an open walk where vertices can repeat, but not edges.
+
+- *Path* is an open walk with no repetition of vertices and edges.
+
+- If you make a trail (or path) closed by coinciding the terminal
+  vertices, then what you end up with is called a *circuit* (or *cycle*).
+
+- *Circuit* is a closed walk where vertices can repeat, but not edges.
+
+- *Cycle* is a closed walk where neither vertices nor edges can
+  repeat. But since it is closed, the first and the last vertices are
+  the same (one repetition).
+
+** Connectivity
+- A graph is said to be connected if a path can be drawn between any
+  two of its vertices. Otherwise, it is called disconnected.
+- Each maximal connected subgraph is called a connected component or
+  just component of the graph.
+
+** Eulerian Circuit
+- A circuit which visits each edge of the graph exactly once is called
+  as Eulerian circuit. In other words, an Eulerian circuit is a closed
+  walk which visits each edge of the graph exactly once.
+- A graph possessing an Eulerian circuit is known as Eulerian graph.
+- Theorem: A connected graph is Eulerian if and only if (<=>) the degree of
+  every vertex is an even number.
+
+** Eulerian Trail
+- An open walk which visits each edge of the graph exactly once is
+  called an *Eulerian Walk*. Since it is open and there is no repetition
+  of edges, it is also called *Eulerian Trail*.
+
+** Graph Coloring
+- Graph coloring is the assignment of colors to each vertex in a graph
+  such that no two adjacent vertices get the same color.
+
+** k-Colorable Graph
+- A graph is said to be k-colorable if it can be properly colored
+  using k colors.
+
+- For example, a bipartite graph is 2-colorable. To see this, just
+  assign two different colors to the two disjoint sets in a bipartite
+  graph.
+
+- Conversely, if a graph is 2-colorable, then the vertices having same
+  color can be taken as disjoint sets. Hence, we arrive at the
+  following result:
+
+- theorem: A graph is bipartite if and only if it is 2-colorable.
+
+- Now, consider a graph that is k-colored. Choose any one vertex of
+  the graph and replace it's color by a new (k+1)th color. Clearly,
+  the graph is still properly colored.
+  + Note: If a graph is k-colorable, then it is also (k+n)-colorable,
+    n≥1.
+** Chromatic Number
+- Chromatic number of a graph is the minimum value of k for which the
+  graph is k-colorable. In other words, it is the minimum number of
+  colors needed for a proper-coloring of the graph.
+- Chromatic number of a graph G is denoted by χ(G). And a graph with
+  χ(G)=k is called a k-chromatic graph.
+
+- Empty Graph: It's a graph without any edges (|E|=0). All the
+  vertices are isolated. χ(G)=1. Note that an empty graph is also
+  bipartite.
+
+- Bipartite Graph: An empty bipartite graph has χ(G)=1. A non-empty
+  bipartite graph has χ(G)=2. Using this, we arrive at the following
+  result.
+
+- Theorem: A graph G is bipartite if and only if χ(G)≤2.
+  + This can be easily established by observing that any graph with
+    χ(G)≤2 is 2-colorable, and hence bipartite. The converse, has
+    already been established earlier.
+
+- Star Graph: A star graph of order n+1, denoted by Sn+1, is the
+  complete bipartite graph K1,n, where n≥0. So, it has same chromatic
+  number as a bipartite graph
+
+- Cycle graph: A cycle graph of order n is denoted by Cn. A cycle of
+  odd order has χ(C2n+1)=3, and that of even order has χ(C2n)=2. So, a
+  cycle of even order is also bipartite..
+
+- Wheel graph: A wheel graph of order n+1 is obtained from Cn by
+  connecting all its vertices to a new vertex (called hub). Wheel
+  graph of order n is denoted by Wn. A wheel of odd order has
+  χ(W2n+1)=4, and that of even order has χ(W2n)=3.
+
+- Complete Graph: Since each vertex is connected to every other
+  vertex, we have χ(Kn)=n.
+** Trees
+- A *forest* is an acyclic graph, that is a graph without any cycles. It
+  can be a single connected graph or have multiple disconnected
+  components. When its a single connected graph, we call it a *tree*.
+- So, a tree is a connected acyclic graph. And a forest is just a
+  collection of one or more trees.
+
+- Theorem: A connected graph is a tree iff its order is one more than
+  its size. In mathematical notation, we can write this as
+  #+BEGIN_SRC
+  |V|=|E|+1
+  #+END_SRC
+  + Note that statement is biconditional. So it also says that a
+    connected graph satisfying the above equation is a tree.
+
+- Property: For a tree with more than one vertices, there is a unique
+  path between any two of its vertices.
+
+- Property: A tree is minimally connected, which means that removal of
+  any arbitrary edge from it will convert it into a disconnected
+  graph.
+
+** Rooted Trees
+- *Branch* is just another name given to edges of the tree.
+
+- *Depth of a vertex* is the number of branches in the path from root
+  to the vertex. So depth of the root itself is zero.
+
+- *Level of a vertex* is number of vertex in the path from root to the
+  vertex. This is just one more than the depth of the vertex. Level of
+  root is 1.
+
+- *Child of a vertex* v1 is any vertex v2 connected to it such that
+  d(v2)=d(v1)+1, where d(v) denotes depth of vertex v. v1 is called
+  parent of v2. Usually, in diagrams, we keep the parent vertex above
+  its child vertices.
+  + Note: There can be multiple childs of a vertex, but parent of a
+    vertex is unique. Root is the only vertex in a tree without any
+    parent.
+- A *leaf* is a vertex without any child.
+
+- Height of tree is the maximum value of depth for any vertex in the
+  tree.
+
+- Theorem: All tree graphs are bipartite.
+  + This can be easily seen by coloring all the vertices at even depth
+    in a color, say pink, and coloring the vertices at odd depth in
+    another color, say cyan. So, any tree is 2-colorable.
+** Spanning Tree of a Graph
+- Spanning tree of a graph is a subgraph of it which forms a tree and
+  contains (or spans) all the vertices of the graph.
+- So if the given graph G has n vertices, we're looking for a subgraph
+  of G which
+  + has n vertices
+  + has n−1 edges
+  + is connected
+- Note: The graph itself must be connected in order to obtain its
+  spanning tree.
+
+- So if the graph is connected, we just need to delete some of its
+  edges so that there is no cycle and it remains connected.
