@@ -44,3 +44,4 @@
 - Simhash
 - Diffie-Hellman
 - Closest Pair of Points
+- Counting Inversions
