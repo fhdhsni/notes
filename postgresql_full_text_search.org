@@ -132,3 +132,39 @@
   #+END_SRC
 
 ** Parsing Documents
+- ~to_tsvector~
+  + ~to_tsvector~ parses a textual document into tokens, reduces the
+    tokens to lexemes, and returns a tsvector which lists the lexemes
+    together with their positions in the document. The document is
+    processed according to the specified or default text search
+    configuration. Here is a simple example:
+    #+BEGIN_SRC text
+      SELECT to_tsvector('english', 'a fat  cat sat on a mat - it ate a fat rats');
+
+                        to_tsvector
+      -----------------------------------------------------
+       'ate':9 'cat':3 'fat':2,11 'mat':7 'rat':12 'sat':4
+    #+END_SRC
+
+- ~setweight~
+  + The function ~setweight~ can be used to label the entries of a
+    tsvector with a given weight, where a weight is one of the letters
+    A, B, C, or D. This is typically used to mark entries coming from
+    different parts of a document, such as title versus body. Later,
+    this information can be used for ranking of search result
+    #+BEGIN_SRC sql
+      UPDATE tt SET ti =
+          setweight(to_tsvector(coalesce(title,'')), 'A')    ||
+          setweight(to_tsvector(coalesce(keyword,'')), 'B')  ||
+          setweight(to_tsvector(coalesce(abstract,'')), 'C') ||
+          setweight(to_tsvector(coalesce(body,'')), 'D');
+    #+END_SRC
+- ~to_tsquery~, ~plainto_tsquery~, ~phraseto_tsquery~ and ~websearch_to_tsquery~:
+  +
+    #+BEGIN_SRC sql
+      SELECT to_tsquery('english', 'The & Fat & Rats');
+        to_tsquery
+      ---------------
+       'fat' & 'rat'
+    #+END_SRC
+*** Ranking Search Results

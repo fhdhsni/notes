@@ -45,3 +45,100 @@
 - Diffie-Hellman
 - Closest Pair of Points
 - Counting Inversions
+
+* Algorithm Design Manual
+** tools
+
+*** Expressing Algorithms
+- Reasoning about an algorithm is impossible without a careful
+  description of the sequence of steps to be performed. The three most
+  common forms of algorithmic notation are (1) English, (2)
+  pseudocode, or (3) a real programming language.
+
+*** Problems and Properties
+- We also need a careful description of the problem that it is
+  intended to solve.
+  + Problem specifications have two parts:
+    1. the set of allowed input instances
+    2. the required properties of the algorithm’s output
+- Take-Home Lesson:
+  + An important and honorable technique in algorithm design is to
+    narrow the set of allowable instances until there is a correct and
+    efficient algorithm. For example, we can restrict a graph problem
+    from general graphs down to trees, or a geometric problem from two
+    dimensions down to one.
+
+*** Demonstrating Incorrectness
+- The best way to prove that an algorithm is incorrect is to produce
+  an instance in which it yields an incorrect answer. Such instances
+  are called counter-examples
+  + Verifiability – To demonstrate that a particular instance is a
+    counter-example to a particular algorithm, you must be able to
+    1. calculate what answer your algorithm will give in this instance, and
+    2. display a better answer so as to prove the algorithm didn’t
+       find it.
+  + Simplicity – Good counter-examples have all unnecessary details
+    boiled away. They make clear exactly why the proposed algorithm
+    fails. Once a counterexample has been found, it is worth
+    simplifying it down to its essence.
+*** Induction and Recursion
+- recursion is mathematical induction. In both, we have general and
+  boundary conditions, with the general condition breaking the problem
+  into smaller and smaller pieces. The initial or boundary condition
+  terminates the recursion. Once you understand either recursion or
+  induction, you should be able to see why the other one also works.
+
+- sample induction proof
+  - Problem: Prove the correctness of the following recursive
+    algorithm for incrementing natural numbers, i.e. y → y + 1:
+
+    pseudocode
+    #+BEGIN_SRC text
+      Increment(y)
+        if y = 0 then return(1) else
+            if (y mod 2) = 1 then
+                return(2 · Increment( y/2 ))
+            else return(y + 1)
+    #+END_SRC
+
+    cpp implementation code
+    #+BEGIN_SRC cpp
+      int increment(int y) {
+        if (y == 0) return 1;
+
+        if(y % 2 == 1) {
+          return 2 * increment(y/2);
+        }
+
+        return y + 1;
+      }
+    #+END_SRC
+    + The basis case of y = 0 is obviously correctly handled. Clearly
+      the value 1 is returned, and 0 + 1 = 1.
+
+    + Now assume the function works correctly for the general case of
+      y = n−1. Given this, we must demonstrate the truth for the case
+      of y = n. Half of the cases are easy, namely the even numbers
+      (For which (y mod 2) = 0), since y + 1 is explicitly returned.
+    + For the odd numbers, the answer depends upon what is returned by
+      ~Increment(y/2)~. Here we want to use our inductive assumption,
+      but it isn’t quite right. We have assumed that increment worked
+      correctly for y = n − 1, but not for a value which is about half
+      of it. We can fix this problem by strengthening our assumption
+      to declare that the general case holds for all y ≤ n−1. This
+      costs us nothing in principle, but is necessary to establish the
+      correctness of the algorithm
+    + Now, the case of odd y (i.e. y = 2m + 1 for some integer m) can be dealt with as:
+      #+BEGIN_SRC text
+        2 · Increment( (2m + 1)/2 ) = 2 · Increment( m + 1/2 )
+                                    = 2 · Increment(m)
+                                    = 2(m + 1)
+                                    = 2m + 2 = y + 1
+      #+END_SRC
+      and the general case is resolved
+
+*** Summations
+- Recognizing two basic classes of summation formulae will get you a
+  long way in algorithm analysis:
+  + Arithmetic progressions:
+  +
